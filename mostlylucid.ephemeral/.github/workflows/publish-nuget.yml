@@ -3,12 +3,7 @@ name: Publish NuGet Packages
 on:
   push:
     tags:
-      - 'v*.*.*'              # Core package: v1.0.0
-      - 'atoms-*-v*.*.*'      # Atom packages: atoms-fixedwork-v1.0.0
-      - 'patterns-*-v*.*.*'   # Pattern packages: patterns-circuitbreaker-v1.0.0
-
-env:
-  DOTNET_VERSION: '10.0.x'
+      - 'v*.*.*'                    # e.g., v1.0.0 or v1.0.0-preview
 
 jobs:
   build-and-publish:
@@ -26,48 +21,71 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-version: |
+            6.0.x
+            7.0.x
+            8.0.x
+            9.0.x
+            10.0.x
           dotnet-quality: 'preview'
 
-      - name: Determine package to publish
-        id: package
+      - name: Extract version from tag
+        id: version
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
-          echo "Tag: $TAG"
+          VERSION="${TAG#v}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Publishing version: ${VERSION}"
 
-          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
-            echo "project=src/mostlylucid.ephemeral/mostlylucid.ephemeral.csproj" >> $GITHUB_OUTPUT
-            echo "version=${TAG#v}" >> $GITHUB_OUTPUT
-            echo "package=mostlylucid.ephemeral" >> $GITHUB_OUTPUT
-          elif [[ "$TAG" =~ ^atoms-([a-z]+)-v([0-9]+\.[0-9]+\.[0-9]+.*)$ ]]; then
-            ATOM="${BASH_REMATCH[1]}"
-            VERSION="${BASH_REMATCH[2]}"
-            echo "project=src/mostlylucid.ephemeral.atoms.${ATOM}/mostlylucid.ephemeral.atoms.${ATOM}.csproj" >> $GITHUB_OUTPUT
-            echo "version=${VERSION}" >> $GITHUB_OUTPUT
-            echo "package=mostlylucid.ephemeral.atoms.${ATOM}" >> $GITHUB_OUTPUT
-          elif [[ "$TAG" =~ ^patterns-([a-z]+)-v([0-9]+\.[0-9]+\.[0-9]+.*)$ ]]; then
-            PATTERN="${BASH_REMATCH[1]}"
-            VERSION="${BASH_REMATCH[2]}"
-            echo "project=src/mostlylucid.ephemeral.patterns.${PATTERN}/mostlylucid.ephemeral.patterns.${PATTERN}.csproj" >> $GITHUB_OUTPUT
-            echo "version=${VERSION}" >> $GITHUB_OUTPUT
-            echo "package=mostlylucid.ephemeral.patterns.${PATTERN}" >> $GITHUB_OUTPUT
-          else
-            echo "Unknown tag format: $TAG"
-            exit 1
-          fi
+      - name: Restore solution
+        run: dotnet restore mostlylucid.ephemeral.sln
 
-      - name: Restore dependencies
-        run: dotnet restore ${{ steps.package.outputs.project }}
-
-      - name: Build
-        run: dotnet build ${{ steps.package.outputs.project }} --configuration Release --no-restore
+      - name: Build solution
+        run: dotnet build mostlylucid.ephemeral.sln --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test --configuration Release --no-build --verbosity normal
+        run: dotnet test mostlylucid.ephemeral.sln --configuration Release --no-build --verbosity normal
         continue-on-error: true
 
-      - name: Pack
-        run: dotnet pack ${{ steps.package.outputs.project }} --configuration Release --no-build -p:PackageVersion=${{ steps.package.outputs.version }} --output ./nupkg
+      - name: Pack all packages
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          mkdir -p ./nupkg
+
+          # Core package
+          dotnet pack src/mostlylucid.ephemeral/mostlylucid.ephemeral.csproj \
+            --configuration Release --no-build \
+            -p:PackageVersion=$VERSION \
+            --output ./nupkg
+
+          # Atom packages
+          for proj in src/mostlylucid.ephemeral.atoms.*/*.csproj; do
+            dotnet pack "$proj" --configuration Release --no-build \
+              -p:PackageVersion=$VERSION \
+              --output ./nupkg
+          done
+
+          # Pattern packages
+          for proj in src/mostlylucid.ephemeral.patterns.*/*.csproj; do
+            dotnet pack "$proj" --configuration Release --no-build \
+              -p:PackageVersion=$VERSION \
+              --output ./nupkg
+          done
+
+          # SQLite demo
+          dotnet pack src/mostlylucid.ephemeral.sqlite.singlewriter/mostlylucid.ephemeral.sqlite.singlewriter.csproj \
+            --configuration Release --no-build \
+            -p:PackageVersion=$VERSION \
+            --output ./nupkg
+
+          # Complete bundle
+          dotnet pack src/mostlylucid.ephemeral.complete/mostlylucid.ephemeral.complete.csproj \
+            --configuration Release --no-build \
+            -p:PackageVersion=$VERSION \
+            --output ./nupkg
+
+      - name: List packages
+        run: ls -la ./nupkg/
 
       - name: Push to NuGet
         run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate

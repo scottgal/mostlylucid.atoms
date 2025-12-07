@@ -1,0 +1,8 @@
+v1.0.0
+- Initial release
+- EphemeralWorkCoordinator for bounded async execution
+- EphemeralKeyedWorkCoordinator for per-key ordering
+- PriorityWorkCoordinator for priority lanes
+- Signal-based coordination (SignalSink, SignalDispatcher)
+- ParallelEphemeral extension methods
+- DI integration
