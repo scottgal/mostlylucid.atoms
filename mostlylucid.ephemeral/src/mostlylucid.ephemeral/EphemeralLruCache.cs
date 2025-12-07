@@ -1,11 +1,10 @@
 using System.Collections.Concurrent;
 
-namespace Mostlylucid.Ephemeral.Sqlite;
+namespace Mostlylucid.Ephemeral;
 
 /// <summary>
-/// Self-focusing LRU cache that uses an ephemeral coordinator to track access patterns.
-/// Hot keys stay cached longer; cold keys are evicted faster.
-/// Demonstrates: singleton coordinator for background eviction, signal-based access tracking.
+/// Self-focusing LRU cache: sliding expiration on every hit, with extended TTL for hot keys.
+/// Emits signals for hit/miss/hot/evict and cleans up via a background coordinator.
 /// </summary>
 public sealed class EphemeralLruCache<TKey, TValue> : IAsyncDisposable where TKey : notnull
 {
@@ -34,12 +33,14 @@ public sealed class EphemeralLruCache<TKey, TValue> : IAsyncDisposable where TKe
 
         // Singleton eviction coordinator - background cleanup
         _evictionCoordinator = new EphemeralWorkCoordinator<EvictionWork>(
-            async (work, ct) =>
+            (work, ct) =>
             {
                 if (work.Type == EvictionWorkType.Evict && _cache.TryRemove(work.Key, out _))
                 {
                     _signals.Raise(new SignalEvent($"cache.evict:{work.Key}", EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
                 }
+
+                return Task.CompletedTask;
             },
             new EphemeralOptions
             {
@@ -48,25 +49,30 @@ public sealed class EphemeralLruCache<TKey, TValue> : IAsyncDisposable where TKe
                 Signals = _signals
             });
 
-        _evictionLoop = Task.Run(RunEvictionLoopAsync);
+    _evictionLoop = Task.Run(RunEvictionLoopAsync);
     }
 
     /// <summary>
-    /// Gets or adds a value. Hot keys (frequently accessed) get extended TTL.
+    /// Gets or adds a value. Sliding expiry on every hit; hot keys get extended TTL.
     /// </summary>
-    public TValue GetOrAdd(TKey key, Func<TKey, TValue> factory)
+    public TValue GetOrAdd(TKey key, Func<TKey, TValue> factory) =>
+        GetOrAdd(key, factory, ttl: null);
+
+    public TValue GetOrAdd(TKey key, Func<TKey, TValue> factory, TimeSpan? ttl)
     {
         var now = DateTimeOffset.UtcNow;
+        var effectiveTtl = ttl ?? _defaultTtl;
 
         if (_cache.TryGetValue(key, out var entry))
         {
             entry.AccessCount++;
             entry.LastAccess = now;
 
-            // Hot key? Extend expiry
-            if (entry.AccessCount >= _hotAccessThreshold)
+            var isHot = entry.AccessCount >= _hotAccessThreshold;
+            entry.Expiry = now + (isHot ? _hotKeyExtension : entry.BaseTtl); // sliding refresh; hot keys get longer TTL
+
+            if (isHot)
             {
-                entry.Expiry = now + _hotKeyExtension;
                 if (ShouldSample())
                     _signals.Raise(new SignalEvent($"cache.hot:{key}", EphemeralIdGenerator.NextId(), null, now));
             }
@@ -78,16 +84,14 @@ public sealed class EphemeralLruCache<TKey, TValue> : IAsyncDisposable where TKe
             return entry.Value;
         }
 
-        // Miss - create new entry
         var value = factory(key);
-        var newEntry = new CacheEntry(value, now + _defaultTtl, now);
+        var newEntry = new CacheEntry(value, now + effectiveTtl, now, effectiveTtl);
 
         if (_cache.TryAdd(key, newEntry))
         {
             if (ShouldSample())
                 _signals.Raise(new SignalEvent($"cache.miss:{key}", EphemeralIdGenerator.NextId(), null, now));
 
-            // Enforce max size
             if (_cache.Count > _maxSize)
                 _ = _evictionCoordinator.EnqueueAsync(new EvictionWork(key, EvictionWorkType.TriggerCleanup));
         }
@@ -98,18 +102,24 @@ public sealed class EphemeralLruCache<TKey, TValue> : IAsyncDisposable where TKe
     /// <summary>
     /// Async version with factory.
     /// </summary>
-    public async Task<TValue> GetOrAddAsync(TKey key, Func<TKey, Task<TValue>> factory)
+    public Task<TValue> GetOrAddAsync(TKey key, Func<TKey, Task<TValue>> factory) =>
+        GetOrAddAsync(key, factory, ttl: null);
+
+    public async Task<TValue> GetOrAddAsync(TKey key, Func<TKey, Task<TValue>> factory, TimeSpan? ttl)
     {
         var now = DateTimeOffset.UtcNow;
+        var effectiveTtl = ttl ?? _defaultTtl;
 
         if (_cache.TryGetValue(key, out var entry))
         {
             entry.AccessCount++;
             entry.LastAccess = now;
 
-            if (entry.AccessCount >= _hotAccessThreshold)
+            var isHot = entry.AccessCount >= _hotAccessThreshold;
+            entry.Expiry = now + (isHot ? _hotKeyExtension : entry.BaseTtl); // sliding refresh; hot keys get longer TTL
+
+            if (isHot)
             {
-                entry.Expiry = now + _hotKeyExtension;
                 if (ShouldSample())
                     _signals.Raise(new SignalEvent($"cache.hot:{key}", EphemeralIdGenerator.NextId(), null, now));
             }
@@ -122,7 +132,7 @@ public sealed class EphemeralLruCache<TKey, TValue> : IAsyncDisposable where TKe
         }
 
         var value = await factory(key);
-        var newEntry = new CacheEntry(value, now + _defaultTtl, now);
+        var newEntry = new CacheEntry(value, now + effectiveTtl, now, effectiveTtl);
 
         if (_cache.TryAdd(key, newEntry))
         {
@@ -161,6 +171,45 @@ public sealed class EphemeralLruCache<TKey, TValue> : IAsyncDisposable where TKe
         var expiredCount = entries.Count(e => e.Value.Expiry < now);
 
         return new CacheStats(_cache.Count, hotCount, expiredCount, _maxSize);
+    }
+
+    /// <summary>
+    /// Try to get without invoking the factory. Applies sliding refresh on hit.
+    /// </summary>
+    public bool TryGet(TKey key, out TValue? value)
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        if (_cache.TryGetValue(key, out var entry))
+        {
+            if (entry.Expiry < now)
+            {
+                _cache.TryRemove(key, out _);
+                value = default;
+                return false;
+            }
+
+            entry.AccessCount++;
+            entry.LastAccess = now;
+            var isHot = entry.AccessCount >= _hotAccessThreshold;
+            entry.Expiry = now + (isHot ? _hotKeyExtension : entry.BaseTtl);
+
+            if (isHot)
+            {
+                if (ShouldSample())
+                    _signals.Raise(new SignalEvent($"cache.hot:{key}", EphemeralIdGenerator.NextId(), null, now));
+            }
+            else if (ShouldSample())
+            {
+                _signals.Raise(new SignalEvent($"cache.hit:{key}", EphemeralIdGenerator.NextId(), null, now));
+            }
+
+            value = entry.Value;
+            return true;
+        }
+
+        value = default;
+        return false;
     }
 
     private bool ShouldSample()
@@ -223,13 +272,15 @@ public sealed class EphemeralLruCache<TKey, TValue> : IAsyncDisposable where TKe
         public DateTimeOffset Expiry { get; set; }
         public DateTimeOffset LastAccess { get; set; }
         public int AccessCount { get; set; }
+        public TimeSpan BaseTtl { get; }
 
-        public CacheEntry(TValue value, DateTimeOffset expiry, DateTimeOffset lastAccess)
+        public CacheEntry(TValue value, DateTimeOffset expiry, DateTimeOffset lastAccess, TimeSpan baseTtl)
         {
             Value = value;
             Expiry = expiry;
             LastAccess = lastAccess;
             AccessCount = 1;
+            BaseTtl = baseTtl;
         }
     }
 
