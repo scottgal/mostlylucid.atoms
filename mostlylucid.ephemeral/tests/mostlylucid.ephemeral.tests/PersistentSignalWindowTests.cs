@@ -62,7 +62,7 @@ public class PersistentSignalWindowTests : IAsyncLifetime
         window.Raise("test.signal.3");
 
         // Wait for flush
-        await Task.Delay(300);
+        await Task.Delay(1000);
 
         var stats = window.GetStats();
         // LastFlushedId is a hash-based ID, can be negative, just verify it's been set

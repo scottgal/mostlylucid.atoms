@@ -2,5 +2,8 @@
   <PropertyGroup>
     <!-- Suppress preview SDK warning noise across all projects -->
     <NoWarn>$(NoWarn);NETSDK1057</NoWarn>
+    <!-- Allow version overrides (e.g., v1.2.0) to be trimmed -->
+    <PackageVersion Condition="'$(PackageVersion)' != '' And $([System.String]::Copy($(PackageVersion)).StartsWith('v'))">$(PackageVersion.Substring(1))</PackageVersion>
+    <Version Condition="'$(Version)' != '' And $([System.String]::Copy($(Version)).StartsWith('v'))">$(Version.Substring(1))</Version>
   </PropertyGroup>
 </Project>
