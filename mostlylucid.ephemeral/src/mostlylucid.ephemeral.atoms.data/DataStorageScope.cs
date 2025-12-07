@@ -93,7 +93,16 @@ public sealed class DataStorageScope : IAsyncDisposable
         var type = storageType ?? _defaultStorageType;
         var key = $"{name}:{type}";
 
-        var storage = _storages.GetOrAdd(key, _ => CreateStorage(name, type));
+        object? storage = null;
+        try
+        {
+            storage = _storages.GetOrAdd(key, _ => CreateStorage(name, type));
+        }
+        catch (Exception ex)
+        {
+            _signals.Raise(typeof(TStorage).Name + ".storage.error:" +ex.HResult);
+            throw;
+        }
 
         if (storage is TStorage typed)
             return typed;

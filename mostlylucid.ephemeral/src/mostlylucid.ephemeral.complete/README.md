@@ -64,6 +64,28 @@ await items.EphemeralForEachAsync(
     new EphemeralOptions { MaxConcurrency = 8 });
 ```
 
+### Attribute-driven jobs
+
+`mostlylucid.ephemeral.complete` bundles `mostlylucid.ephemeral.attributes`, so attribute-based pipelines are part of the default surface. Decorate methods with `[EphemeralJob]`/`[EphemeralJobs]`, point them at your shared `SignalSink`, and feed them into `EphemeralSignalJobRunner` for the same signal-wave/log-watcher experience.
+
+```csharp
+[EphemeralJobs(SignalPrefix = "stage", DefaultLane = "pipeline")]
+public sealed class StageJobs
+{
+    [EphemeralJob("ingest", EmitOnComplete = new[] { "stage.ingest.done" })]
+    public Task IngestAsync(SignalEvent evt) => Console.Out.WriteLineAsync(evt.Signal);
+
+    [EphemeralJob("finalize")]
+    public Task FinalizeAsync(SignalEvent evt) => Console.Out.WriteLineAsync("final stage");
+}
+
+var sink = new SignalSink();
+await using var runner = new EphemeralSignalJobRunner(sink, new[] { new StageJobs() });
+sink.Raise("stage.ingest");
+```
+
+Attribute jobs emit completion/failure signals, honor priority/concurrency/lane settings, and plug into the same caches/log adapters you use elsewhere in the README.
+
 ---
 
 ## Core Coordinators

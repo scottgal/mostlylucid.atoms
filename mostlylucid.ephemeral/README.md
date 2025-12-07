@@ -110,6 +110,28 @@ if (snapshot.HasResult)
     Console.WriteLine(snapshot.Result);
 ```
 
+## Attribute-driven jobs
+
+`mostlylucid.ephemeral.attributes` ships with the core packages and lets you decorate methods with `[EphemeralJob]` or `[EphemeralJobs]` to react to `SignalSink` events declaratively. Load the handlers with `EphemeralSignalJobRunner` and you get the same signal-wave/log-watcher orchestration, just wired through attributes.
+
+```csharp
+[EphemeralJobs(SignalPrefix = "stage", DefaultLane = "pipeline")]
+public sealed class StageJobs
+{
+    [EphemeralJob("ingest", EmitOnComplete = new[] { "stage.ingest.done" })]
+    public Task IngestAsync(SignalEvent evt) => Console.Out.WriteLineAsync(evt.Signal);
+
+    [EphemeralJob("finalize")]
+    public Task FinalizeAsync(SignalEvent evt) => Console.Out.WriteLineAsync("final stage");
+}
+
+var sink = new SignalSink();
+await using var runner = new EphemeralSignalJobRunner(sink, new[] { new StageJobs() });
+sink.Raise("stage.ingest");
+```
+
+Attribute jobs are now a core surface—they emit completion/failure signals, support priority/concurrency settings, and plug into the same caches, log adapters, and workflows you already build with signals.
+
 ## Coordinator Selection Guide
 
 | Scenario | Coordinator |

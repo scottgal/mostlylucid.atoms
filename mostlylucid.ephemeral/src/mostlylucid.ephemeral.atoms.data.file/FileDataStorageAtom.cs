@@ -92,6 +92,7 @@ public sealed class FileDataStorageAtom<TKey, TValue> : DataStorageAtomBase<TKey
         await System.IO.File.WriteAllTextAsync(tempPath, json, ct).ConfigureAwait(false);
 
         // Atomic move (overwrite if exists)
+        
         System.IO.File.Move(tempPath, path, overwrite: true);
     }
 
