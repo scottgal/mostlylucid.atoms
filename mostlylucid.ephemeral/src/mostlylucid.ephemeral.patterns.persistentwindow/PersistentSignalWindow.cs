@@ -18,7 +18,8 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private SqliteConnection? _writeConnection;
     private bool _initialized;
-    private long _lastFlushedId;
+    private readonly HashSet<long> _flushedIds = new();
+    private long _lastFlushedId; // For stats/backward compat
     private int _signalCount;
     private readonly int _sampleRate;
 
@@ -152,9 +153,14 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
             {
                 // Expected on shutdown
             }
-            catch
+            catch (Exception ex)
             {
-                // Log and continue
+                // Emit error signal so callers can observe and react
+                _sink.Raise(new SignalEvent(
+                    $"window.flush.loop.error:{ex.GetType().Name}",
+                    EphemeralIdGenerator.NextId(),
+                    null,
+                    DateTimeOffset.UtcNow));
             }
         }
     }
@@ -221,9 +227,10 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
 
     private async Task FlushInternalAsync(CancellationToken ct)
     {
+        // Use HashSet to track flushed IDs since EphemeralIdGenerator uses hash-based IDs (not sequential)
         var signals = _sink.Sense()
-            .Where(s => s.OperationId > _lastFlushedId)
-            .OrderBy(s => s.OperationId)
+            .Where(s => !_flushedIds.Contains(s.OperationId))
+            .OrderBy(s => s.Timestamp) // Order by timestamp since IDs aren't sequential
             .Take(_maxSignalsPerFlush)
             .ToList();
 
@@ -250,6 +257,7 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
                 keyParam.Value = signal.Key ?? (object)DBNull.Value;
                 tsParam.Value = signal.Timestamp.ToString("O");
                 await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+                _flushedIds.Add(signal.OperationId);
             }
 
             await tx.CommitAsync(ct).ConfigureAwait(false);
@@ -273,7 +281,7 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
             : DateTimeOffset.MinValue;
 
         await using var cmd = _writeConnection!.CreateCommand();
-        cmd.CommandText = "SELECT operation_id, signal, key, timestamp FROM signals WHERE timestamp >= @cutoff ORDER BY operation_id";
+        cmd.CommandText = "SELECT operation_id, signal, key, timestamp FROM signals WHERE timestamp >= @cutoff ORDER BY timestamp";
         cmd.Parameters.AddWithValue("@cutoff", cutoff.ToString("O"));
 
         var loaded = 0;
@@ -288,8 +296,9 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
             var evt = new SignalEvent(signal, opId, source, timestamp);
             _sink.Raise(evt);
 
-            if (opId > _lastFlushedId)
-                _lastFlushedId = opId;
+            // Track as already flushed so we don't flush again
+            _flushedIds.Add(opId);
+            _lastFlushedId = opId;
 
             loaded++;
         }

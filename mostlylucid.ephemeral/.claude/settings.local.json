@@ -5,7 +5,8 @@
       "Bash(dir:*)",
       "Bash(findstr:*)",
       "Bash(copy:*)",
-      "Bash(dotnet sln:*)"
+      "Bash(dotnet sln:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

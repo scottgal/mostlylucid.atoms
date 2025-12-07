@@ -533,4 +533,4 @@ Unlicense (public domain)
 
 ## Contributing
 
-Contributions welcome! Please open an issue or PR at [GitHub](https://github.com/scottgal/mostlylucid.ephemeral).
+Contributions welcome! Please open an issue or PR at [GitHub](https://github.com/scottgal/mostlylucid.atoms).

@@ -15,7 +15,7 @@
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageIcon>icon.png</PackageIcon>
         <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(MSBuildProjectDirectory)/ReleaseNotes.txt"))</PackageReleaseNotes>
-        <RepositoryUrl>https://github.com/scottgal/mostlylucid.ephemeral</RepositoryUrl>
+        <RepositoryUrl>https://github.com/scottgal/mostlylucid.atoms</RepositoryUrl>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     </PropertyGroup>
 
@@ -25,7 +25,13 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Compile Include="..\mostlylucid.ephemeral.logging\**\*.cs" Link="Logging\%(RecursiveDir)%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.logging\*.cs" Link="Logging\%(Filename)%(Extension)" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="..\mostlylucid.ephemeral.attributes\**\*.cs" Link="Attributes\%(RecursiveDir)%(Filename)%(Extension)" />
+        <Compile Remove="..\mostlylucid.ephemeral.attributes\bin\**\*.cs" />
+        <Compile Remove="..\mostlylucid.ephemeral.attributes\obj\**\*.cs" />
     </ItemGroup>
 
     <ItemGroup>

@@ -51,9 +51,14 @@ public sealed class SignalLogWatcher : IAsyncDisposable
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Swallow to keep the watcher alive
+                // Emit error signal so callers can observe watcher health
+                _sink.Raise(new SignalEvent(
+                    $"watcher.error:{ex.GetType().Name}",
+                    EphemeralIdGenerator.NextId(),
+                    _pattern,
+                    DateTimeOffset.UtcNow));
             }
 
             try

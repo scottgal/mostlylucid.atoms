@@ -13,7 +13,7 @@
     <PackageTags>logging;signals;adapter</PackageTags>
     <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <RepositoryUrl>https://github.com/scottgal/mostlylucid.ephemeral</RepositoryUrl>
+    <RepositoryUrl>https://github.com/scottgal/mostlylucid.atoms</RepositoryUrl>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
 

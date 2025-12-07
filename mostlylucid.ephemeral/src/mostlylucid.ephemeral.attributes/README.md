@@ -1,23 +1,157 @@
 # Mostlylucid.Ephemeral.Attributes
 
-Declaratively register signal-driven jobs using attributes on instance methods.
+Attribute-driven, signal-aware jobs that wire themselves into an `EphemeralWorkCoordinator`.
 
-## Getting started
+This package exposes:
 
-1. Annotate your job methods with `[EphemeralJob("signal.pattern")]`. Supported signatures:
-   ```csharp
-   [EphemeralJob("orders.process")]
-   public async Task ProcessOrdersAsync(CancellationToken ct, SignalEvent signal) { ... }
-   ```
-   Methods may also omit arguments or take only `CancellationToken` or only `SignalEvent`.
+| API | What it does |
+| --- | --- |
+| `[EphemeralJob("signal.pattern")]` | Decorates a method (returning `Task` or `ValueTask`) with the matching signal pattern trigger. Combines optional `CancellationToken` and `SignalEvent` parameters. |
+| `EphemeralJobScanner` | Reflection helper that enumerates all annotated methods on a target instance and builds descriptors. |
+| `EphemeralSignalJobRunner` | Listens on a shared `SignalSink`, matches incoming signals to job descriptors, and enqueues them on an internal `EphemeralWorkCoordinator`. |
 
-2. Create a runner that scans your handlers and enqueues matching methods whenever the signal fires:
-   ```csharp
-   var signals = new SignalSink();
-   var runner = new EphemeralSignalJobRunner(signals, new[] { new OrderJobs() });
-   ```
-   The runner enqueues jobs on an internal `EphemeralWorkCoordinator` (limited to the configured options) whenever the incoming signal matches the attribute pattern.
+## Examples
 
-3. Emit signals with `signals.Raise("orders.process", key: "order-42")` from anywhere in your system to trigger the annotated jobs.
+### Simple stage pipeline
+```csharp
+var signals = new SignalSink();
+using var runner = new EphemeralSignalJobRunner(signals, new[] { new PipelineStages() });
 
-The package ships as `mostlylucid.ephemeral.attributes` and depends on `mostlylucid.ephemeral`.
+[EphemeralJob("stage.ingest")]
+public Task IngestAsync(SignalEvent signal)
+{
+    Console.WriteLine($"ingest {signal.Key}");
+    signals.Raise("stage.ingest.done", key: signal.Key);
+    return Task.CompletedTask;
+}
+
+[EphemeralJob("stage.transform.*")]
+public Task TransformAsync(CancellationToken ct, SignalEvent signal)
+{
+    Console.WriteLine($"transform {signal.Key}");
+    signals.Raise("stage.transform.done", key: signal.Key);
+    return Task.CompletedTask;
+}
+
+[EphemeralJob("stage.finalize")]
+public ValueTask FinalizeAsync() => ValueTask.CompletedTask;
+
+signals.Raise("stage.ingest", key: "order-42");
+signals.Raise("stage.transform.input");
+```
+
+### Signal-aware coordination
+Use glob patterns (`stage.transform.*`), `OperationKey`, or the `KeyFrom*` helpers to keep your pipeline keyed and prioritized (see the attribute reference below). The runner feeds all matching jobs into a bounded coordinator, so downstream stages automatically execute as soon as the upstream signal fires.
+
+### Job-level concurrency and retries
+Each job attribute controls **that specific job type only**, not the entire queue. This allows fine-grained control:
+
+```csharp
+[EphemeralJob(
+    triggerSignal: "orders.process",
+    Priority = 1,              // Lower = runs first (job-level ordering)
+    MaxConcurrency = 3,        // Max 3 concurrent executions of THIS job
+    MaxRetries = 5,
+    RetryDelayMs = 200,
+    EmitOnStart = new[] { "orders.process.started" },
+    EmitOnComplete = new[] { "orders.process.completed" },
+    KeyFromSignal = true,
+    Lane = "io:8")]            // Run in "io" lane with max 8 concurrent jobs
+public async Task ProcessOrderAsync(CancellationToken ct, SignalEvent signal, OrderPayload payload)
+{
+    await ordersService.ProcessAsync(payload, ct).ConfigureAwait(false);
+}
+
+[EphemeralJob("orders.process", KeyFromPayload = "Order.Id")]
+public Task PostProcessAsync([KeySource(PropertyPath = "Order.Id")] OrderPayload payload) => ...;
+```
+
+This snippet shows how to:
+
+1. Prioritize certain handlers (`Priority` - lower runs first).
+2. Allow limited concurrency for **this job** (`MaxConcurrency = 3` means max 3 concurrent order processors).
+3. Group jobs in lanes (`Lane = "io:8"` - up to 8 concurrent jobs in the "io" lane).
+4. Emit start/complete signals for downstream stages.
+5. Extract keys from signals (`KeyFromSignal`) or payloads (`KeyFromPayload` / `[KeySource]`).
+
+### Lanes for workload separation
+Use lanes to separate different types of work (I/O-bound, CPU-bound, fast, slow):
+
+```csharp
+[EphemeralJobs(DefaultLane = "io")]
+public class DataProcessor
+{
+    // Inherits lane="io" from class
+    [EphemeralJob("file.read")]
+    public Task ReadFileAsync() => ...;
+
+    // Override to CPU-intensive lane with max 4 concurrent
+    [EphemeralJob("data.compute", Lane = "cpu:4")]
+    public Task ComputeAsync() => ...;
+
+    // Fast lane for quick operations
+    [EphemeralJob("cache.get", Lane = "fast")]
+    public Task GetCacheAsync() => ...;
+}
+```
+
+### Logging watcher pipeline
+```csharp
+[EphemeralJob("log.error.*")]
+public Task RaiseIncidentAsync(SignalEvent signal)
+{
+    Console.WriteLine($"alerting on {signal.Signal} for {signal.Key}");
+    signals.Raise("incident.escalate", key: signal.Key);
+    return Task.CompletedTask;
+}
+
+[EphemeralJob("incident.escalate", EmitOnStart = new[] { "incident.monitor.start" })]
+public Task CreateTicketAsync(SignalEvent signal, CancellationToken ct)
+{
+    return ticketService.CreateAsync(signal.Key!, ct);
+}
+
+signals.Raise("log.error.application", key: "orders");
+```
+
+This bootstraps a log watcher job that listens for `log.error.*` signals, raises an `incident.escalate` notification, and lets downstream jobs (like ticket creation) fire automatically.
+
+## Attribute reference
+### Tune concurrency, retries, and observability
+`EphemeralSignalJobRunner` accepts `EphemeralOptions` for shared `SignalSink`, batching, or max-tracking limits. The attribute can also emit start/complete/failure signals and control retries, timeouts, and pinning without extra plumbing:
+
+```csharp
+var runnerOptions = new EphemeralOptions
+{
+    MaxConcurrency = 4,
+    MaxTrackedOperations = 64,
+    Signals = sharedRaySink
+};
+
+using var runner = new EphemeralSignalJobRunner(sharedRaySink, handlers, runnerOptions);
+```
+
+## Attribute reference
+
+| Property | Description |
+| --- | --- |
+| `TriggerSignal` | Glob pattern that raises this job (`orders.*`, `cache.flush`, etc.). `EphemeralJobsAttribute.SignalPrefix` can prepend a namespace to every method in the class. |
+| `OperationKey` / `KeyFromSignal` / `KeyFromPayload` / `[KeySource]` | Control how the resulting operation is tagged. Keys help group telemetry and make custom concurrency policies easier. `KeyFromPayload` reads a property path from the typed payload (`"User.Id"`), and `KeySource` lets you annotate the parameter whose ToString() should become the key. |
+| `Priority` | Lower numbers run first. Useful when multiple handlers listen to the same trigger and you want deterministic ordering. **Controls this job only, not the queue.** |
+| `MaxConcurrency` | Controls how many executions of **this specific job** can run in parallel; use `EphemeralJobsAttribute.DefaultMaxConcurrency` to share defaults across the class. `-1` means unlimited. **Does not affect other jobs.** |
+| `Lane` | Processing lane for workload separation. Format: `"name"` or `"name:concurrency"` (e.g., `"io"`, `"cpu:4"`). Jobs in the same lane share concurrency control. Use `EphemeralJobsAttribute.DefaultLane` for class defaults. |
+| `EmitOnStart` / `EmitOnComplete` / `EmitOnFailure` | Additional signals the job raises automatically, making downstream stages composable without manual `SignalSink` calls. |
+| `SwallowExceptions`, `MaxRetries`, `RetryDelayMs` | Retry helpers that convert exceptions into signals while keeping the runner alive. |
+| `Pin` / `ExpireAfterMs` | Keep jobs visible in the coordinator (pin) or allow them to expire after a custom window. |
+| `AwaitSignals` / `AwaitTimeoutMs` | Delay job execution until other signals are present, useful for fan-in or dependency wiring. |
+
+Annotate a class with `[EphemeralJobs(DefaultPriority = 1, DefaultMaxConcurrency = 2, SignalPrefix = "orders", DefaultLane = "io")]` to apply shared defaults.
+
+## Best practices
+
+1. **Keep signals descriptive.** Use dotted prefixes and include event semantics (`orders.receive`, `orders.retry.failed`) so pattern matching stays readable.
+2. **Chain completion signals.** Emit `EmitOnComplete` signals so downstream jobs trigger automatically instead of manually wiring observers.
+3. **Reuse runners.** Multiple handler instances can share a single `EphemeralSignalJobRunner`; it deduplicates descriptors and merges priorities for you.
+
+## Packaging
+Install via NuGet: `dotnet add package mostlylucid.ephemeral.attributes`. The package is included in `mostlylucid.ephemeral.complete` but you can also consume it standalone when you only need declarative pipelines.

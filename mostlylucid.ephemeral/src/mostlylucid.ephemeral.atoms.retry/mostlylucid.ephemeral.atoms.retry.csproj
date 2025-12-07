@@ -14,7 +14,7 @@
         <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageIcon>icon.png</PackageIcon>
-        <RepositoryUrl>https://github.com/scottgal/mostlylucid.ephemeral</RepositoryUrl>
+        <RepositoryUrl>https://github.com/scottgal/mostlylucid.atoms</RepositoryUrl>
     </PropertyGroup>
 
     <ItemGroup>
@@ -27,4 +27,3 @@
     </ItemGroup>
 
 </Project>
-
