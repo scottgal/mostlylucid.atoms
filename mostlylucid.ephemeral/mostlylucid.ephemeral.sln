@@ -75,6 +75,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution", "Solution", "{F4
 	ProjectSection(SolutionItems) = preProject
 		..\.github\workflows\publish-all.yml = ..\.github\workflows\publish-all.yml
 		..\.github\workflows\publish-nuget.yml = ..\.github\workflows\publish-nuget.yml
+		..\.github\workflows\build.yml = ..\.github\workflows\build.yml
 	EndProjectSection
 EndProject
 

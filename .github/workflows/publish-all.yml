@@ -4,12 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to publish (e.g., 1.0.0)'
+        description: 'Version to publish (e.g., 1.0.0 or 1.0.0-preview)'
         required: true
         type: string
 
-env:
-  DOTNET_VERSION: '10.0.x'
+defaults:
+  run:
+    working-directory: mostlylucid.ephemeral
 
 jobs:
   publish-all:
@@ -27,17 +28,22 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-version: |
+            6.0.x
+            7.0.x
+            8.0.x
+            9.0.x
+            10.0.x
           dotnet-quality: 'preview'
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore mostlylucid.ephemeral.sln
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build mostlylucid.ephemeral.sln --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test --configuration Release --no-build --verbosity normal
+        run: dotnet test mostlylucid.ephemeral.sln --configuration Release --no-build --verbosity normal
 
       - name: Pack all packages
         run: |
@@ -64,9 +70,20 @@ jobs:
               --output ./nupkg
           done
 
+          # SQLite demo
+          dotnet pack src/mostlylucid.ephemeral.sqlite.singlewriter/mostlylucid.ephemeral.sqlite.singlewriter.csproj \
+            --configuration Release --no-build \
+            -p:PackageVersion=$VERSION \
+            --output ./nupkg
+
+          # Complete bundle
+          dotnet pack src/mostlylucid.ephemeral.complete/mostlylucid.ephemeral.complete.csproj \
+            --configuration Release --no-build \
+            -p:PackageVersion=$VERSION \
+            --output ./nupkg
+
       - name: List packages
         run: ls -la ./nupkg/
 
       - name: Push to NuGet
         run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
- 
