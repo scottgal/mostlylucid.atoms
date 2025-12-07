@@ -480,7 +480,12 @@ public sealed class AsyncSignalProcessor : IAsyncDisposable
             // Wait for work or cancellation
             while (_queue.IsEmpty && !token.IsCancellationRequested)
             {
+#if NET8_0_OR_GREATER
                 await Task.Delay(10, token).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+#else
+                try { await Task.Delay(10, token).ConfigureAwait(false); }
+                catch (OperationCanceledException) { /* Suppressed */ }
+#endif
             }
 
             if (token.IsCancellationRequested)

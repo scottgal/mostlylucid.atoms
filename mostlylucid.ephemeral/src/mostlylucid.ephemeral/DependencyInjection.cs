@@ -80,7 +80,11 @@ internal sealed class EphemeralCoordinatorFactory<T> : IEphemeralCoordinatorFact
 
     public EphemeralWorkCoordinator<T> CreateCoordinator(string name = "")
     {
+#if NET7_0_OR_GREATER
         ObjectDisposedException.ThrowIf(_disposed, this);
+#else
+        if (_disposed) throw new ObjectDisposedException(GetType().FullName);
+#endif
 
         return _coordinators.GetOrAdd(name, n => new Lazy<EphemeralWorkCoordinator<T>>(() =>
         {
@@ -129,7 +133,11 @@ internal sealed class EphemeralKeyedCoordinatorFactory<T, TKey> : IEphemeralKeye
 
     public EphemeralKeyedWorkCoordinator<T, TKey> CreateCoordinator(string name = "")
     {
+#if NET7_0_OR_GREATER
         ObjectDisposedException.ThrowIf(_disposed, this);
+#else
+        if (_disposed) throw new ObjectDisposedException(GetType().FullName);
+#endif
 
         return _coordinators.GetOrAdd(name, n => new Lazy<EphemeralKeyedWorkCoordinator<T, TKey>>(() =>
         {
