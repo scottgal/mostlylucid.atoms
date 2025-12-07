@@ -1,17 +1,19 @@
 # Mostlylucid.Ephemeral.Patterns.ControlledFanOut
 
-Global gate bounds total concurrency while per-key ordering is preserved.
+[![NuGet](https://img.shields.io/nuget/v/mostlylucid.ephemeral.patterns.controlledfanout.svg)](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.controlledfanout)
 
-## Installation
+Global gate bounds total concurrency while per-key ordering is preserved.
 
 ```bash
 dotnet add package mostlylucid.ephemeral.patterns.controlledfanout
 ```
 
-## Usage
+## Quick Start
 
 ```csharp
-var fanout = new ControlledFanOut<string, Message>(
+using Mostlylucid.Ephemeral.Patterns.ControlledFanOut;
+
+await using var fanout = new ControlledFanOut<string, Message>(
     msg => msg.UserId,
     async (msg, ct) => await ProcessAsync(msg, ct),
     maxGlobalConcurrency: 16,
@@ -21,47 +23,126 @@ await fanout.EnqueueAsync(message);
 await fanout.DrainAsync();
 ```
 
-## Full Source (~40 lines)
+---
+
+## All Options
 
 ```csharp
-using Mostlylucid.Ephemeral;
+new ControlledFanOut<TKey, T>(
+    // Required: extract key from item
+    keySelector: item => item.Key,
 
-namespace Mostlylucid.Ephemeral.Patterns.ControlledFanOut;
+    // Required: async work body
+    body: async (item, ct) => await ProcessAsync(item, ct),
 
-public sealed class ControlledFanOut<TKey, T> : IAsyncDisposable where TKey : notnull
-{
-    private readonly EphemeralKeyedWorkCoordinator<T, TKey> _coordinator;
+    // Max concurrent operations across all keys
+    maxGlobalConcurrency: 16,
 
-    public ControlledFanOut(
-        Func<T, TKey> keySelector,
-        Func<T, CancellationToken, Task> body,
-        int maxGlobalConcurrency,
-        int perKeyConcurrency = 1,
-        SignalSink? sink = null)
-    {
-        _coordinator = new EphemeralKeyedWorkCoordinator<T, TKey>(
-            keySelector,
-            body,
-            new EphemeralOptions
-            {
-                MaxConcurrency = maxGlobalConcurrency,
-                MaxConcurrencyPerKey = Math.Max(1, perKeyConcurrency),
-                Signals = sink
-            });
-    }
+    // Max concurrent operations per key
+    // Default: 1 (sequential per key)
+    perKeyConcurrency: 1,
 
-    public ValueTask EnqueueAsync(T item, CancellationToken ct = default) =>
-        _coordinator.EnqueueAsync(item, ct);
-
-    public async Task DrainAsync(CancellationToken ct = default)
-    {
-        _coordinator.Complete();
-        await _coordinator.DrainAsync(ct).ConfigureAwait(false);
-    }
-
-    public ValueTask DisposeAsync() => _coordinator.DisposeAsync();
-}
+    // Optional shared signal sink
+    // Default: null
+    sink: signalSink
+)
 ```
+
+---
+
+## API Reference
+
+```csharp
+// Enqueue work item
+await fanout.EnqueueAsync(item, ct);
+
+// Stop accepting and drain
+await fanout.DrainAsync(ct);
+
+// Dispose
+await fanout.DisposeAsync();
+```
+
+---
+
+## How It Works
+
+```
+Global Gate: 16 concurrent
+    │
+    ├── Key "user-A": [msg1] -> [msg2] -> [msg3]  (sequential)
+    │
+    ├── Key "user-B": [msg1] -> [msg2]            (sequential)
+    │
+    └── Key "user-C": [msg1]                      (sequential)
+
+All keys process in parallel, but items within each key are sequential.
+Total active operations never exceed 16.
+```
+
+---
+
+## Example: Order Processing
+
+```csharp
+await using var fanout = new ControlledFanOut<string, Order>(
+    order => order.CustomerId,
+    async (order, ct) =>
+    {
+        await ValidateInventory(order, ct);
+        await ChargePayment(order, ct);
+        await ShipOrder(order, ct);
+    },
+    maxGlobalConcurrency: 32,
+    perKeyConcurrency: 1);
+
+// Customer A's orders: sequential
+// Customer B's orders: sequential
+// A and B: parallel (up to 32 total)
+foreach (var order in incomingOrders)
+    await fanout.EnqueueAsync(order);
+
+await fanout.DrainAsync();
+```
+
+---
+
+## Example: With Signal Sink
+
+```csharp
+var sink = new SignalSink();
+
+await using var fanout = new ControlledFanOut<string, Message>(
+    msg => msg.UserId,
+    async (msg, ct) =>
+    {
+        try
+        {
+            await ProcessMessage(msg, ct);
+        }
+        catch
+        {
+            sink.Raise($"error.user.{msg.UserId}");
+            throw;
+        }
+    },
+    maxGlobalConcurrency: 16,
+    sink: sink);
+
+// Monitor errors by user
+var userErrors = sink.Sense(s => s.Signal.StartsWith("error.user."));
+```
+
+---
+
+## Related Packages
+
+| Package | Description |
+|---------|-------------|
+| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral) | Core library |
+| [mostlylucid.ephemeral.patterns.keyedpriorityfanout](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.keyedpriorityfanout) | Priority lanes |
+| [mostlylucid.ephemeral.atoms.keyedsequential](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.keyedsequential) | Keyed sequential atom |
+| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All in one DLL |
 
 ## License
 

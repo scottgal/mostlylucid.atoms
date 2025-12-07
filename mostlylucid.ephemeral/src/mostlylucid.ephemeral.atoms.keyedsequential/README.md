@@ -1,79 +1,115 @@
 # Mostlylucid.Ephemeral.Atoms.KeyedSequential
 
-Per-key sequential processing. Ensures ordering per key while allowing global parallelism.
+[![NuGet](https://img.shields.io/nuget/v/mostlylucid.ephemeral.atoms.keyedsequential.svg)](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.keyedsequential)
 
-## Installation
+Per-key sequential processing. Items with the same key are processed in order.
 
 ```bash
 dotnet add package mostlylucid.ephemeral.atoms.keyedsequential
 ```
 
-## Usage
+## Quick Start
+
+```csharp
+using Mostlylucid.Ephemeral.Atoms.KeyedSequential;
+
+await using var atom = new KeyedSequentialAtom<Order, string>(
+    keySelector: order => order.CustomerId,
+    body: async (order, ct) => await ProcessOrder(order, ct));
+
+await atom.EnqueueAsync(order1);  // Customer A
+await atom.EnqueueAsync(order2);  // Customer A - waits for order1
+await atom.EnqueueAsync(order3);  // Customer B - parallel with A
+
+await atom.DrainAsync();
+```
+
+---
+
+## All Options
+
+```csharp
+new KeyedSequentialAtom<T, TKey>(
+    // Required: extract key from item
+    keySelector: item => item.Key,
+
+    // Required: async work body
+    body: async (item, ct) => await ProcessAsync(item, ct),
+
+    // Max concurrent operations across all keys
+    // Default: Environment.ProcessorCount
+    maxConcurrency: 16,
+
+    // Max concurrent operations per key
+    // Default: 1 (sequential per key)
+    perKeyConcurrency: 1,
+
+    // Prevent hot keys from starving cold keys
+    // Default: false
+    enableFairScheduling: true,
+
+    // Shared signal sink
+    // Default: null (isolated)
+    signals: sharedSink
+)
+```
+
+---
+
+## API Reference
+
+```csharp
+// Enqueue work item, returns operation ID
+ValueTask<long> id = await atom.EnqueueAsync(item, ct);
+
+// Stop accepting work and wait for completion
+await atom.DrainAsync(ct);
+
+// Get recent operations snapshot
+IReadOnlyCollection<EphemeralOperationSnapshot> snapshot = atom.Snapshot();
+
+// Get aggregate stats
+var (pending, active, completed, failed) = atom.Stats();
+
+// Dispose
+await atom.DisposeAsync();
+```
+
+---
+
+## Example: Order Processing
 
 ```csharp
 await using var atom = new KeyedSequentialAtom<Order, string>(
     keySelector: order => order.CustomerId,
-    body: async (order, ct) => await ProcessOrder(order, ct),
-    maxConcurrency: 8,
-    perKeyConcurrency: 1);
+    body: async (order, ct) =>
+    {
+        await ValidateInventory(order, ct);
+        await ChargePayment(order, ct);
+        await ShipOrder(order, ct);
+    },
+    maxConcurrency: 32,
+    perKeyConcurrency: 1,
+    enableFairScheduling: true);
 
-await atom.EnqueueAsync(new Order { CustomerId = "A" });
-await atom.EnqueueAsync(new Order { CustomerId = "B" });  // Runs in parallel
-await atom.EnqueueAsync(new Order { CustomerId = "A" });  // Waits for first A
+foreach (var order in incomingOrders)
+    await atom.EnqueueAsync(order);
+
+// Customer A's orders: sequential
+// Customer B's orders: sequential
+// A and B: parallel
+
 await atom.DrainAsync();
 ```
 
-## Full Source (~50 lines)
+---
 
-```csharp
-using Mostlylucid.Ephemeral;
+## Related Packages
 
-namespace Mostlylucid.Ephemeral.Atoms.KeyedSequential;
-
-public sealed class KeyedSequentialAtom<T, TKey> : IAsyncDisposable where TKey : notnull
-{
-    private readonly EphemeralKeyedWorkCoordinator<T, TKey> _coordinator;
-    private long _id;
-
-    public KeyedSequentialAtom(
-        Func<T, TKey> keySelector,
-        Func<T, CancellationToken, Task> body,
-        int? maxConcurrency = null,
-        int perKeyConcurrency = 1,
-        bool enableFairScheduling = false,
-        SignalSink? signals = null)
-    {
-        var options = new EphemeralOptions
-        {
-            MaxConcurrency = maxConcurrency is > 0 ? maxConcurrency.Value : Environment.ProcessorCount,
-            MaxConcurrencyPerKey = Math.Max(1, perKeyConcurrency),
-            EnableFairScheduling = enableFairScheduling,
-            Signals = signals
-        };
-
-        _coordinator = new EphemeralKeyedWorkCoordinator<T, TKey>(keySelector, body, options);
-    }
-
-    public async ValueTask<long> EnqueueAsync(T item, CancellationToken ct = default)
-    {
-        await _coordinator.EnqueueAsync(item, ct).ConfigureAwait(false);
-        return Interlocked.Increment(ref _id);
-    }
-
-    public async Task DrainAsync(CancellationToken ct = default)
-    {
-        _coordinator.Complete();
-        await _coordinator.DrainAsync(ct).ConfigureAwait(false);
-    }
-
-    public IReadOnlyCollection<EphemeralOperationSnapshot> Snapshot() => _coordinator.GetSnapshot();
-
-    public (int Pending, int Active, int Completed, int Failed) Stats()
-        => (_coordinator.PendingCount, _coordinator.ActiveCount, _coordinator.TotalCompleted, _coordinator.TotalFailed);
-
-    public ValueTask DisposeAsync() => _coordinator.DisposeAsync();
-}
-```
+| Package | Description |
+|---------|-------------|
+| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral) | Core library |
+| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All in one DLL |
 
 ## License
 

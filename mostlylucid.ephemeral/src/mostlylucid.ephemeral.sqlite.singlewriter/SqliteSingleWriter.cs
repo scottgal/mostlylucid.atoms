@@ -16,14 +16,20 @@ public sealed class SqliteSingleWriter : IAsyncDisposable
     private static readonly ConcurrentDictionary<string, SqliteSingleWriter> Instances = new();
 
     private readonly string _connectionString;
+    private readonly SqliteSingleWriterOptions _options;
     private readonly EphemeralWorkCoordinator<WriteCommand> _writeCoordinator;
     private readonly SignalSink _signals;
     private readonly IMemoryCache _cache;
     private readonly MemoryCacheEntryOptions _defaultCacheOptions;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly int _sampleRate;
+    private readonly string _instanceId;
+    private readonly Action<string> _emitSignal;
+    private CancellationTokenSource? _externalInvalidationCts;
+    private Task? _externalInvalidationTask;
     private int _writeCount;
     private SqliteConnection? _writeConnection;
+    private bool _writePragmasApplied;
     private bool _disposed;
 
     /// <summary>
@@ -40,21 +46,22 @@ public sealed class SqliteSingleWriter : IAsyncDisposable
     private SqliteSingleWriter(string connectionString, SqliteSingleWriterOptions? options = null)
     {
         _connectionString = connectionString;
-        options ??= new SqliteSingleWriterOptions();
-        _sampleRate = Math.Max(1, options.SampleRate);
-
+        _options = options ?? new SqliteSingleWriterOptions();
+        _sampleRate = Math.Max(1, _options.SampleRate);
+        _instanceId = $"sqlite:{EphemeralIdGenerator.NextId()}";
         _signals = new SignalSink(
-            maxCapacity: options.MaxTrackedWrites * 2,
+            maxCapacity: _options.MaxTrackedWrites * 2,
             maxAge: TimeSpan.FromMinutes(5));
+        _emitSignal = name => _signals.Raise(new SignalEvent(name, EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
 
         _cache = new MemoryCache(new MemoryCacheOptions
         {
-            SizeLimit = options.CacheSizeLimit
+            SizeLimit = _options.CacheSizeLimit
         });
 
         _defaultCacheOptions = new MemoryCacheEntryOptions
         {
-            SlidingExpiration = options.DefaultCacheDuration,
+            SlidingExpiration = _options.DefaultCacheDuration,
             Size = 1
         };
 
@@ -64,7 +71,7 @@ public sealed class SqliteSingleWriter : IAsyncDisposable
             new EphemeralOptions
             {
                 MaxConcurrency = 1,
-                MaxTrackedOperations = options.MaxTrackedWrites,
+                MaxTrackedOperations = _options.MaxTrackedWrites,
                 Signals = _signals
             });
     }
@@ -74,14 +81,60 @@ public sealed class SqliteSingleWriter : IAsyncDisposable
     /// </summary>
     public async Task<int> WriteAsync(string sql, object? parameters = null, CancellationToken ct = default)
     {
-        var cmd = new WriteCommand(sql, parameters, ShouldSample());
-        await _writeCoordinator.EnqueueAsync(cmd, ct);
+        var command = WriteCommand.ForSql(sql, parameters, ShouldSample(), _options.DefaultCommandTimeoutSeconds, _instanceId, _emitSignal);
+        _signals.Raise(new SignalEvent("write.enqueue", command.Completion.Task.Id, _instanceId, DateTimeOffset.UtcNow));
+        await _writeCoordinator.EnqueueAsync(command, ct);
+        var result = await command.Completion.Task.WaitAsync(ct);
+        return result.RowsAffected;
+    }
 
-        // Wait for this specific write to complete
-        _writeCoordinator.Complete();
-        await _writeCoordinator.DrainAsync(ct);
+    /// <summary>
+    /// Executes multiple statements as a single logical write (optionally transactional).
+    /// </summary>
+    public async Task<int> WriteBatchAsync(IEnumerable<(string Sql, object? Parameters)> commands,
+        bool transactional = true,
+        CancellationToken ct = default)
+    {
+        var commandList = commands?.ToList() ?? throw new ArgumentNullException(nameof(commands));
+        if (commandList.Count == 0)
+            return 0;
 
-        return cmd.RowsAffected;
+        var writeCommand = WriteCommand.ForBatch(commandList, transactional, ShouldSample(), _options.DefaultCommandTimeoutSeconds, _instanceId, _emitSignal);
+        _signals.Raise(new SignalEvent("write.batch.enqueue", writeCommand.Completion.Task.Id, _instanceId, DateTimeOffset.UtcNow));
+        await _writeCoordinator.EnqueueAsync(writeCommand, ct);
+        var result = await writeCommand.Completion.Task.WaitAsync(ct);
+        return result.RowsAffected;
+    }
+
+    /// <summary>
+    /// Runs user-provided work inside the single-writer connection and a transaction.
+    /// Use for complex updates that span multiple statements.
+    /// </summary>
+    public async Task ExecuteInTransactionAsync(
+        Func<SqliteConnection, SqliteTransaction, CancellationToken, Task> work,
+        CancellationToken ct = default)
+    {
+        await ExecuteInTransactionAsync<object?>(async (conn, tx, innerCt) =>
+        {
+            await work(conn, tx, innerCt).ConfigureAwait(false);
+            return null;
+        }, ct);
+    }
+
+    /// <summary>
+    /// Runs user-provided work inside the single-writer connection and a transaction, returning a value.
+    /// </summary>
+    public async Task<T> ExecuteInTransactionAsync<T>(
+        Func<SqliteConnection, SqliteTransaction, CancellationToken, Task<T>> work,
+        CancellationToken ct = default)
+    {
+        if (work is null) throw new ArgumentNullException(nameof(work));
+
+        var command = WriteCommand.ForTransactional(work, ShouldSample(), _instanceId, _emitSignal);
+        _signals.Raise(new SignalEvent("write.tx.enqueue", command.Completion.Task.Id, _instanceId, DateTimeOffset.UtcNow));
+        await _writeCoordinator.EnqueueAsync(command, ct);
+        var result = await command.Completion.Task.WaitAsync(ct);
+        return result.Result is T typed ? typed : default!;
     }
 
     /// <summary>
@@ -113,19 +166,24 @@ public sealed class SqliteSingleWriter : IAsyncDisposable
         if (_cache.TryGetValue(cacheKey, out T? cached))
         {
             if (ShouldSample())
-                _signals.Raise(new SignalEvent($"cache.hit:{cacheKey}", EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
+                _signals.Raise(new SignalEvent($"cache.hit:{cacheKey}", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
             return cached;
         }
 
         if (ShouldSample())
-            _signals.Raise(new SignalEvent($"cache.miss:{cacheKey}", EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
+            _signals.Raise(new SignalEvent($"cache.miss:{cacheKey}", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
 
         // Read connections can be concurrent - SQLite handles this
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await CreateReadConnectionAsync(ct);
+        if (ShouldSample())
+            _signals.Raise(new SignalEvent($"read.start:{cacheKey}", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
 
         var result = await reader(connection);
         _cache.Set(cacheKey, result, cacheOptions ?? _defaultCacheOptions);
+        _signals.Raise(new SignalEvent($"cache.set:{cacheKey}", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
+
+        if (ShouldSample())
+            _signals.Raise(new SignalEvent($"read.done:{cacheKey}", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
 
         return result;
     }
@@ -135,8 +193,9 @@ public sealed class SqliteSingleWriter : IAsyncDisposable
     /// </summary>
     public async Task<T> QueryAsync<T>(Func<SqliteConnection, Task<T>> reader, CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await CreateReadConnectionAsync(ct);
+        if (ShouldSample())
+            _signals.Raise(new SignalEvent("query.start", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
         return await reader(connection);
     }
 
@@ -162,7 +221,7 @@ public sealed class SqliteSingleWriter : IAsyncDisposable
     public void InvalidateCache(string cacheKey)
     {
         _cache.Remove(cacheKey);
-        _signals.Raise(new SignalEvent($"cache.invalidate:{cacheKey}", EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
+        _signals.Raise(new SignalEvent($"cache.invalidate:{cacheKey}", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
     }
 
     /// <summary>
@@ -170,8 +229,27 @@ public sealed class SqliteSingleWriter : IAsyncDisposable
     /// </summary>
     public async Task FlushWritesAsync(CancellationToken ct = default)
     {
-        _writeCoordinator.Complete();
-        await _writeCoordinator.DrainAsync(ct);
+        _signals.Raise(new SignalEvent("write.flush.start", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
+        var barrier = WriteCommand.Barrier();
+        await _writeCoordinator.EnqueueAsync(barrier, ct);
+        await barrier.Completion.Task.WaitAsync(ct);
+        _signals.Raise(new SignalEvent("write.flush.done", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
+    }
+
+    /// <summary>
+    /// Enables central cache invalidation driven by an external signal sink (defaults to "cache.invalidate:*").
+    /// Safe to call once; subsequent calls are ignored.
+    /// </summary>
+    public void EnableSignalDrivenInvalidation(SignalSink sink, IEnumerable<string>? patterns = null, TimeSpan? pollInterval = null)
+    {
+        if (sink is null) throw new ArgumentNullException(nameof(sink));
+        if (_externalInvalidationTask != null) return;
+
+        var patternSet = new HashSet<string>((patterns ?? new[] { "cache.invalidate:*" }), StringComparer.OrdinalIgnoreCase);
+        var interval = pollInterval ?? TimeSpan.FromMilliseconds(250);
+
+        _externalInvalidationCts = new CancellationTokenSource();
+        _externalInvalidationTask = Task.Run(() => MonitorExternalInvalidationsAsync(sink, patternSet, interval, _externalInvalidationCts.Token));
     }
 
     private bool ShouldSample()
@@ -180,38 +258,83 @@ public sealed class SqliteSingleWriter : IAsyncDisposable
         return count % _sampleRate == 0;
     }
 
+    private async Task<SqliteConnection> GetWriteConnectionAsync(CancellationToken ct)
+    {
+        _writeConnection ??= new SqliteConnection(_connectionString);
+
+        if (_writeConnection.State != System.Data.ConnectionState.Open)
+            await _writeConnection.OpenAsync(ct).ConfigureAwait(false);
+        _signals.Raise(new SignalEvent("connection.open.write", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
+
+        if (!_writePragmasApplied)
+        {
+            await ApplyPragmasAsync(_writeConnection, isWriter: true, ct).ConfigureAwait(false);
+            _writePragmasApplied = true;
+        }
+
+        return _writeConnection;
+    }
+
+    private async Task<SqliteConnection> CreateReadConnectionAsync(CancellationToken ct)
+    {
+        var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(ct).ConfigureAwait(false);
+        _signals.Raise(new SignalEvent("connection.open.read", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
+        await ApplyPragmasAsync(connection, isWriter: false, ct).ConfigureAwait(false);
+        return connection;
+    }
+
+    private async Task ApplyPragmasAsync(SqliteConnection connection, bool isWriter, CancellationToken ct)
+    {
+        if (_options.BusyTimeout > TimeSpan.Zero)
+        {
+            await using var busyCmd = connection.CreateCommand();
+            busyCmd.CommandText = $"PRAGMA busy_timeout={(int)_options.BusyTimeout.TotalMilliseconds};";
+            await busyCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            _signals.Raise(new SignalEvent("pragma.busy_timeout", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
+        }
+
+        if (_options.EnforceForeignKeys)
+        {
+            await using var fkCmd = connection.CreateCommand();
+            fkCmd.CommandText = "PRAGMA foreign_keys=ON;";
+            await fkCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            _signals.Raise(new SignalEvent("pragma.foreign_keys.on", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
+        }
+
+        if (isWriter && _options.EnableWriteAheadLogging)
+        {
+            await using var walCmd = connection.CreateCommand();
+            walCmd.CommandText = "PRAGMA journal_mode=WAL;";
+            await walCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            _signals.Raise(new SignalEvent("pragma.wal.on", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
+        }
+    }
+
     private async Task ExecuteWriteInternalAsync(WriteCommand cmd, CancellationToken ct)
     {
         var startTime = DateTimeOffset.UtcNow;
 
         if (cmd.EmitSignal)
-            _signals.Raise(new SignalEvent($"write.start:{cmd.Sql[..Math.Min(30, cmd.Sql.Length)]}", EphemeralIdGenerator.NextId(), null, startTime));
+            _signals.Raise(new SignalEvent($"{cmd.Operation}.start", EphemeralIdGenerator.NextId(), _instanceId, startTime));
 
         await _writeLock.WaitAsync(ct);
         try
         {
-            _writeConnection ??= new SqliteConnection(_connectionString);
-
-            if (_writeConnection.State != System.Data.ConnectionState.Open)
-                await _writeConnection.OpenAsync(ct);
-
-            await using var sqlCmd = _writeConnection.CreateCommand();
-            sqlCmd.CommandText = cmd.Sql;
-
-            if (cmd.Parameters != null)
-                AddParameters(sqlCmd, cmd.Parameters);
-
-            cmd.RowsAffected = await sqlCmd.ExecuteNonQueryAsync(ct);
+            var connection = await GetWriteConnectionAsync(ct).ConfigureAwait(false);
+            var result = await cmd.Executor(connection, ct).ConfigureAwait(false);
+            cmd.Completion.TrySetResult(result);
 
             if (cmd.EmitSignal)
             {
                 var duration = DateTimeOffset.UtcNow - startTime;
-                _signals.Raise(new SignalEvent($"write.done:{cmd.RowsAffected}rows:{duration.TotalMilliseconds:F0}ms", EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
+                _signals.Raise(new SignalEvent($"{cmd.Operation}.done:{result.RowsAffected}rows:{duration.TotalMilliseconds:F0}ms", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
             }
         }
         catch (Exception ex)
         {
-            _signals.Raise(new SignalEvent($"write.error:{ex.Message[..Math.Min(50, ex.Message.Length)]}", EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
+            cmd.Completion.TrySetException(ex);
+            _signals.Raise(new SignalEvent($"{cmd.Operation}.error:{ex.Message[..Math.Min(50, ex.Message.Length)]}", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
             throw;
         }
         finally
@@ -220,14 +343,52 @@ public sealed class SqliteSingleWriter : IAsyncDisposable
         }
     }
 
-    private static void AddParameters(SqliteCommand cmd, object parameters)
+    private async Task MonitorExternalInvalidationsAsync(
+        SignalSink sink,
+        HashSet<string> patterns,
+        TimeSpan interval,
+        CancellationToken ct)
     {
-        var props = parameters.GetType().GetProperties();
-        foreach (var prop in props)
+        var processed = new HashSet<long>();
+        while (!ct.IsCancellationRequested)
         {
-            var value = prop.GetValue(parameters);
-            cmd.Parameters.AddWithValue($"@{prop.Name}", value ?? DBNull.Value);
+            try
+            {
+                var signals = sink.Sense();
+                foreach (var signal in signals)
+                {
+                    if (!processed.Add(signal.OperationId))
+                        continue;
+
+                    if (!patterns.Any(p => StringPatternMatcher.Matches(signal.Signal, p)))
+                        continue;
+
+                    var key = ExtractCacheKey(signal.Signal);
+                    if (key is null) continue;
+
+                    _cache.Remove(key);
+                    _emitSignal($"cache.invalidate.external:{key}");
+                }
+
+                await Task.Delay(interval, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected on shutdown
+            }
+            catch
+            {
+                // Swallow to keep loop alive
+            }
         }
+    }
+
+    private static string? ExtractCacheKey(string signal)
+    {
+        const string prefix = "cache.invalidate:";
+        if (!signal.StartsWith(prefix, StringComparison.Ordinal))
+            return null;
+        return signal.Length > prefix.Length ? signal[prefix.Length..] : null;
     }
 
     public async ValueTask DisposeAsync()
@@ -236,29 +397,28 @@ public sealed class SqliteSingleWriter : IAsyncDisposable
         _disposed = true;
 
         Instances.TryRemove(_connectionString, out _);
-        await _writeCoordinator.DisposeAsync();
+
+        _writeCoordinator.Complete();
+        await _writeCoordinator.DrainAsync().ConfigureAwait(false);
+        await _writeCoordinator.DisposeAsync().ConfigureAwait(false);
+
+        if (_externalInvalidationCts != null)
+        {
+            _externalInvalidationCts.Cancel();
+            if (_externalInvalidationTask != null)
+            {
+                try { await _externalInvalidationTask.ConfigureAwait(false); } catch { }
+            }
+            _externalInvalidationCts.Dispose();
+        }
 
         if (_writeConnection != null)
-            await _writeConnection.DisposeAsync();
+            await _writeConnection.DisposeAsync().ConfigureAwait(false);
 
         _writeLock.Dispose();
         _cache.Dispose();
     }
 
-    private sealed class WriteCommand
-    {
-        public string Sql { get; }
-        public object? Parameters { get; }
-        public bool EmitSignal { get; }
-        public int RowsAffected { get; set; }
-
-        public WriteCommand(string sql, object? parameters, bool emitSignal)
-        {
-            Sql = sql;
-            Parameters = parameters;
-            EmitSignal = emitSignal;
-        }
-    }
 }
 
 /// <summary>
@@ -285,4 +445,24 @@ public sealed class SqliteSingleWriterOptions
     /// Signal sampling rate. 1 = every operation, 10 = every 10th. Default: 1.
     /// </summary>
     public int SampleRate { get; set; } = 1;
+
+    /// <summary>
+    /// PRAGMA busy_timeout applied to all connections. Default: 10 seconds.
+    /// </summary>
+    public TimeSpan BusyTimeout { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Default command timeout for generated commands. Default: 30 seconds.
+    /// </summary>
+    public int DefaultCommandTimeoutSeconds { get; set; } = 30;
+
+    /// <summary>
+    /// Whether to enable WAL mode on the writer connection. Default: true.
+    /// </summary>
+    public bool EnableWriteAheadLogging { get; set; } = true;
+
+    /// <summary>
+    /// Whether to enforce foreign keys on all connections. Default: true.
+    /// </summary>
+    public bool EnforceForeignKeys { get; set; } = true;
 }

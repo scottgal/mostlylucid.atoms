@@ -1,71 +1,110 @@
 # Mostlylucid.Ephemeral.Atoms.FixedWork
 
-Minimal atom for fixed-concurrency work pipelines. Simple API: enqueue, drain, snapshot.
+[![NuGet](https://img.shields.io/nuget/v/mostlylucid.ephemeral.atoms.fixedwork.svg)](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.fixedwork)
 
-## Installation
+Fixed-concurrency worker pool with stats. Minimal API wrapper around EphemeralWorkCoordinator.
 
 ```bash
 dotnet add package mostlylucid.ephemeral.atoms.fixedwork
 ```
 
-## Usage
+## Quick Start
 
 ```csharp
-await using var atom = new FixedWorkAtom<string>(
+using Mostlylucid.Ephemeral.Atoms.FixedWork;
+
+await using var atom = new FixedWorkAtom<WorkItem>(
     async (item, ct) => await ProcessAsync(item, ct),
     maxConcurrency: 4);
 
-await atom.EnqueueAsync("work-1");
-await atom.EnqueueAsync("work-2");
-await atom.DrainAsync();
+await atom.EnqueueAsync(item);
 
 var (pending, active, completed, failed) = atom.Stats();
+Console.WriteLine($"Completed: {completed}, Failed: {failed}");
+
+await atom.DrainAsync();
 ```
 
-## Full Source (~50 lines)
+---
+
+## All Options
 
 ```csharp
-using Mostlylucid.Ephemeral;
+new FixedWorkAtom<T>(
+    // Required: async work body
+    body: async (item, ct) => await ProcessAsync(item, ct),
 
-namespace Mostlylucid.Ephemeral.Atoms.FixedWork;
+    // Max concurrent operations
+    // Default: Environment.ProcessorCount
+    maxConcurrency: 4,
 
-public sealed class FixedWorkAtom<T> : IAsyncDisposable
+    // Max operations retained in memory window
+    // Default: 200
+    maxTracked: 200,
+
+    // Shared signal sink
+    // Default: null (isolated)
+    signals: sharedSink
+)
+```
+
+---
+
+## API Reference
+
+```csharp
+// Enqueue work item, returns operation ID
+ValueTask<long> id = await atom.EnqueueAsync(item, ct);
+
+// Stop accepting work and wait for completion
+await atom.DrainAsync(ct);
+
+// Get recent operations snapshot
+IReadOnlyCollection<EphemeralOperationSnapshot> snapshot = atom.Snapshot();
+
+// Get aggregate stats
+var (pending, active, completed, failed) = atom.Stats();
+
+// Dispose
+await atom.DisposeAsync();
+```
+
+---
+
+## Example: Processing with Stats
+
+```csharp
+await using var atom = new FixedWorkAtom<ApiRequest>(
+    async (req, ct) =>
+    {
+        var response = await httpClient.SendAsync(req.Message, ct);
+        response.EnsureSuccessStatusCode();
+    },
+    maxConcurrency: 8,
+    maxTracked: 500);
+
+// Enqueue batch
+foreach (var request in requests)
+    await atom.EnqueueAsync(request);
+
+// Monitor progress
+while (true)
 {
-    private readonly EphemeralWorkCoordinator<T> _coordinator;
-
-    public FixedWorkAtom(
-        Func<T, CancellationToken, Task> body,
-        int? maxConcurrency = null,
-        int? maxTracked = null,
-        SignalSink? signals = null)
-    {
-        var options = new EphemeralOptions
-        {
-            MaxConcurrency = maxConcurrency is > 0 ? maxConcurrency.Value : Environment.ProcessorCount,
-            MaxTrackedOperations = maxTracked is > 0 ? maxTracked.Value : 200,
-            Signals = signals
-        };
-
-        _coordinator = new EphemeralWorkCoordinator<T>(body, options);
-    }
-
-    public ValueTask<long> EnqueueAsync(T item, CancellationToken ct = default)
-        => _coordinator.EnqueueWithIdAsync(item, ct);
-
-    public async Task DrainAsync(CancellationToken ct = default)
-    {
-        _coordinator.Complete();
-        await _coordinator.DrainAsync(ct).ConfigureAwait(false);
-    }
-
-    public IReadOnlyCollection<EphemeralOperationSnapshot> Snapshot() => _coordinator.GetSnapshot();
-
-    public (int Pending, int Active, int Completed, int Failed) Stats()
-        => (_coordinator.PendingCount, _coordinator.ActiveCount, _coordinator.TotalCompleted, _coordinator.TotalFailed);
-
-    public ValueTask DisposeAsync() => _coordinator.DisposeAsync();
+    var (pending, active, completed, failed) = atom.Stats();
+    Console.WriteLine($"Pending: {pending}, Active: {active}, Done: {completed}, Failed: {failed}");
+    if (pending == 0 && active == 0) break;
+    await Task.Delay(100);
 }
 ```
+
+---
+
+## Related Packages
+
+| Package | Description |
+|---------|-------------|
+| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral) | Core library |
+| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All in one DLL |
 
 ## License
 

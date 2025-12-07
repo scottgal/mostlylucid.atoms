@@ -1,95 +1,143 @@
 # Mostlylucid.Ephemeral.Atoms.SignalAware
 
-Atom that pauses or cancels intake based on ambient signals. Perfect for circuit-breaker patterns.
+[![NuGet](https://img.shields.io/nuget/v/mostlylucid.ephemeral.atoms.signalaware.svg)](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.signalaware)
 
-## Installation
+Pause or cancel intake based on ambient signals. Circuit-breaker and backpressure patterns.
 
 ```bash
 dotnet add package mostlylucid.ephemeral.atoms.signalaware
 ```
 
-## Usage
+## Quick Start
 
 ```csharp
-await using var atom = new SignalAwareAtom<Request>(
-    async (req, ct) => await ProcessAsync(req, ct),
-    cancelOn: new HashSet<string> { "circuit-open" },
-    deferOn: new HashSet<string> { "backpressure" });
+using Mostlylucid.Ephemeral.Atoms.SignalAware;
 
-await atom.EnqueueAsync(new Request("data"));  // Works fine
+var sink = new SignalSink();
 
-atom.Raise("circuit-open");
-var id = await atom.EnqueueAsync(new Request("more"));  // Returns -1 (rejected)
+await using var atom = new SignalAwareAtom<WorkItem>(
+    async (item, ct) => await ProcessAsync(item, ct),
+    cancelOn: new HashSet<string> { "shutdown" },
+    deferOn: new HashSet<string> { "backpressure" },
+    signals: sink);
+
+await atom.EnqueueAsync(item);   // Normal processing
+
+sink.Raise("backpressure");       // New items defer
+sink.Raise("shutdown");           // New items rejected (-1)
 
 await atom.DrainAsync();
 ```
 
-## Full Source (~70 lines)
+---
+
+## All Options
 
 ```csharp
-using Mostlylucid.Ephemeral;
+new SignalAwareAtom<T>(
+    // Required: async work body
+    body: async (item, ct) => await ProcessAsync(item, ct),
 
-namespace Mostlylucid.Ephemeral.Atoms.SignalAware;
+    // Signals that reject items (returns -1)
+    // Supports glob: "error.*", "circuit-*"
+    // Default: null
+    cancelOn: new HashSet<string> { "shutdown", "circuit-open" },
 
-public sealed class SignalAwareAtom<T> : IAsyncDisposable
-{
-    private readonly EphemeralWorkCoordinator<T> _coordinator;
-    private readonly IReadOnlySet<string>? _cancelOn;
-    private readonly HashSet<string> _ambient = new(StringComparer.Ordinal);
+    // Signals that delay items until cleared
+    // Supports glob patterns
+    // Default: null
+    deferOn: new HashSet<string> { "backpressure.*", "rate-limited" },
 
-    public SignalAwareAtom(
-        Func<T, CancellationToken, Task> body,
-        IReadOnlySet<string>? cancelOn = null,
-        IReadOnlySet<string>? deferOn = null,
-        TimeSpan? deferInterval = null,
-        int? maxDeferAttempts = null,
-        SignalSink? signals = null,
-        int? maxConcurrency = null)
-    {
-        var options = new EphemeralOptions
-        {
-            MaxConcurrency = maxConcurrency is > 0 ? maxConcurrency.Value : Environment.ProcessorCount,
-            CancelOnSignals = cancelOn,
-            DeferOnSignals = deferOn,
-            DeferCheckInterval = deferInterval ?? TimeSpan.FromMilliseconds(100),
-            MaxDeferAttempts = maxDeferAttempts ?? 50,
-            Signals = signals
-        };
+    // Recheck interval when deferring
+    // Default: 100ms
+    deferInterval: TimeSpan.FromMilliseconds(100),
 
-        _coordinator = new EphemeralWorkCoordinator<T>(body, options);
-        _cancelOn = cancelOn;
-    }
+    // Max defer attempts before running anyway
+    // Default: 50
+    maxDeferAttempts: 50,
 
-    public ValueTask<long> EnqueueAsync(T item, CancellationToken ct = default)
-    {
-        if (_cancelOn is { Count: > 0 })
-            foreach (var signal in _ambient)
-                if (StringPatternMatcher.MatchesAny(signal, _cancelOn))
-                    return ValueTask.FromResult(-1L);
+    // Shared signal sink
+    // Default: null
+    signals: sharedSink,
 
-        return _coordinator.EnqueueWithIdAsync(item, ct);
-    }
-
-    public void Raise(string signal)
-    {
-        if (!string.IsNullOrWhiteSpace(signal))
-            _ambient.Add(signal);
-    }
-
-    public async Task DrainAsync(CancellationToken ct = default)
-    {
-        _coordinator.Complete();
-        await _coordinator.DrainAsync(ct).ConfigureAwait(false);
-    }
-
-    public IReadOnlyCollection<EphemeralOperationSnapshot> Snapshot() => _coordinator.GetSnapshot();
-
-    public (int Pending, int Active, int Completed, int Failed) Stats()
-        => (_coordinator.PendingCount, _coordinator.ActiveCount, _coordinator.TotalCompleted, _coordinator.TotalFailed);
-
-    public ValueTask DisposeAsync() => _coordinator.DisposeAsync();
-}
+    // Max concurrent operations
+    // Default: Environment.ProcessorCount
+    maxConcurrency: 8
+)
 ```
+
+---
+
+## API Reference
+
+```csharp
+// Enqueue (returns -1 if canceled by signal)
+ValueTask<long> id = await atom.EnqueueAsync(item, ct);
+
+// Raise ambient signal
+atom.Raise("backpressure");
+
+// Drain and stats
+await atom.DrainAsync(ct);
+var snapshot = atom.Snapshot();
+var (pending, active, completed, failed) = atom.Stats();
+
+await atom.DisposeAsync();
+```
+
+---
+
+## Example: Circuit Breaker
+
+```csharp
+var sink = new SignalSink();
+
+await using var atom = new SignalAwareAtom<ApiRequest>(
+    async (req, ct) =>
+    {
+        try { await CallApi(req, ct); }
+        catch { sink.Raise("api.failure"); throw; }
+    },
+    cancelOn: new HashSet<string> { "circuit-open" },
+    signals: sink);
+
+// Monitor and open circuit
+Task.Run(async () =>
+{
+    while (true)
+    {
+        if (sink.Sense(s => s.Signal == "api.failure").Count() > 5)
+            sink.Raise("circuit-open");
+        await Task.Delay(1000);
+    }
+});
+```
+
+---
+
+## Example: Backpressure
+
+```csharp
+var sink = new SignalSink();
+
+await using var atom = new SignalAwareAtom<WorkItem>(
+    async (item, ct) => await SlowProcess(item, ct),
+    deferOn: new HashSet<string> { "backpressure.*" },
+    signals: sink);
+
+sink.Raise("backpressure.downstream");  // Items wait
+sink.Retract("backpressure.downstream"); // Items resume
+```
+
+---
+
+## Related Packages
+
+| Package | Description |
+|---------|-------------|
+| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral) | Core library |
+| [mostlylucid.ephemeral.patterns.circuitbreaker](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.circuitbreaker) | Full circuit breaker |
+| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All in one DLL |
 
 ## License
 

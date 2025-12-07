@@ -1,16 +1,18 @@
 # Mostlylucid.Ephemeral.Patterns.CircuitBreaker
 
-Stateless circuit breaker that reads state from the ephemeral signal window.
+[![NuGet](https://img.shields.io/nuget/v/mostlylucid.ephemeral.patterns.circuitbreaker.svg)](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.circuitbreaker)
 
-## Installation
+Stateless circuit breaker that reads state from the ephemeral signal window.
 
 ```bash
 dotnet add package mostlylucid.ephemeral.patterns.circuitbreaker
 ```
 
-## Usage
+## Quick Start
 
 ```csharp
+using Mostlylucid.Ephemeral.Patterns.CircuitBreaker;
+
 var breaker = new SignalBasedCircuitBreaker(
     failureSignal: "api.failure",
     threshold: 5,
@@ -23,74 +25,140 @@ if (breaker.IsOpen(coordinator))
 }
 ```
 
-## Full Source (~80 lines)
+---
+
+## All Options
 
 ```csharp
-using Mostlylucid.Ephemeral;
+new SignalBasedCircuitBreaker(
+    // Signal name to count as failure
+    // Default: "failure"
+    failureSignal: "api.failure",
 
-namespace Mostlylucid.Ephemeral.Patterns.CircuitBreaker;
+    // Number of failures to open circuit
+    // Default: 5
+    threshold: 5,
 
-public class SignalBasedCircuitBreaker
+    // Time window for counting failures
+    // Default: 30 seconds
+    windowSize: TimeSpan.FromSeconds(30)
+)
+```
+
+---
+
+## API Reference
+
+```csharp
+// Check if circuit is open (too many failures)
+bool isOpen = breaker.IsOpen(coordinator);
+
+// Check using glob pattern matching
+bool isOpen = breaker.IsOpenMatching(coordinator, "error.*");
+
+// Get current failure count
+int failures = breaker.GetFailureCount(coordinator);
+
+// Get time until circuit closes (null if already closed)
+TimeSpan? retryAfter = breaker.GetTimeUntilClose(coordinator);
+```
+
+---
+
+## How It Works
+
+The circuit breaker is **stateless** - it calculates state from the coordinator's signal window on each check:
+
+```
+Window: [now - 30s] ────────────────────> [now]
+        failure  failure  failure  failure  failure
+        ─────────────────────────────────────────────
+        Count: 5 failures
+        Threshold: 5
+        Result: CIRCUIT OPEN
+```
+
+When the oldest failure ages out of the window, the circuit automatically closes.
+
+---
+
+## Example: API Protection
+
+```csharp
+var breaker = new SignalBasedCircuitBreaker("api.failure", threshold: 5);
+
+await using var coordinator = new EphemeralWorkCoordinator<ApiRequest>(
+    async (req, ct) =>
+    {
+        // Check circuit before calling
+        if (breaker.IsOpen(coordinator))
+        {
+            var retry = breaker.GetTimeUntilClose(coordinator);
+            throw new CircuitOpenException("API circuit open", retry);
+        }
+
+        try
+        {
+            await CallApi(req, ct);
+        }
+        catch
+        {
+            coordinator.Signal("api.failure");
+            throw;
+        }
+    });
+```
+
+---
+
+## Example: Pattern-Based Circuit
+
+```csharp
+var breaker = new SignalBasedCircuitBreaker(
+    failureSignal: "error",
+    threshold: 10,
+    windowSize: TimeSpan.FromMinutes(1));
+
+// Opens on any signal matching "error.*"
+if (breaker.IsOpenMatching(coordinator, "error.*"))
 {
-    private readonly string _failureSignal;
-    private readonly int _threshold;
-    private readonly TimeSpan _windowSize;
-
-    public SignalBasedCircuitBreaker(
-        string failureSignal = "failure",
-        int threshold = 5,
-        TimeSpan? windowSize = null)
-    {
-        _failureSignal = failureSignal;
-        _threshold = threshold;
-        _windowSize = windowSize ?? TimeSpan.FromSeconds(30);
-    }
-
-    public bool IsOpen<T>(EphemeralWorkCoordinator<T> coordinator)
-    {
-        var recentFailures = coordinator.GetSignalsSince(
-            DateTimeOffset.UtcNow - _windowSize);
-        return recentFailures.Count(s => s.Signal == _failureSignal) >= _threshold;
-    }
-
-    public bool IsOpenMatching<T>(EphemeralWorkCoordinator<T> coordinator, string pattern)
-    {
-        var recentSignals = coordinator.GetSignalsSince(
-            DateTimeOffset.UtcNow - _windowSize);
-        return recentSignals.Count(s => StringPatternMatcher.Matches(s.Signal, pattern)) >= _threshold;
-    }
-
-    public int GetFailureCount<T>(EphemeralWorkCoordinator<T> coordinator)
-    {
-        var recentFailures = coordinator.GetSignalsSince(
-            DateTimeOffset.UtcNow - _windowSize);
-        return recentFailures.Count(s => s.Signal == _failureSignal);
-    }
-
-    public TimeSpan? GetTimeUntilClose<T>(EphemeralWorkCoordinator<T> coordinator)
-    {
-        if (!IsOpen(coordinator)) return null;
-
-        var cutoff = DateTimeOffset.UtcNow - _windowSize;
-        var recentFailures = coordinator.GetSignalsSince(cutoff)
-            .Where(s => s.Signal == _failureSignal)
-            .OrderBy(s => s.Timestamp)
-            .ToList();
-
-        if (recentFailures.Count < _threshold) return null;
-
-        var oldestRelevant = recentFailures[recentFailures.Count - _threshold];
-        return oldestRelevant.Timestamp + _windowSize - DateTimeOffset.UtcNow;
-    }
-}
-
-public class CircuitOpenException : Exception
-{
-    public TimeSpan? RetryAfter { get; }
-    public CircuitOpenException(string message, TimeSpan? retryAfter = null) : base(message)
-        => RetryAfter = retryAfter;
+    // Circuit is open due to various error types
 }
 ```
+
+---
+
+## CircuitOpenException
+
+```csharp
+public class CircuitOpenException : Exception
+{
+    // Time until circuit might close
+    public TimeSpan? RetryAfter { get; }
+}
+
+// Usage
+try
+{
+    await service.CallAsync();
+}
+catch (CircuitOpenException ex)
+{
+    if (ex.RetryAfter.HasValue)
+        await Task.Delay(ex.RetryAfter.Value);
+}
+```
+
+---
+
+## Related Packages
+
+| Package | Description |
+|---------|-------------|
+| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral) | Core library |
+| [mostlylucid.ephemeral.patterns.anomalydetector](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.anomalydetector) | Anomaly detection |
+| [mostlylucid.ephemeral.atoms.signalaware](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.signalaware) | Signal-aware atom |
+| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All in one DLL |
 
 ## License
 

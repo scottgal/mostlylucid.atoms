@@ -9,7 +9,7 @@
         <!-- NuGet Package Metadata -->
         <PackageId>mostlylucid.ephemeral.complete</PackageId>
         <Authors>Scott Galloway</Authors>
-        <Description>Complete bundle of all Mostlylucid.Ephemeral functionality in a single package - bounded async execution with signals, atoms, and patterns. No additional package dependencies required.</Description>
+        <Description>Complete bundle of all Mostlylucid.Ephemeral functionality in a single DLL - bounded async execution with signals, atoms, and patterns. No additional package dependencies required.</Description>
         <PackageTags>async;parallel;concurrency;observability;signals;coordination;complete;bundle</PackageTags>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -19,36 +19,42 @@
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     </PropertyGroup>
 
-    <!-- Core - embedded into this package -->
+    <!-- Core source files -->
     <ItemGroup>
-        <ProjectReference Include="..\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj" PrivateAssets="all" />
+        <Compile Include="..\mostlylucid.ephemeral\*.cs" Link="Core\%(Filename)%(Extension)" />
     </ItemGroup>
 
-    <!-- Atoms - embedded into this package -->
+    <!-- Atom source files -->
     <ItemGroup>
-        <ProjectReference Include="..\mostlylucid.ephemeral.atoms.batching\mostlylucid.ephemeral.atoms.batching.csproj" PrivateAssets="all" />
-        <ProjectReference Include="..\mostlylucid.ephemeral.atoms.fixedwork\mostlylucid.ephemeral.atoms.fixedwork.csproj" PrivateAssets="all" />
-        <ProjectReference Include="..\mostlylucid.ephemeral.atoms.keyedsequential\mostlylucid.ephemeral.atoms.keyedsequential.csproj" PrivateAssets="all" />
-        <ProjectReference Include="..\mostlylucid.ephemeral.atoms.retry\mostlylucid.ephemeral.atoms.retry.csproj" PrivateAssets="all" />
-        <ProjectReference Include="..\mostlylucid.ephemeral.atoms.signalaware\mostlylucid.ephemeral.atoms.signalaware.csproj" PrivateAssets="all" />
+        <Compile Include="..\mostlylucid.ephemeral.atoms.batching\*.cs" Link="Atoms\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.atoms.fixedwork\*.cs" Link="Atoms\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.atoms.keyedsequential\*.cs" Link="Atoms\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.atoms.retry\*.cs" Link="Atoms\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.atoms.signalaware\*.cs" Link="Atoms\%(Filename)%(Extension)" />
     </ItemGroup>
 
-    <!-- Patterns - embedded into this package -->
+    <!-- Pattern source files -->
     <ItemGroup>
-        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.adaptiverate\mostlylucid.ephemeral.patterns.adaptiverate.csproj" PrivateAssets="all" />
-        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.anomalydetector\mostlylucid.ephemeral.patterns.anomalydetector.csproj" PrivateAssets="all" />
-        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.backpressure\mostlylucid.ephemeral.patterns.backpressure.csproj" PrivateAssets="all" />
-        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.circuitbreaker\mostlylucid.ephemeral.patterns.circuitbreaker.csproj" PrivateAssets="all" />
-        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.controlledfanout\mostlylucid.ephemeral.patterns.controlledfanout.csproj" PrivateAssets="all" />
-        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.dynamicconcurrency\mostlylucid.ephemeral.patterns.dynamicconcurrency.csproj" PrivateAssets="all" />
-        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.keyedpriorityfanout\mostlylucid.ephemeral.patterns.keyedpriorityfanout.csproj" PrivateAssets="all" />
-        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.longwindowdemo\mostlylucid.ephemeral.patterns.longwindowdemo.csproj" PrivateAssets="all" />
-        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.reactivefanout\mostlylucid.ephemeral.patterns.reactivefanout.csproj" PrivateAssets="all" />
-        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.signalcoordinatedreads\mostlylucid.ephemeral.patterns.signalcoordinatedreads.csproj" PrivateAssets="all" />
-        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.signalinghttp\mostlylucid.ephemeral.patterns.signalinghttp.csproj" PrivateAssets="all" />
-        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.signallogwatcher\mostlylucid.ephemeral.patterns.signallogwatcher.csproj" PrivateAssets="all" />
-        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.signalreactionshowcase\mostlylucid.ephemeral.patterns.signalreactionshowcase.csproj" PrivateAssets="all" />
-        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.telemetry\mostlylucid.ephemeral.patterns.telemetry.csproj" PrivateAssets="all" />
+        <Compile Include="..\mostlylucid.ephemeral.patterns.adaptiverate\*.cs" Link="Patterns\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.patterns.anomalydetector\*.cs" Link="Patterns\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.patterns.backpressure\*.cs" Link="Patterns\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.patterns.circuitbreaker\*.cs" Link="Patterns\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.patterns.controlledfanout\*.cs" Link="Patterns\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.patterns.dynamicconcurrency\*.cs" Link="Patterns\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.patterns.keyedpriorityfanout\*.cs" Link="Patterns\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.patterns.longwindowdemo\*.cs" Link="Patterns\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.patterns.reactivefanout\*.cs" Link="Patterns\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.patterns.signalcoordinatedreads\*.cs" Link="Patterns\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.patterns.signalinghttp\*.cs" Link="Patterns\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.patterns.signallogwatcher\*.cs" Link="Patterns\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.patterns.signalreactionshowcase\*.cs" Link="Patterns\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.patterns.telemetry\*.cs" Link="Patterns\%(Filename)%(Extension)" />
+    </ItemGroup>
+
+    <!-- Package dependencies (same as core) -->
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+        <PackageReference Include="System.IO.Hashing" Version="8.0.0" />
     </ItemGroup>
 
     <ItemGroup>

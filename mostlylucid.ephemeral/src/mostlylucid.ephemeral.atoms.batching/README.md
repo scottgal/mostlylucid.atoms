@@ -1,104 +1,118 @@
 # Mostlylucid.Ephemeral.Atoms.Batching
 
-Collects items into batches. Processes when full or when time interval elapses.
+[![NuGet](https://img.shields.io/nuget/v/mostlylucid.ephemeral.atoms.batching.svg)](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.batching)
 
-## Installation
+Collect items into batches by size or time interval before processing.
 
 ```bash
 dotnet add package mostlylucid.ephemeral.atoms.batching
 ```
 
-## Usage
+## Quick Start
 
 ```csharp
+using Mostlylucid.Ephemeral.Atoms.Batching;
+
 await using var atom = new BatchingAtom<LogEntry>(
-    async (batch, ct) => await WriteBatchAsync(batch, ct),
+    onBatch: async (batch, ct) => await FlushToDatabase(batch, ct),
     maxBatchSize: 100,
     flushInterval: TimeSpan.FromSeconds(5));
 
-atom.Enqueue(new LogEntry("Event 1"));
-atom.Enqueue(new LogEntry("Event 2"));
-// Batch processes when 100 items OR 5 seconds elapsed
+// Items batched automatically
+atom.Enqueue(new LogEntry("User logged in"));
+atom.Enqueue(new LogEntry("Request received"));
+// Flushes when full OR after 5 seconds
 ```
 
-## Full Source (~90 lines)
+---
+
+## All Options
 
 ```csharp
-using System.Timers;
-using Timer = System.Timers.Timer;
+new BatchingAtom<T>(
+    // Required: async batch processor
+    onBatch: async (batch, ct) => await ProcessBatch(batch, ct),
 
-namespace Mostlylucid.Ephemeral.Atoms.Batching;
+    // Flush when batch reaches this size
+    // Default: 32
+    maxBatchSize: 100,
 
-public sealed class BatchingAtom<T> : IAsyncDisposable
-{
-    private readonly object _lock = new();
-    private readonly List<T> _buffer = new();
-    private readonly Func<IReadOnlyList<T>, CancellationToken, Task> _onBatch;
-    private readonly int _maxBatchSize;
-    private readonly Timer _timer;
-    private bool _flushing;
-    private bool _disposed;
-
-    public BatchingAtom(
-        Func<IReadOnlyList<T>, CancellationToken, Task> onBatch,
-        int maxBatchSize = 32,
-        TimeSpan? flushInterval = null)
-    {
-        if (maxBatchSize <= 0) throw new ArgumentOutOfRangeException(nameof(maxBatchSize));
-        _onBatch = onBatch ?? throw new ArgumentNullException(nameof(onBatch));
-        _maxBatchSize = maxBatchSize;
-        _timer = new Timer((flushInterval ?? TimeSpan.FromSeconds(1)).TotalMilliseconds)
-        {
-            AutoReset = true,
-            Enabled = true
-        };
-        _timer.Elapsed += async (_, _) => await TryFlushAsync().ConfigureAwait(false);
-    }
-
-    public void Enqueue(T item)
-    {
-        lock (_lock)
-        {
-            if (_disposed) throw new ObjectDisposedException(nameof(BatchingAtom<T>));
-            _buffer.Add(item);
-            if (_buffer.Count >= _maxBatchSize && !_flushing)
-                _ = FlushAsync();
-        }
-    }
-
-    private async Task TryFlushAsync()
-    {
-        lock (_lock)
-        {
-            if (_flushing || _buffer.Count == 0) return;
-            _flushing = true;
-        }
-        try { await FlushAsync().ConfigureAwait(false); }
-        finally { lock (_lock) { _flushing = false; } }
-    }
-
-    private async Task FlushAsync()
-    {
-        List<T> batch;
-        lock (_lock)
-        {
-            if (_buffer.Count == 0) return;
-            batch = new List<T>(_buffer);
-            _buffer.Clear();
-        }
-        await _onBatch(batch, CancellationToken.None).ConfigureAwait(false);
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_disposed) return;
-        _disposed = true;
-        _timer.Stop();
-        _timer.Dispose();
-        await FlushAsync().ConfigureAwait(false);
-    }
-}
+    // Flush after this interval even if not full
+    // Default: 1 second
+    flushInterval: TimeSpan.FromSeconds(5)
+)
 ```
+
+---
+
+## API Reference
+
+```csharp
+// Add item to batch (non-blocking, synchronous)
+atom.Enqueue(item);
+
+// Dispose - flushes remaining items
+await atom.DisposeAsync();
+```
+
+---
+
+## Flush Behavior
+
+Flushes when **either** condition is met:
+- **Size**: Batch reaches `maxBatchSize`
+- **Time**: `flushInterval` elapses
+
+```
+[1] [2] [3] ... [100] -> FLUSH (size)
+[1] [2] [3] (5s pass) -> FLUSH (time)
+```
+
+---
+
+## Example: Log Aggregation
+
+```csharp
+await using var atom = new BatchingAtom<LogEntry>(
+    onBatch: async (batch, ct) =>
+    {
+        Console.WriteLine($"Flushing {batch.Count} entries");
+        await database.BulkInsertAsync(batch, ct);
+    },
+    maxBatchSize: 500,
+    flushInterval: TimeSpan.FromSeconds(10));
+
+foreach (var entry in incomingLogs)
+    atom.Enqueue(entry);  // Non-blocking
+```
+
+---
+
+## Example: Metrics
+
+```csharp
+await using var atom = new BatchingAtom<Metric>(
+    onBatch: async (batch, ct) =>
+    {
+        var aggregated = batch
+            .GroupBy(m => m.Name)
+            .Select(g => new { Name = g.Key, Avg = g.Average(m => m.Value) });
+        await metricsService.ReportAsync(aggregated, ct);
+    },
+    maxBatchSize: 1000,
+    flushInterval: TimeSpan.FromMinutes(1));
+
+atom.Enqueue(new Metric("response_time", 42.5));
+```
+
+---
+
+## Related Packages
+
+| Package | Description |
+|---------|-------------|
+| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral) | Core library |
+| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All in one DLL |
 
 ## License
 
