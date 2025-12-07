@@ -126,6 +126,43 @@ await using var updater = new EphemeralWorkCoordinator<ConfigUpdate>(
     new EphemeralOptions { MaxConcurrency = 1, Signals = sink });
 ```
 
+## Attribute-driven config reload
+
+```csharp
+[EphemeralJobs(SignalPrefix = "config", DefaultLane = "reader")]
+public sealed class ConfigJobs
+{
+    private readonly SignalSink _signals;
+    private readonly IConfigurationService _config;
+
+    public ConfigJobs(SignalSink signals, IConfigurationService config)
+    {
+        _signals = signals;
+        _config = config;
+    }
+
+    [EphemeralJob("reader", AwaitSignals = new[] { "config.updated" }, MaxConcurrency = 8)]
+    public async Task ReaderAsync(ConfigRequest request, CancellationToken ct)
+    {
+        var config = await _config.LoadAsync(ct);
+        await request.ProcessAsync(config, ct);
+    }
+
+    [EphemeralJob("reload", EmitOnStart = new[] { "config.updating" }, EmitOnComplete = new[] { "config.updated" }, MaxConcurrency = 1)]
+    public Task ReloadAsync(ConfigUpdate update, CancellationToken ct)
+        => _config.ApplyAsync(update, ct);
+}
+
+var sink = new SignalSink();
+var jobs = new ConfigJobs(sink, configService);
+await using var runner = new EphemeralSignalJobRunner(sink, new[] { jobs });
+
+// Trigger reloads when needed
+sink.Raise("config.reload");
+```
+
+`EphemeralSignalJobRunner` ties the attribute handlers to the signal stream, automatically sequencing readers after updates via `AwaitSignals` and sharing the same `SignalSink` used for manual coordinators.
+
 ---
 
 ## Example: Database Migration

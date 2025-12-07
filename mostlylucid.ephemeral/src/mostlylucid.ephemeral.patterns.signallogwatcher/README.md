@@ -101,6 +101,33 @@ sink.Raise("error.database.connection");
 sink.Raise("error.api.timeout");
 ```
 
+## Attribute-driven alert jobs
+
+```csharp
+[EphemeralJobs(SignalPrefix = "error")]
+public sealed class ErrorAlertJobs
+{
+    private readonly IAlertService _alerts;
+
+    public ErrorAlertJobs(IAlertService alerts) => _alerts = alerts;
+
+    [EphemeralJob(".*", Lane = "alerts", MaxConcurrency = 2)]
+    public Task NotifyAsync(SignalEvent evt, CancellationToken ct)
+    {
+        return _alerts.SendAlertAsync(
+            $"Captured {evt.Signal}",
+            $"Op {evt.OperationId} @ {evt.Timestamp}",
+            ct);
+    }
+}
+
+var sink = new SignalSink();
+await using var runner = new EphemeralSignalJobRunner(sink, new[] { new ErrorAlertJobs(alertService) });
+sink.Raise("error.database.connection");
+```
+
+Handlers created from the attribute package see the same signal stream, but the wiring lives right next to the logic that responds to `error.*` patterns.
+
 ---
 
 ## Example: Multiple Watchers

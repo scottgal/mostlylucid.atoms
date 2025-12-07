@@ -171,6 +171,33 @@ var options = new EphemeralOptions
 - Log hook: (from `mostlylucid.ephemeral.logging`) `var logSink = new TypedSignalSink<SignalLogPayload>(); using var provider = new SignalLoggerProvider(logSink); loggerFactory.AddProvider(provider);` → emits slugged signals like `log.error.orderservice.db-failure:invalidoperationexception` with typed payload carrying event id, scope data, and exception metadata.
 - Signal→log bridge (also part of `mostlylucid.ephemeral.logging`): `using var bridge = new SignalToLoggerAdapter(sink, logger);` lets signals flow back into Microsoft.Extensions.Logging (default level inferred from signal prefix such as `error.*`, `warn.*`, etc.).
 - Attribute jobs: `[EphemeralJob("orders.process")]` on a class plus `new EphemeralSignalJobRunner(sink, new[] { new OrderJobs() });` wires the annotated methods into an `EphemeralWorkCoordinator` and runs them whenever the matching signal fires (`mostlylucid.ephemeral.attributes` package).
+  - Attribute-driven pipelines: decorate methods with `[EphemeralJob]`, share a `SignalSink`, and load them via `EphemeralSignalJobRunner` to mirror the manual `SignalWaveExecutor` and watcher examples. Example:
+
+```csharp
+[EphemeralJobs(SignalPrefix = "stage", DefaultLane = "pipeline")]
+public sealed class StageJobs
+{
+    [EphemeralJob("ingest", EmitOnComplete = new[] { "stage.ingest.done" })]
+    public Task IngestAsync(SignalEvent evt, CancellationToken ct)
+    {
+        Console.WriteLine($"Stage trigger: {evt.Signal}");
+        return Task.CompletedTask;
+    }
+
+    [EphemeralJob("finalize")]
+    public Task FinalizeAsync(SignalEvent evt, CancellationToken ct)
+    {
+        Console.WriteLine("Final stage complete");
+        return Task.CompletedTask;
+    }
+}
+
+var sink = new SignalSink();
+await using var runner = new EphemeralSignalJobRunner(sink, new[] { new StageJobs() });
+sink.Raise("stage.ingest");
+```
+
+The handler raises `stage.ingest.done` automatically, so downstream jobs can be wired in the same way the other signal helpers emit completion signals.
 - Push subscribers: `sink.SignalRaised += evt => ...;` for live tap alongside snapshot APIs.
 
 Quick bot-detection flow (stages + quorum + reputation):
