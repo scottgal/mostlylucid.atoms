@@ -24,6 +24,8 @@ This package compiles all core, atom, and pattern code into one assembly. For in
   - [SignalAwareAtom](#signalawareatom)
   - [BatchingAtom](#batchingatom)
   - [RetryAtom](#retryatom)
+  - [SlidingCacheAtom](#slidingcacheatom)
+  - [EphemeralLruCache](#ephemerallrucache)
 - [Patterns](#patterns-ready-to-use)
   - [SignalBasedCircuitBreaker](#signalbasedcircuitbreaker)
   - [SignalDrivenBackpressure](#signaldrivenbackpressure)
@@ -39,6 +41,7 @@ This package compiles all core, atom, and pattern code into one assembly. For in
   - [TelemetrySignalHandler](#telemetrysignalhandler)
   - [LongWindowDemo](#longwindowdemo)
   - [SignalReactionShowcase](#signalreactionshowcase)
+  - [PersistentSignalWindow](#persistentsignalwindow)
 - [Dependency Injection](#dependency-injection)
 
 ---
@@ -332,6 +335,65 @@ await using var atom = new RetryAtom<ApiRequest>(
 await atom.EnqueueAsync(new ApiRequest("https://api.example.com"));
 
 await atom.DrainAsync();
+```
+
+---
+
+### SlidingCacheAtom
+
+> **Package:** [mostlylucid.ephemeral.atoms.slidingcache](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.slidingcache)
+
+Cache with sliding expiration - accessing a result resets its TTL.
+
+```csharp
+using Mostlylucid.Ephemeral.Atoms.SlidingCache;
+
+await using var cache = new SlidingCacheAtom<string, UserProfile>(
+    async (userId, ct) => await LoadUserProfileAsync(userId, ct),
+    slidingExpiration: TimeSpan.FromMinutes(5),
+    absoluteExpiration: TimeSpan.FromHours(1),
+    maxSize: 1000);
+
+// First call: computes and caches
+var profile = await cache.GetOrComputeAsync("user-123");
+
+// Second call within 5 minutes: returns cached, resets TTL
+var cached = await cache.GetOrComputeAsync("user-123");
+
+// Try get without computation (still resets TTL on hit)
+if (cache.TryGet("user-123", out var profile))
+    Console.WriteLine(profile.Name);
+
+// Get stats
+var stats = cache.GetStats();
+Console.WriteLine($"Entries: {stats.TotalEntries}, Hot: {stats.HotEntries}");
+```
+
+### EphemeralLruCache
+
+> **Package:** core (`mostlylucid.ephemeral`) — self-optimizing cache with sliding TTL on every hit and extended TTL for hot keys.
+
+```csharp
+using Mostlylucid.Ephemeral;
+
+var cache = new EphemeralLruCache<string, Widget>(new EphemeralLruCacheOptions
+{
+    DefaultTtl = TimeSpan.FromMinutes(5),
+    HotKeyExtension = TimeSpan.FromMinutes(30),
+    HotAccessThreshold = 3,
+    MaxSize = 10_000,
+    SampleRate = 5 // emit 1 in 5 signals
+});
+
+var widget = await cache.GetOrAddAsync("widget:42", async key =>
+{
+    var data = await LoadWidgetAsync(key);
+    return data!;
+});
+
+// Stats and signals to see how the cache self-focuses on hot keys
+var stats = cache.GetStats();              // hot/expired counts, size
+var signals = cache.GetSignals("cache.*"); // cache.hot/evict/miss/hit
 ```
 
 ---
@@ -731,6 +793,39 @@ using Mostlylucid.Ephemeral.Patterns.SignalReactionShowcase;
 
 // See source for signal dispatch examples
 // Demonstrates OnSignal, OnSignalAsync, CancelOnSignals, DeferOnSignals
+```
+
+---
+
+### PersistentSignalWindow
+
+> **Package:** [mostlylucid.ephemeral.patterns.persistentwindow](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.persistentwindow)
+
+Signal window with SQLite persistence - survives process restarts.
+
+```csharp
+using Mostlylucid.Ephemeral.Patterns.PersistentWindow;
+
+await using var window = new PersistentSignalWindow(
+    "Data Source=signals.db",
+    flushInterval: TimeSpan.FromSeconds(30));
+
+// On startup: restore previous signals
+await window.LoadFromDiskAsync(maxAge: TimeSpan.FromHours(24));
+
+// Raise signals as normal
+window.Raise("order.completed", key: "order-service");
+window.Raise("payment.processed", key: "payment-service");
+
+// Query signals
+var recentOrders = window.Sense("order.*");
+
+// Signals automatically flush every 30 seconds
+// Also flushes on dispose
+
+// Get stats
+var stats = window.GetStats();
+Console.WriteLine($"In memory: {stats.InMemoryCount}, Flushed: {stats.LastFlushedId}");
 ```
 
 ---

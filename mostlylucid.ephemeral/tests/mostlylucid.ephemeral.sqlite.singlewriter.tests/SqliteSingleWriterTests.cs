@@ -320,7 +320,7 @@ CREATE TABLE IF NOT EXISTS Children (Id INTEGER PRIMARY KEY, ParentId INTEGER NO
 
             // Raise external invalidation
             externalSink.Raise(new SignalEvent($"cache.invalidate:{cacheKey}", EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
-            await Task.Delay(400); // Allow poll loop to process
+            await Task.Delay(800); // Allow poll loop to process comfortably
 
             var second = await writer.ReadAsync(cacheKey, async conn =>
             {

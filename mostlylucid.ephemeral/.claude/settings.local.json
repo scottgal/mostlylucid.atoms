@@ -3,7 +3,9 @@
     "allow": [
       "Bash(nul)",
       "Bash(dir:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(copy:*)",
+      "Bash(dotnet sln:*)"
     ],
     "deny": [],
     "ask": []

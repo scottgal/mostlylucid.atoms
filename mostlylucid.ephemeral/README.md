@@ -161,6 +161,53 @@ var options = new EphemeralOptions
 };
 ```
 
+### Signal Orchestration Helpers
+
+- Typed payload signals: `var typed = new TypedSignalSink<BotEvidence>(); typed.Raise("bot.evidence", payload);` (mirrors to the untyped `SignalSink` for compatibility)
+- Staged/wave execution: `new SignalWaveExecutor(sink, new[]{ new SignalStage("detect","stage.start", DoWork, EmitOnComplete:new[]{"stage.done"}) }, earlyExitSignals:new[]{"verdict.*"})`
+- Quorum/consensus: `await SignalConsensus.WaitForQuorumAsync(sink, "vote.*", required:3, timeout:TimeSpan.FromSeconds(2));`
+- Progress pings: `ProgressSignals.Emit(sink, "ingest", current, total, sampleRate:5);`
+- Decaying reputation: `var rep = new DecayingReputationWindow<string>(TimeSpan.FromMinutes(5)); rep.Update(userId, +1); var score = rep.GetScore(userId);`
+- Push subscribers: `sink.SignalRaised += evt => ...;` for live tap alongside snapshot APIs.
+
+Quick bot-detection flow (stages + quorum + reputation):
+
+```csharp
+var sink = new SignalSink();
+var evidence = new TypedSignalSink<BotEvidence>(sink);
+var rep = new DecayingReputationWindow<string>(TimeSpan.FromMinutes(10), signals: sink);
+
+// Stage: run detectors when content arrives
+await using var waves = new SignalWaveExecutor(
+    sink,
+    new[]
+    {
+        new SignalStage("lexical","content.received",
+            ct => RunLexicalAsync(ct),
+            EmitOnComplete: new[] { "vote.lexical" }),
+        new SignalStage("behavior","content.received",
+            ct => RunBehaviorAsync(ct),
+            EmitOnComplete: new[] { "vote.behavior" })
+    },
+    earlyExitSignals: new[] { "verdict.*" });
+waves.Start();
+
+// Quorum: wait for 2 votes
+_ = Task.Run(async () =>
+{
+    var quorum = await SignalConsensus.WaitForQuorumAsync(sink, "vote.*", required: 2,
+        timeout: TimeSpan.FromSeconds(3), cancelOn: new[] { "verdict.*" });
+    if (quorum.Reached)
+        sink.Raise("verdict.bot");
+});
+
+// Reputation bump
+rep.Update("user-123", +5); // on evidence
+
+// Emit evidence with payload for audit
+evidence.Raise("bot.evidence", new BotEvidence { UserId = "user-123", Score = rep.GetScore("user-123") });
+```
+
 ### Shared Signal Sink
 
 Share signals across coordinators:
@@ -289,6 +336,41 @@ Production-ready implementations:
 |---------|-------------|
 | `mostlylucid.ephemeral.sqlite.singlewriter` | SQLite single-writer demo with mini CQRS |
 | `mostlylucid.ephemeral.complete` | All packages in one install |
+
+### Cache Strategies (quick map)
+
+| Cache | Expiration model | Specialization | Where |
+|-------|------------------|----------------|-------|
+| `SlidingCacheAtom` | Sliding on every hit + absolute max lifetime | Async factory + dedupe; rich signals | `atoms.slidingcache` |
+| `EphemeralLruCache` (default) | Sliding on hit; hot keys extend TTL; LRU-style eviction | Hot detection (`cache.hot/evict` signals) | Core + `sqlite.singlewriter` |
+| `MemoryCache` (legacy/optional) | Sliding TTL only | No hot tracking or dedupe | Only if you opt out of LRU |
+
+### Sample: Self-optimizing hot-key cache (EphemeralLruCache)
+
+```csharp
+using Mostlylucid.Ephemeral;
+
+var cache = new EphemeralLruCache<string, User>(new EphemeralLruCacheOptions
+{
+    DefaultTtl = TimeSpan.FromMinutes(5),
+    HotKeyExtension = TimeSpan.FromMinutes(30),
+    HotAccessThreshold = 3, // 3 hits = hot
+    MaxSize = 10_000,
+    SampleRate = 5 // emit 1 in 5 signals
+});
+
+// Read-through with self-optimizing TTLs
+async Task<User> GetUserAsync(string id) =>
+    await cache.GetOrAddAsync(id, async key =>
+    {
+        var user = await db.LoadUserAsync(key);
+        return user!;
+    });
+
+// Observe how the cache self-focuses
+var signals = cache.GetSignals().Where(s => s.Signal.StartsWith("cache."));
+var stats = cache.GetStats(); // hot/expired counts, size
+```
 
 ## Examples
 

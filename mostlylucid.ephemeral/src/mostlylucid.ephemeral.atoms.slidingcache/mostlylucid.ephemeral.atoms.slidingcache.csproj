@@ -6,26 +6,19 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
 
-        <!-- NuGet Package Metadata -->
-        <PackageId>mostlylucid.ephemeral.sqlite.singlewriter</PackageId>
+        <PackageId>Mostlylucid.Ephemeral.Atoms.SlidingCache</PackageId>
+        <Version>1.0.0</Version>
         <Authors>Scott Galloway</Authors>
-        <Description>Safe SQLite single-writer access with mini CQRS pattern. Keyed by connection string with cached read access and serialized writes.</Description>
-        <PackageTags>sqlite;cqrs;single-writer;cache;async;concurrency</PackageTags>
+        <Description>Caches work results with sliding expiration - accessing a result resets its TTL. Results that haven't been accessed expire and are recomputed on next request.</Description>
+        <PackageTags>async;cache;sliding-expiration;ttl;atom</PackageTags>
         <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageIcon>icon.png</PackageIcon>
-        <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(MSBuildProjectDirectory)/ReleaseNotes.txt"))</PackageReleaseNotes>
         <RepositoryUrl>https://github.com/scottgal/mostlylucid.ephemeral</RepositoryUrl>
-        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     </PropertyGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
-        <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
     </ItemGroup>
 
     <ItemGroup>

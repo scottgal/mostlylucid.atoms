@@ -89,9 +89,9 @@ internal sealed class WriteCommand
             {
                 if (transaction != null)
                     await transaction.DisposeAsync().ConfigureAwait(false);
-                }
+            }
 
-                return new WriteCommandResult(total, null);
+            return new WriteCommandResult(total, null);
         }, $"write:batch:{instanceId}", emitSignal, signal);
     }
 

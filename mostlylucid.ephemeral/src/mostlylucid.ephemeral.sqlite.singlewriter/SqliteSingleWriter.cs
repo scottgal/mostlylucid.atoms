@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.Caching.Memory;
+using Mostlylucid.Ephemeral;
 
 namespace Mostlylucid.Ephemeral.Sqlite;
 
@@ -19,8 +19,7 @@ public sealed class SqliteSingleWriter : IAsyncDisposable
     private readonly SqliteSingleWriterOptions _options;
     private readonly EphemeralWorkCoordinator<WriteCommand> _writeCoordinator;
     private readonly SignalSink _signals;
-    private readonly IMemoryCache _cache;
-    private readonly MemoryCacheEntryOptions _defaultCacheOptions;
+    private readonly EphemeralLruCache<string, object?> _cache;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly int _sampleRate;
     private readonly string _instanceId;
@@ -54,16 +53,15 @@ public sealed class SqliteSingleWriter : IAsyncDisposable
             maxAge: TimeSpan.FromMinutes(5));
         _emitSignal = name => _signals.Raise(new SignalEvent(name, EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
 
-        _cache = new MemoryCache(new MemoryCacheOptions
-        {
-            SizeLimit = _options.CacheSizeLimit
-        });
-
-        _defaultCacheOptions = new MemoryCacheEntryOptions
-        {
-            SlidingExpiration = _options.DefaultCacheDuration,
-            Size = 1
-        };
+        _cache = new EphemeralLruCache<string, object?>(
+            new EphemeralLruCacheOptions
+            {
+                DefaultTtl = _options.DefaultCacheDuration,
+                HotKeyExtension = _options.HotKeyExtension,
+                HotAccessThreshold = _options.HotAccessThreshold,
+                MaxSize = (int)_options.CacheSizeLimit,
+                SampleRate = _options.SampleRate
+            });
 
         // Single-writer pattern: MaxConcurrency=1 ensures serialized writes
         _writeCoordinator = new EphemeralWorkCoordinator<WriteCommand>(
@@ -149,7 +147,7 @@ public sealed class SqliteSingleWriter : IAsyncDisposable
         {
             foreach (var key in cacheKeysToInvalidate)
             {
-                _cache.Remove(key);
+                _cache.Invalidate(key);
                 _signals.Raise(new SignalEvent($"cache.invalidate:{key}", EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
             }
         }
@@ -161,31 +159,36 @@ public sealed class SqliteSingleWriter : IAsyncDisposable
     /// Reads data with caching. Emits cache hit/miss signals for observability.
     /// </summary>
     public async Task<T?> ReadAsync<T>(string cacheKey, Func<SqliteConnection, Task<T>> reader,
-        MemoryCacheEntryOptions? cacheOptions = null, CancellationToken ct = default)
+        TimeSpan? slidingExpiration = null, CancellationToken ct = default)
     {
-        if (_cache.TryGetValue(cacheKey, out T? cached))
+        if (_cache.TryGet(cacheKey, out var cachedObj))
         {
             if (ShouldSample())
                 _signals.Raise(new SignalEvent($"cache.hit:{cacheKey}", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
-            return cached;
+            return cachedObj is T cached ? cached : default;
         }
 
         if (ShouldSample())
             _signals.Raise(new SignalEvent($"cache.miss:{cacheKey}", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
 
-        // Read connections can be concurrent - SQLite handles this
-        await using var connection = await CreateReadConnectionAsync(ct);
-        if (ShouldSample())
-            _signals.Raise(new SignalEvent($"read.start:{cacheKey}", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
+        var result = await _cache.GetOrAddAsync(cacheKey, async _ =>
+        {
+            // Read connections can be concurrent - SQLite handles this
+            await using var connection = await CreateReadConnectionAsync(ct);
+            if (ShouldSample())
+                _signals.Raise(new SignalEvent($"read.start:{cacheKey}", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
 
-        var result = await reader(connection);
-        _cache.Set(cacheKey, result, cacheOptions ?? _defaultCacheOptions);
-        _signals.Raise(new SignalEvent($"cache.set:{cacheKey}", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
+            var computed = await reader(connection);
 
-        if (ShouldSample())
-            _signals.Raise(new SignalEvent($"read.done:{cacheKey}", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
+            _signals.Raise(new SignalEvent($"cache.set:{cacheKey}", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
 
-        return result;
+            if (ShouldSample())
+                _signals.Raise(new SignalEvent($"read.done:{cacheKey}", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
+
+            return computed!;
+        }, slidingExpiration ?? _options.DefaultCacheDuration);
+
+        return result is T typed ? typed : default;
     }
 
     /// <summary>
@@ -220,7 +223,7 @@ public sealed class SqliteSingleWriter : IAsyncDisposable
     /// </summary>
     public void InvalidateCache(string cacheKey)
     {
-        _cache.Remove(cacheKey);
+        _cache.Invalidate(cacheKey);
         _signals.Raise(new SignalEvent($"cache.invalidate:{cacheKey}", EphemeralIdGenerator.NextId(), _instanceId, DateTimeOffset.UtcNow));
     }
 
@@ -366,7 +369,7 @@ public sealed class SqliteSingleWriter : IAsyncDisposable
                     var key = ExtractCacheKey(signal.Signal);
                     if (key is null) continue;
 
-                    _cache.Remove(key);
+                    _cache.Invalidate(key);
                     _emitSignal($"cache.invalidate.external:{key}");
                 }
 
@@ -416,7 +419,7 @@ public sealed class SqliteSingleWriter : IAsyncDisposable
             await _writeConnection.DisposeAsync().ConfigureAwait(false);
 
         _writeLock.Dispose();
-        _cache.Dispose();
+        await _cache.DisposeAsync();
     }
 
 }
@@ -432,9 +435,19 @@ public sealed class SqliteSingleWriterOptions
     public long CacheSizeLimit { get; set; } = 1000;
 
     /// <summary>
-    /// Default cache duration for read operations. Default: 5 minutes.
+    /// Default cache duration for read operations (base TTL). Default: 5 minutes.
     /// </summary>
     public TimeSpan DefaultCacheDuration { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Extended TTL for hot keys. Default: 30 minutes.
+    /// </summary>
+    public TimeSpan HotKeyExtension { get; set; } = TimeSpan.FromMinutes(30);
+
+    /// <summary>
+    /// Accesses before a key is considered hot. Default: 3.
+    /// </summary>
+    public int HotAccessThreshold { get; set; } = 3;
 
     /// <summary>
     /// Maximum number of write operations to track. Default: 128.

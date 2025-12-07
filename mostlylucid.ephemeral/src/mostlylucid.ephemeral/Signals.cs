@@ -300,6 +300,11 @@ public sealed class SignalSink
     private readonly TimeSpan _maxAge;
     private long _raiseCounter;
 
+    /// <summary>
+    /// Raised immediately whenever a signal is enqueued. Use for live subscribers that need push semantics.
+    /// </summary>
+    public event Action<SignalEvent>? SignalRaised;
+
     public SignalSink(int maxCapacity = 1000, TimeSpan? maxAge = null)
     {
         _maxCapacity = maxCapacity;
@@ -313,6 +318,7 @@ public sealed class SignalSink
     public void Raise(SignalEvent signal)
     {
         _window.Enqueue(signal);
+        try { SignalRaised?.Invoke(signal); } catch { /* never throw from signal fan-out */ }
 
         // Only cleanup every ~1024 calls to avoid contention
         if ((Interlocked.Increment(ref _raiseCounter) & 0x3FF) == 0)

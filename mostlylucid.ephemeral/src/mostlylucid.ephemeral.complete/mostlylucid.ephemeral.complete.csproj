@@ -31,6 +31,7 @@
         <Compile Include="..\mostlylucid.ephemeral.atoms.keyedsequential\*.cs" Link="Atoms\%(Filename)%(Extension)" />
         <Compile Include="..\mostlylucid.ephemeral.atoms.retry\*.cs" Link="Atoms\%(Filename)%(Extension)" />
         <Compile Include="..\mostlylucid.ephemeral.atoms.signalaware\*.cs" Link="Atoms\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.atoms.slidingcache\*.cs" Link="Atoms\%(Filename)%(Extension)" />
     </ItemGroup>
 
     <!-- Pattern source files -->
@@ -49,12 +50,14 @@
         <Compile Include="..\mostlylucid.ephemeral.patterns.signallogwatcher\*.cs" Link="Patterns\%(Filename)%(Extension)" />
         <Compile Include="..\mostlylucid.ephemeral.patterns.signalreactionshowcase\*.cs" Link="Patterns\%(Filename)%(Extension)" />
         <Compile Include="..\mostlylucid.ephemeral.patterns.telemetry\*.cs" Link="Patterns\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.patterns.persistentwindow\*.cs" Link="Patterns\%(Filename)%(Extension)" />
     </ItemGroup>
 
-    <!-- Package dependencies (same as core) -->
+    <!-- Package dependencies (same as core + SQLite for PersistentWindow) -->
     <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
         <PackageReference Include="System.IO.Hashing" Version="8.0.0" />
+        <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
     </ItemGroup>
 
     <ItemGroup>

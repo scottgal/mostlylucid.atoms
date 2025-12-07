@@ -24,6 +24,8 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj" />
+        <ProjectReference Include="..\..\src\mostlylucid.ephemeral.atoms.slidingcache\mostlylucid.ephemeral.atoms.slidingcache.csproj" />
+        <ProjectReference Include="..\..\src\mostlylucid.ephemeral.sqlite.singlewriter\mostlylucid.ephemeral.sqlite.singlewriter.csproj" />
     </ItemGroup>
 
 </Project>

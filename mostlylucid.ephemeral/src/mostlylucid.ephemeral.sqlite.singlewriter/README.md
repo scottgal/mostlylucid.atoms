@@ -1,6 +1,7 @@
 # Mostlylucid.Ephemeral.Sqlite.SingleWriter
 
 [![NuGet](https://img.shields.io/nuget/v/mostlylucid.ephemeral.sqlite.singlewriter.svg)](https://www.nuget.org/packages/mostlylucid.ephemeral.sqlite.singlewriter)
+[![License](https://img.shields.io/badge/license-Unlicense-blue.svg)](../../UNLICENSE)
 
 SQLite single-writer helper using Ephemeral patterns for serialized writes, cached reads, and signal-based observability.
 
@@ -35,6 +36,16 @@ await writer.WriteAndInvalidateAsync(
 
 ---
 
+## Why Ephemeral Here?
+
+- **Single writer = long-lived coordinator**: uses `EphemeralWorkCoordinator` with `MaxConcurrency=1` so every write flows through the same queue and is tracked with snapshots and signals.
+- **Signals everywhere**: write start/done/error, batch begin/commit/rollback, per-statement counts, WAL/foreign key pragmas, cache hits/misses/sets/invalidations, and external invalidation echoes keep the internal state visible.
+- **Self-focusing cache**: `EphemeralLruCache` extends TTL for hot keys and emits `cache.hot/evict` signals so you can watch churn and invalidate centrally.
+- **Cross-process invalidation**: a shared `SignalSink` lets other components raise `cache.invalidate:*`; the single writer listens and clears its cache automatically while emitting `cache.invalidate.external:*`.
+- **Backpressure-friendly**: write operations are small `WriteCommand` ephemerals; sampling via `SampleRate` keeps signal noise down but still lets you see live branches inside a batch/transaction.
+
+---
+
 ## All Options
 
 ### SqliteSingleWriterOptions
@@ -49,6 +60,14 @@ var options = new SqliteSingleWriterOptions
     // Default cache duration (sliding expiration)
     // Default: 5 minutes
     DefaultCacheDuration = TimeSpan.FromMinutes(5),
+
+    // Extended TTL for hot keys
+    // Default: 30 minutes
+    HotKeyExtension = TimeSpan.FromMinutes(30),
+
+    // Accesses before a key is "hot"
+    // Default: 3
+    HotAccessThreshold = 3,
 
     // Max write operations tracked in memory
     // Default: 128
@@ -78,7 +97,7 @@ var options = new SqliteSingleWriterOptions
 var writer = SqliteSingleWriter.GetOrCreate(connectionString, options);
 ```
 
-### EphemeralLruCacheOptions
+### EphemeralLruCacheOptions (from core)
 
 ```csharp
 var cache = new EphemeralLruCache<string, User>(new EphemeralLruCacheOptions
@@ -137,7 +156,7 @@ Task<int> WriteAndInvalidateAsync(string sql, object? parameters = null,
 
 // Cached read
 Task<T?> ReadAsync<T>(string cacheKey, Func<SqliteConnection, Task<T>> reader,
-    MemoryCacheEntryOptions? cacheOptions = null, CancellationToken ct = default);
+    TimeSpan? slidingExpiration = null, CancellationToken ct = default);
 
 // Uncached query
 Task<T> QueryAsync<T>(Func<SqliteConnection, Task<T>> reader, CancellationToken ct = default);
@@ -159,7 +178,7 @@ void EnableSignalDrivenInvalidation(SignalSink sink,
 ValueTask DisposeAsync();
 ```
 
-### EphemeralLruCache
+### EphemeralLruCache (from core)
 
 ```csharp
 // Get or add (sync)
@@ -324,6 +343,42 @@ sharedSink.Raise(new SignalEvent("cache.invalidate:users:count",
     EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
 
 // Writer automatically clears its local cache for "users:count"
+```
+
+## Cache Strategy Comparison
+
+Pick the cache behavior that fits the scenario:
+
+| Cache | Expiration Model | Specialization | Where/Why |
+|-------|------------------|----------------|-----------|
+| `EphemeralLruCache` (default) | Sliding on every hit; hot keys get extended TTL and LRU-style eviction | Emits `cache.hot/evict` signals; best when you want the cache to self-focus on frequently accessed keys. |
+| `SlidingCacheAtom` | Sliding on every hit plus absolute max lifetime | Deduplicates concurrent computes; emits rich signals | Separate package (`atoms.slidingcache`) if you need async factories with sliding expiration baked in. |
+
+> Tip: Default `ReadAsync` uses `EphemeralLruCache` so you get hot-key bias automatically; reach for `SlidingCacheAtom` when you need async factories + dedupe.
+
+### Example: Self-optimizing hot-key cache
+
+```csharp
+using Mostlylucid.Ephemeral;
+
+var cache = new EphemeralLruCache<string, User>(new EphemeralLruCacheOptions
+{
+    DefaultTtl = TimeSpan.FromMinutes(5),
+    HotKeyExtension = TimeSpan.FromMinutes(30),
+    HotAccessThreshold = 3,
+    MaxSize = 5000
+});
+
+// Read-through with self-optimizing TTLs
+var user = await cache.GetOrAddAsync("user:123", async key =>
+{
+    var result = await LoadUserAsync(key);
+    return result!;
+});
+
+// Observe how the cache focuses on hot keys
+var stats = cache.GetStats();              // hot/expired counts, size
+var signals = cache.GetSignals("cache.*"); // cache.hot/evict, etc.
 ```
 
 ---
