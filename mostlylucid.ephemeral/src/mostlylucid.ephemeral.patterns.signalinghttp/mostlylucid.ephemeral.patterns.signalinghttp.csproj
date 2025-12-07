@@ -9,7 +9,7 @@
         <Authors>Scott Galloway</Authors>
         <Description>HTTP client helper that emits fine-grained progress and stage signals during downloads.</Description>
         <PackageTags>http;signals;progress;pattern</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
     <ItemGroup>

@@ -5,7 +5,7 @@
 A lightweight .NET library for bounded, observable, self-cleaning async execution with signal-based coordination. Targets .NET 6.0, 7.0, 8.0, 9.0, and 10.0.
 
 [![NuGet](https://img.shields.io/nuget/v/mostlylucid.ephemeral.svg)](https://www.nuget.org/packages/mostlylucid.ephemeral)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Unlicense-blue.svg)](UNLICENSE)
 
 ## The Problem
 
@@ -444,7 +444,7 @@ CancelOnSignals / DeferOnSignals (affects intake)
 
 ## License
 
-MIT
+Unlicense (public domain)
 
 ## Contributing
 

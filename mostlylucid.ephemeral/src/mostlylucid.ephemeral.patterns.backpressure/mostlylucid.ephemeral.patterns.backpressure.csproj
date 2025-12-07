@@ -9,7 +9,7 @@
         <Authors>Scott Galloway</Authors>
         <Description>Signal-driven backpressure pattern - defer intake when backpressure signals present.</Description>
         <PackageTags>backpressure;signals;pattern</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
     <ItemGroup>

@@ -9,7 +9,7 @@
         <Authors>Scott Galloway</Authors>
         <Description>Moving-window anomaly detection based on signal pattern thresholds.</Description>
         <PackageTags>signals;anomaly;monitoring;pattern</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
     <ItemGroup>

@@ -1,5 +1,7 @@
 # Mostlylucid.Ephemeral.Complete
 
+[![NuGet](https://img.shields.io/nuget/v/mostlylucid.ephemeral.complete.svg)](https://www.nuget.org/packages/mostlylucid.ephemeral.complete)
+
 **All of Mostlylucid.Ephemeral in a single DLL** - bounded async execution with signal-based coordination.
 
 ```bash
@@ -764,4 +766,4 @@ public class MyService(IEphemeralCoordinatorFactory<WorkItem> factory)
 
 ## License
 
-MIT
+Unlicense (public domain)

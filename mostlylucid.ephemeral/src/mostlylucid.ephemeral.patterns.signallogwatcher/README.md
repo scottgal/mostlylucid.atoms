@@ -173,4 +173,4 @@ foreach (var req in requests)
 
 ## License
 
-MIT
+Unlicense (public domain)

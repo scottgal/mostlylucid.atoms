@@ -11,7 +11,7 @@
         <Authors>Scott Galloway</Authors>
         <Description>Collects items into batches by size or time interval before processing.</Description>
         <PackageTags>async;batching;coalesce;buffer;atom</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <RepositoryUrl>https://github.com/scottgal/mostlylucid.ephemeral</RepositoryUrl>
     </PropertyGroup>
@@ -21,7 +21,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="README.md" Pack="true" PackagePath="\" />
+        <None Include="README.md" Pack="true" PackagePath="\\" />`n        <None Include="icon.png" Pack="true" PackagePath="\\" />
     </ItemGroup>
 
 </Project>

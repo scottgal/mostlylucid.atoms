@@ -9,7 +9,7 @@
         <Authors>Scott Galloway</Authors>
         <Description>Watches a SignalSink for matching signals and triggers callbacks. Useful for error monitoring.</Description>
         <PackageTags>signals;monitoring;watcher;pattern</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
     <ItemGroup>

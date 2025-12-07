@@ -11,7 +11,7 @@
         <Authors>Scott Galloway</Authors>
         <Description>Safe SQLite single-writer access with mini CQRS pattern. Keyed by connection string with cached read access and serialized writes.</Description>
         <PackageTags>sqlite;cqrs;single-writer;cache;async;concurrency</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageIcon>icon.png</PackageIcon>
         <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(MSBuildProjectDirectory)/ReleaseNotes.txt"))</PackageReleaseNotes>

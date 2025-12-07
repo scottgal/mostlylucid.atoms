@@ -12,7 +12,7 @@
         <Authors>Scott Galloway</Authors>
         <Description>Minimal atom wrapper for fixed-concurrency work pipelines with stats tracking.</Description>
         <PackageTags>async;parallel;concurrency;worker;atom</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <RepositoryUrl>https://github.com/scottgal/mostlylucid.ephemeral</RepositoryUrl>
     </PropertyGroup>
@@ -22,7 +22,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="README.md" Pack="true" PackagePath="\" />
+        <None Include="README.md" Pack="true" PackagePath="\\" />
+        <None Include="icon.png" Pack="true" PackagePath="\\" />
     </ItemGroup>
 
 </Project>

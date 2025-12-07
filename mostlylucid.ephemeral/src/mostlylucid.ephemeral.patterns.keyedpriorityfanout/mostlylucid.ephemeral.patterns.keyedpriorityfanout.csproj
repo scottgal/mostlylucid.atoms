@@ -9,7 +9,7 @@
         <Authors>Scott Galloway</Authors>
         <Description>Keyed fan-out with multiple priority lanes - priority items drain first while maintaining per-key ordering.</Description>
         <PackageTags>concurrency;priority;fanout;keyed;pattern</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
     <ItemGroup>

@@ -9,7 +9,7 @@
         <Authors>Scott Galloway</Authors>
         <Description>Dynamic concurrency adjustment based on load signals (scale up/down).</Description>
         <PackageTags>concurrency;dynamic;scaling;pattern</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
     <ItemGroup>

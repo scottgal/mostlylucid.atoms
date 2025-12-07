@@ -168,4 +168,4 @@ Console.WriteLine($"Snapshot contains: {snapshot.Count} operations");
 
 ## License
 
-MIT
+Unlicense (public domain)

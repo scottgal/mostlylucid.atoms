@@ -9,7 +9,7 @@
         <Authors>Scott Galloway</Authors>
         <Description>Controlled fan-out pattern: global gate bounds total concurrency while per-key ordering is preserved.</Description>
         <PackageTags>async;fanout;keyed;pattern</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
     <ItemGroup>

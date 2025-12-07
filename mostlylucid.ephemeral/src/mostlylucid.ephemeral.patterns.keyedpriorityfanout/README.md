@@ -164,4 +164,4 @@ sink.Raise("backpressure.downstream");
 
 ## License
 
-MIT
+Unlicense (public domain)

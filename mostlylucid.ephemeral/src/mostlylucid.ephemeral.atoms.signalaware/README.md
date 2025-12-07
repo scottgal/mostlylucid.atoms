@@ -141,4 +141,4 @@ sink.Retract("backpressure.downstream"); // Items resume
 
 ## License
 
-MIT
+Unlicense (public domain)

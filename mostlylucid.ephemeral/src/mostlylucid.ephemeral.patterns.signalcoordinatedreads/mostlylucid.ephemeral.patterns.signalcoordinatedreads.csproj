@@ -9,7 +9,7 @@
         <Authors>Scott Galloway</Authors>
         <Description>Signal-coordinated readers that pause during updates - quiesce reads without hard locks.</Description>
         <PackageTags>concurrency;signals;read-write;coordination;pattern</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
     <ItemGroup>

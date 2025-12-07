@@ -9,7 +9,7 @@
         <Authors>Scott Galloway</Authors>
         <Description>Stateless circuit breaker that reads state from the ephemeral signal window.</Description>
         <PackageTags>circuit-breaker;resilience;pattern</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
     <ItemGroup>

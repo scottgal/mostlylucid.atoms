@@ -9,7 +9,7 @@
         <Authors>Scott Galloway</Authors>
         <Description>Demonstrates signal emission, async dispatch, and sink polling patterns.</Description>
         <PackageTags>signals;async;dispatch;polling;pattern</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
     <ItemGroup>

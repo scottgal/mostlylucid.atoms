@@ -1,7 +1,7 @@
 # Mostlylucid.Ephemeral
 
 [![NuGet](https://img.shields.io/nuget/v/mostlylucid.ephemeral.svg)](https://www.nuget.org/packages/mostlylucid.ephemeral)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Unlicense-blue.svg)](../../UNLICENSE)
 
 **Fire... and Don't *Quite* Forget.**
 
@@ -375,4 +375,4 @@ public class MyService(IEphemeralCoordinatorFactory<WorkItem> factory)
 
 ## License
 
-MIT
+Unlicense (public domain)

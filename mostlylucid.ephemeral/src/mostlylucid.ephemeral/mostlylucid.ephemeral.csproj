@@ -12,7 +12,7 @@
         <Authors>Scott Galloway</Authors>
         <Description>A lightweight .NET library for bounded, observable, self-cleaning async execution with signal-based coordination. Fire... and Don't Quite Forget.</Description>
         <PackageTags>async;parallel;concurrency;observability;signals;coordination</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageIcon>icon.png</PackageIcon>
         <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(MSBuildProjectDirectory)/ReleaseNotes.txt"))</PackageReleaseNotes>

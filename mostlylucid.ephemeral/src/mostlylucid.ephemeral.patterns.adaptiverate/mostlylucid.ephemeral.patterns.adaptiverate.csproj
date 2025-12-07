@@ -9,7 +9,7 @@
         <Authors>Scott Galloway</Authors>
         <Description>Adaptive rate limiting using ephemeral signals for automatic backoff.</Description>
         <PackageTags>rate-limit;adaptive;backoff;pattern</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
     <ItemGroup>

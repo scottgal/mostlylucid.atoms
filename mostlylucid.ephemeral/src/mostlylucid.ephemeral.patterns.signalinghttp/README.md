@@ -163,4 +163,4 @@ Console.WriteLine($"Completed: {completed.Count} downloads");
 
 ## License
 
-MIT
+Unlicense (public domain)

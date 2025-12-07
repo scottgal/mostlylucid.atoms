@@ -177,4 +177,4 @@ Assert.Equal(100, result.DispatchedHits);
 
 ## License
 
-MIT
+Unlicense (public domain)

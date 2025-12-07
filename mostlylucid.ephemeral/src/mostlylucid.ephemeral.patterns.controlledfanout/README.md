@@ -146,4 +146,4 @@ var userErrors = sink.Sense(s => s.Signal.StartsWith("error.user."));
 
 ## License
 
-MIT
+Unlicense (public domain)

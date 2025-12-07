@@ -113,4 +113,4 @@ await atom.DrainAsync();
 
 ## License
 
-MIT
+Unlicense (public domain)

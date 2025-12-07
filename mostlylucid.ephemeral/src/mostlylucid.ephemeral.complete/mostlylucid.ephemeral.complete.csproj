@@ -11,7 +11,7 @@
         <Authors>Scott Galloway</Authors>
         <Description>Complete bundle of all Mostlylucid.Ephemeral functionality in a single DLL - bounded async execution with signals, atoms, and patterns. No additional package dependencies required.</Description>
         <PackageTags>async;parallel;concurrency;observability;signals;coordination;complete;bundle</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageIcon>icon.png</PackageIcon>
         <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(MSBuildProjectDirectory)/ReleaseNotes.txt"))</PackageReleaseNotes>

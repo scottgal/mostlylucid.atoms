@@ -149,4 +149,4 @@ sink.Raise("scale.down.memory"); // Triggers scale down
 
 ## License
 
-MIT
+Unlicense (public domain)

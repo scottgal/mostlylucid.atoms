@@ -116,4 +116,4 @@ atom.Enqueue(new Metric("response_time", 42.5));
 
 ## License
 
-MIT
+Unlicense (public domain)

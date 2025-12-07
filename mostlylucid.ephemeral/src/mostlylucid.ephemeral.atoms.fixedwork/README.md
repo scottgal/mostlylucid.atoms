@@ -108,4 +108,4 @@ while (true)
 
 ## License
 
-MIT
+Unlicense (public domain)

@@ -107,4 +107,4 @@ foreach (var request in requests)
 
 ## License
 
-MIT
+Unlicense (public domain)

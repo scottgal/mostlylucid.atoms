@@ -9,7 +9,7 @@
         <Authors>Scott Galloway</Authors>
         <Description>Demonstrates configurable window sizes - from tiny to thousands of tracked operations.</Description>
         <PackageTags>window;tracking;memory;bounded;pattern</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
     <ItemGroup>

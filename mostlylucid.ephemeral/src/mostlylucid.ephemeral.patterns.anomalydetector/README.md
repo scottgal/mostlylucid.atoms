@@ -134,4 +134,4 @@ if (apiDetector.IsAnomalous())
 
 ## License
 
-MIT
+Unlicense (public domain)

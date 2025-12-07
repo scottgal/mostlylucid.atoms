@@ -194,4 +194,4 @@ Task.Run(async () =>
 
 ## License
 
-MIT
+Unlicense (public domain)

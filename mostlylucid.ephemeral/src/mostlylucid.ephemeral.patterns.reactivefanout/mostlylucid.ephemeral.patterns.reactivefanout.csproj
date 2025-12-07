@@ -9,7 +9,7 @@
         <Authors>Scott Galloway</Authors>
         <Description>Reactive two-stage pipeline that throttles stage 1 when stage 2 signals backpressure.</Description>
         <PackageTags>async;reactive;backpressure;pattern</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
     <ItemGroup>

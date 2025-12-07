@@ -192,4 +192,4 @@ new EphemeralOptions
 
 ## License
 
-MIT
+Unlicense (public domain)
