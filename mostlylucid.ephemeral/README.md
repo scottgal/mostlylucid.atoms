@@ -168,6 +168,9 @@ var options = new EphemeralOptions
 - Quorum/consensus: `await SignalConsensus.WaitForQuorumAsync(sink, "vote.*", required:3, timeout:TimeSpan.FromSeconds(2));`
 - Progress pings: `ProgressSignals.Emit(sink, "ingest", current, total, sampleRate:5);`
 - Decaying reputation: `var rep = new DecayingReputationWindow<string>(TimeSpan.FromMinutes(5)); rep.Update(userId, +1); var score = rep.GetScore(userId);`
+- Log hook: (from `mostlylucid.ephemeral.logging`) `var logSink = new TypedSignalSink<SignalLogPayload>(); using var provider = new SignalLoggerProvider(logSink); loggerFactory.AddProvider(provider);` → emits slugged signals like `log.error.orderservice.db-failure:invalidoperationexception` with typed payload carrying event id, scope data, and exception metadata.
+- Signal→log bridge (also part of `mostlylucid.ephemeral.logging`): `using var bridge = new SignalToLoggerAdapter(sink, logger);` lets signals flow back into Microsoft.Extensions.Logging (default level inferred from signal prefix such as `error.*`, `warn.*`, etc.).
+- Attribute jobs: `[EphemeralJob("orders.process")]` on a class plus `new EphemeralSignalJobRunner(sink, new[] { new OrderJobs() });` wires the annotated methods into an `EphemeralWorkCoordinator` and runs them whenever the matching signal fires (`mostlylucid.ephemeral.attributes` package).
 - Push subscribers: `sink.SignalRaised += evt => ...;` for live tap alongside snapshot APIs.
 
 Quick bot-detection flow (stages + quorum + reputation):

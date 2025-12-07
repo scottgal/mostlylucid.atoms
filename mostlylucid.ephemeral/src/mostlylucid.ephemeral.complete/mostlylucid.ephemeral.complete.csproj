@@ -21,7 +21,16 @@
 
     <!-- Core source files -->
     <ItemGroup>
-        <Compile Include="..\mostlylucid.ephemeral\*.cs" Link="Core\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral\**\*.cs" Link="Core\%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="..\mostlylucid.ephemeral.logging\**\*.cs" Link="Logging\%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Remove="..\mostlylucid.ephemeral\bin\**\*.cs" />
+        <Compile Remove="..\mostlylucid.ephemeral\obj\**\*.cs" />
     </ItemGroup>
 
     <!-- Atom source files -->
@@ -56,6 +65,7 @@
     <!-- Package dependencies (same as core + SQLite for PersistentWindow) -->
     <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
         <PackageReference Include="System.IO.Hashing" Version="8.0.0" />
         <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
     </ItemGroup>
