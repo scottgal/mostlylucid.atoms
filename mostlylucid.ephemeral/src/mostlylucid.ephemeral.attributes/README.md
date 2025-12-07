@@ -153,5 +153,68 @@ Annotate a class with `[EphemeralJobs(DefaultPriority = 1, DefaultMaxConcurrency
 2. **Chain completion signals.** Emit `EmitOnComplete` signals so downstream jobs trigger automatically instead of manually wiring observers.
 3. **Reuse runners.** Multiple handler instances can share a single `EphemeralSignalJobRunner`; it deduplicates descriptors and merges priorities for you.
 
+## Dependency Injection
+
+Register attribute runners with the supplied extensions so the job lifecycle is managed by DI.
+
+```csharp
+// Preferred: register your job types if they have dependencies or a non-default lifetime
+services.AddScoped<ConfigJobs>(); // or AddSingleton/AddTransient as appropriate
+
+// The runner will prefer resolving an existing registration; otherwise it will instantiate the type
+services.AddEphemeralSignalJobRunner<StageJobs>();
+```
+
+Why you sometimes saw `services.AddSingleton<StageJobs>()` in examples
+
+- Historically examples showed `AddSingleton<T>()` to ensure a single instance of job handlers lived for the app lifetime. That pattern forces a singleton lifetime even if the job needs scoped services.
+- The extensions now prefer resolving an already-registered instance from DI. This means:
+  - If you want a singleton handler, register it as `AddSingleton<T>()` explicitly.
+  - If your job depends on scoped services, register it as `AddScoped<T>()` and use `AddEphemeralScopedJobRunner<T>()` so the runner resolves fresh scoped instances per invocation.
+  - If you don't register the job type, the runner will create instances using ActivatorUtilities (constructor injection) and treat them as effectively singletons inside the runner.
+
+Short ASP.NET Core "4-line" example (minimal hosting)
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+var services = builder.Services;
+
+// 1) Add a coordinator for background processing
+services.AddEphemeralWorkCoordinator<Order>(async (o, ct) => await orderService.ProcessAsync(o, ct));
+
+// 2) Register attribute job types (optional if no DI deps)
+services.AddScoped<OrderJobs>();
+// 3) Add the attribute runner that wires up signal listeners
+services.AddEphemeralSignalJobRunner<OrderJobs>();
+
+var app = builder.Build();
+
+// 4) Controller / Minimal endpoint interacts with coordinators / signals
+app.MapPost("/orders", async (Order order, IEphemeralCoordinatorFactory<Order> factory) =>
+{
+    var coordinator = factory.CreateCoordinator();
+    await coordinator.EnqueueAsync(order);
+    return Results.Accepted();
+});
+
+app.Run();
+```
+
+Notes:
+- The runner prefers resolved instances when available, so `AddSingleton<T>()` is not required unless you specifically want a singleton.
+- Use `AddEphemeralScopedJobRunner<T>()` when jobs need scoped services per invocation (e.g., DbContext).
+
+### Assembly-scan convenience
+
+If you prefer a one-liner to register all attributed jobs in an assembly, use the assembly-scan overload:
+
+```csharp
+// Registers all classes in the assembly that contain [EphemeralJob] methods or [EphemeralJobs] class attribute
+services.AddEphemeralSignalJobRunner(typeof(OrderJobs).Assembly);
+
+// Or the scoped runner variant (resolves jobs inside a scope per invocation):
+services.AddEphemeralScopedJobRunner(typeof(OrderJobs).Assembly);
+```
+
 ## Packaging
 Install via NuGet: `dotnet add package mostlylucid.ephemeral.attributes`. The package is included in `mostlylucid.ephemeral.complete` but you can also consume it standalone when you only need declarative pipelines.

@@ -132,6 +132,8 @@ sink.Raise("stage.ingest");
 
 Attribute jobs are now a core surface—they emit completion/failure signals, support priority/concurrency settings, and plug into the same caches, log adapters, and workflows you already build with signals.
 
+For DI-first setups use `services.AddEphemeralSignalJobRunner<T>()` or `services.AddEphemeralScopedJobRunner<T>()` so the runner and sink are managed by the container.
+
 ## Coordinator Selection Guide
 
 | Scenario | Coordinator |
@@ -340,6 +342,8 @@ public class MyService
     }
 }
 ```
+
++ See also: `docs/Services.md` for a DI-focused guide with examples and best-practices.
 
 ## Package Ecosystem
 

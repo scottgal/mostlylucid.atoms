@@ -86,6 +86,8 @@ sink.Raise("stage.ingest");
 
 Attribute jobs emit completion/failure signals, honor priority/concurrency/lane settings, and plug into the same caches/log adapters you use elsewhere in the README.
 
+Use `services.AddEphemeralSignalJobRunner<T>()` (or the scoped variant) so the DI container owns the runner and sink.
+
 ---
 
 ## Core Coordinators
