@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+
+        <!-- NuGet Package Metadata -->
+        <PackageId>mostlylucid.ephemeral.complete</PackageId>
+        <Authors>Scott Galloway</Authors>
+        <Description>Complete bundle of all Mostlylucid.Ephemeral packages - bounded async execution with signals, atoms, and patterns. Install this single package to get everything.</Description>
+        <PackageTags>async;parallel;concurrency;observability;signals;coordination;complete;bundle</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageIcon>icon.png</PackageIcon>
+        <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(MSBuildProjectDirectory)/ReleaseNotes.txt"))</PackageReleaseNotes>
+        <RepositoryUrl>https://github.com/scottgal/mostlylucid.ephemeral</RepositoryUrl>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    </PropertyGroup>
+
+    <!-- Core -->
+    <ItemGroup>
+        <ProjectReference Include="..\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj" />
+    </ItemGroup>
+
+    <!-- Atoms -->
+    <ItemGroup>
+        <ProjectReference Include="..\mostlylucid.ephemeral.atoms.batching\mostlylucid.ephemeral.atoms.batching.csproj" />
+        <ProjectReference Include="..\mostlylucid.ephemeral.atoms.fixedwork\mostlylucid.ephemeral.atoms.fixedwork.csproj" />
+        <ProjectReference Include="..\mostlylucid.ephemeral.atoms.keyedsequential\mostlylucid.ephemeral.atoms.keyedsequential.csproj" />
+        <ProjectReference Include="..\mostlylucid.ephemeral.atoms.retry\mostlylucid.ephemeral.atoms.retry.csproj" />
+        <ProjectReference Include="..\mostlylucid.ephemeral.atoms.signalaware\mostlylucid.ephemeral.atoms.signalaware.csproj" />
+    </ItemGroup>
+
+    <!-- Patterns -->
+    <ItemGroup>
+        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.adaptiverate\mostlylucid.ephemeral.patterns.adaptiverate.csproj" />
+        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.anomalydetector\mostlylucid.ephemeral.patterns.anomalydetector.csproj" />
+        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.backpressure\mostlylucid.ephemeral.patterns.backpressure.csproj" />
+        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.circuitbreaker\mostlylucid.ephemeral.patterns.circuitbreaker.csproj" />
+        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.controlledfanout\mostlylucid.ephemeral.patterns.controlledfanout.csproj" />
+        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.dynamicconcurrency\mostlylucid.ephemeral.patterns.dynamicconcurrency.csproj" />
+        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.keyedpriorityfanout\mostlylucid.ephemeral.patterns.keyedpriorityfanout.csproj" />
+        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.longwindowdemo\mostlylucid.ephemeral.patterns.longwindowdemo.csproj" />
+        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.reactivefanout\mostlylucid.ephemeral.patterns.reactivefanout.csproj" />
+        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.signalcoordinatedreads\mostlylucid.ephemeral.patterns.signalcoordinatedreads.csproj" />
+        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.signalinghttp\mostlylucid.ephemeral.patterns.signalinghttp.csproj" />
+        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.signallogwatcher\mostlylucid.ephemeral.patterns.signallogwatcher.csproj" />
+        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.signalreactionshowcase\mostlylucid.ephemeral.patterns.signalreactionshowcase.csproj" />
+        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.telemetry\mostlylucid.ephemeral.patterns.telemetry.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\" />
+        <None Include="icon.png" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+</Project>

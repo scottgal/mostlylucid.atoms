@@ -7,7 +7,7 @@ namespace Mostlylucid.Ephemeral;
 /// High-performance ID generator using XxHash64.
 /// Thread-safe, allocation-free after warmup.
 /// </summary>
-internal static class EphemeralIdGenerator
+public static class EphemeralIdGenerator
 {
     private static long _counter;
     private static readonly long ProcessStart = Environment.TickCount64;

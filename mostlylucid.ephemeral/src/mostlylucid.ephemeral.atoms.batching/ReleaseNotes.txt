@@ -1,0 +1,4 @@
+v1.0.0
+- Initial release
+- Time and size-based batching
+- Non-blocking enqueue

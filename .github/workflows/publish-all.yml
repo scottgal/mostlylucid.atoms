@@ -1,0 +1,71 @@
+name: Publish All NuGet Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 1.0.0)'
+        required: true
+        type: string
+
+env:
+  DOTNET_VERSION: '10.0.x'
+
+jobs:
+  publish-all:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: 'preview'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test --configuration Release --no-build --verbosity normal
+
+      - name: Pack all packages
+        run: |
+          VERSION="${{ inputs.version }}"
+          mkdir -p ./nupkg
+
+          # Core package
+          dotnet pack src/mostlylucid.ephemeral/mostlylucid.ephemeral.csproj \
+            --configuration Release --no-build \
+            -p:PackageVersion=$VERSION \
+            --output ./nupkg
+
+          # Atom packages
+          for proj in src/mostlylucid.ephemeral.atoms.*/*.csproj; do
+            dotnet pack "$proj" --configuration Release --no-build \
+              -p:PackageVersion=$VERSION \
+              --output ./nupkg
+          done
+
+          # Pattern packages
+          for proj in src/mostlylucid.ephemeral.patterns.*/*.csproj; do
+            dotnet pack "$proj" --configuration Release --no-build \
+              -p:PackageVersion=$VERSION \
+              --output ./nupkg
+          done
+
+      - name: List packages
+        run: ls -la ./nupkg/
+
+      - name: Push to NuGet
+        run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate

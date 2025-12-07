@@ -1,51 +1,71 @@
 # Mostlylucid.Ephemeral.Atoms.FixedWork
 
-A minimal atom wrapper around EphemeralWorkCoordinator for fixed-concurrency work pipelines.
-
-## Features
-
-- **Simple API**: Enqueue, drain, snapshot - nothing more
-- **Stats tracking**: Get pending/active/completed/failed counts
-- **Signal support**: Optional signal sink integration
+Minimal atom for fixed-concurrency work pipelines. Simple API: enqueue, drain, snapshot.
 
 ## Installation
 
 ```bash
-dotnet add package Mostlylucid.Ephemeral.Atoms.FixedWork
+dotnet add package mostlylucid.ephemeral.atoms.fixedwork
 ```
 
 ## Usage
 
 ```csharp
-await using var atom = new FixedWorkAtom<WorkItem>(
+await using var atom = new FixedWorkAtom<string>(
     async (item, ct) => await ProcessAsync(item, ct),
-    maxConcurrency: 8);
+    maxConcurrency: 4);
 
-// Enqueue work items
-var id = await atom.EnqueueAsync(new WorkItem("data"));
-
-// Check stats
-var (pending, active, completed, failed) = atom.Stats();
-
-// Get recent operation snapshots
-var snapshots = atom.Snapshot();
-
-// Drain when done
+await atom.EnqueueAsync("work-1");
+await atom.EnqueueAsync("work-2");
 await atom.DrainAsync();
+
+var (pending, active, completed, failed) = atom.Stats();
 ```
 
-## API
+## Full Source (~50 lines)
 
-| Method | Description |
-|--------|-------------|
-| `EnqueueAsync(T item)` | Enqueue work, returns operation ID |
-| `DrainAsync()` | Complete and wait for all work |
-| `Snapshot()` | Get recent operation snapshots |
-| `Stats()` | Get (Pending, Active, Completed, Failed) counts |
+```csharp
+using Mostlylucid.Ephemeral;
 
-## Dependencies
+namespace Mostlylucid.Ephemeral.Atoms.FixedWork;
 
-- Mostlylucid.Ephemeral (core library)
+public sealed class FixedWorkAtom<T> : IAsyncDisposable
+{
+    private readonly EphemeralWorkCoordinator<T> _coordinator;
+
+    public FixedWorkAtom(
+        Func<T, CancellationToken, Task> body,
+        int? maxConcurrency = null,
+        int? maxTracked = null,
+        SignalSink? signals = null)
+    {
+        var options = new EphemeralOptions
+        {
+            MaxConcurrency = maxConcurrency is > 0 ? maxConcurrency.Value : Environment.ProcessorCount,
+            MaxTrackedOperations = maxTracked is > 0 ? maxTracked.Value : 200,
+            Signals = signals
+        };
+
+        _coordinator = new EphemeralWorkCoordinator<T>(body, options);
+    }
+
+    public ValueTask<long> EnqueueAsync(T item, CancellationToken ct = default)
+        => _coordinator.EnqueueWithIdAsync(item, ct);
+
+    public async Task DrainAsync(CancellationToken ct = default)
+    {
+        _coordinator.Complete();
+        await _coordinator.DrainAsync(ct).ConfigureAwait(false);
+    }
+
+    public IReadOnlyCollection<EphemeralOperationSnapshot> Snapshot() => _coordinator.GetSnapshot();
+
+    public (int Pending, int Active, int Completed, int Failed) Stats()
+        => (_coordinator.PendingCount, _coordinator.ActiveCount, _coordinator.TotalCompleted, _coordinator.TotalFailed);
+
+    public ValueTask DisposeAsync() => _coordinator.DisposeAsync();
+}
+```
 
 ## License
 

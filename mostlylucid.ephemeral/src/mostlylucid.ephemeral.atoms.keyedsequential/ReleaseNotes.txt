@@ -1,0 +1,4 @@
+v1.0.0
+- Initial release
+- Per-key sequential ordering
+- Global parallelism with per-key control

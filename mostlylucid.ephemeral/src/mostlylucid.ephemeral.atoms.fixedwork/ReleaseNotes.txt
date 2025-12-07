@@ -1,0 +1,4 @@
+v1.0.0
+- Initial release
+- Fixed-concurrency work pipeline
+- Snapshot and stats support

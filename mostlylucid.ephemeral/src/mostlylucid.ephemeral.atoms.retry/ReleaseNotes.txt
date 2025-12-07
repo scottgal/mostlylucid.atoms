@@ -1,0 +1,4 @@
+v1.0.0
+- Initial release
+- Bounded retry with exponential backoff
+- Custom backoff strategy support

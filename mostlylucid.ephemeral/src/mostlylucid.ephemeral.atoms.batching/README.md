@@ -1,12 +1,12 @@
 # Mostlylucid.Ephemeral.Atoms.Batching
 
-Collects items into batches and processes them when full or when a time interval elapses.
+Collects items into batches. Processes when full or when time interval elapses.
 
-## Features
+## Installation
 
-- **Size-based batching**: Process when batch reaches max size
-- **Time-based flushing**: Flush partial batches after interval
-- **Non-blocking enqueue**: Returns immediately, batching is background
+```bash
+dotnet add package mostlylucid.ephemeral.atoms.batching
+```
 
 ## Usage
 
@@ -16,29 +16,89 @@ await using var atom = new BatchingAtom<LogEntry>(
     maxBatchSize: 100,
     flushInterval: TimeSpan.FromSeconds(5));
 
-// Enqueue items - returns immediately
 atom.Enqueue(new LogEntry("Event 1"));
 atom.Enqueue(new LogEntry("Event 2"));
-// ... more events
-
-// Batch is processed when:
-// - 100 items accumulated, OR
-// - 5 seconds elapsed since last flush
+// Batch processes when 100 items OR 5 seconds elapsed
 ```
 
-## API
+## Full Source (~90 lines)
 
-| Parameter | Description |
-|-----------|-------------|
-| `onBatch` | Async function to process each batch |
-| `maxBatchSize` | Max items before auto-flush (default: 32) |
-| `flushInterval` | Time interval for partial flush (default: 1s) |
+```csharp
+using System.Timers;
+using Timer = System.Timers.Timer;
 
-## Use Cases
+namespace Mostlylucid.Ephemeral.Atoms.Batching;
 
-- Log aggregation before writing to storage
-- Event coalescing for analytics
-- Bulk database inserts
+public sealed class BatchingAtom<T> : IAsyncDisposable
+{
+    private readonly object _lock = new();
+    private readonly List<T> _buffer = new();
+    private readonly Func<IReadOnlyList<T>, CancellationToken, Task> _onBatch;
+    private readonly int _maxBatchSize;
+    private readonly Timer _timer;
+    private bool _flushing;
+    private bool _disposed;
+
+    public BatchingAtom(
+        Func<IReadOnlyList<T>, CancellationToken, Task> onBatch,
+        int maxBatchSize = 32,
+        TimeSpan? flushInterval = null)
+    {
+        if (maxBatchSize <= 0) throw new ArgumentOutOfRangeException(nameof(maxBatchSize));
+        _onBatch = onBatch ?? throw new ArgumentNullException(nameof(onBatch));
+        _maxBatchSize = maxBatchSize;
+        _timer = new Timer((flushInterval ?? TimeSpan.FromSeconds(1)).TotalMilliseconds)
+        {
+            AutoReset = true,
+            Enabled = true
+        };
+        _timer.Elapsed += async (_, _) => await TryFlushAsync().ConfigureAwait(false);
+    }
+
+    public void Enqueue(T item)
+    {
+        lock (_lock)
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(BatchingAtom<T>));
+            _buffer.Add(item);
+            if (_buffer.Count >= _maxBatchSize && !_flushing)
+                _ = FlushAsync();
+        }
+    }
+
+    private async Task TryFlushAsync()
+    {
+        lock (_lock)
+        {
+            if (_flushing || _buffer.Count == 0) return;
+            _flushing = true;
+        }
+        try { await FlushAsync().ConfigureAwait(false); }
+        finally { lock (_lock) { _flushing = false; } }
+    }
+
+    private async Task FlushAsync()
+    {
+        List<T> batch;
+        lock (_lock)
+        {
+            if (_buffer.Count == 0) return;
+            batch = new List<T>(_buffer);
+            _buffer.Clear();
+        }
+        await _onBatch(batch, CancellationToken.None).ConfigureAwait(false);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _timer.Stop();
+        _timer.Dispose();
+        await FlushAsync().ConfigureAwait(false);
+    }
+}
+```
 
 ## License
 

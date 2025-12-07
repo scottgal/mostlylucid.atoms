@@ -1,0 +1,6 @@
+v1.0.0
+- Initial release
+- SqliteSingleWriter: serialized writes via ephemeral coordinator
+- EphemeralLruCache: self-focusing cache with hot key detection
+- Signal-based sampling for observability
+- Connection-string keyed instances

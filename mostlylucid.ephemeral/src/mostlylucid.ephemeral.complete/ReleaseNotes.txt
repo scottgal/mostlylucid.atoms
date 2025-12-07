@@ -1,0 +1,4 @@
+v1.0.0
+- Initial release
+- Complete bundle of all Mostlylucid.Ephemeral packages
+- Includes core, 5 atoms, and 14 patterns

@@ -87,6 +87,15 @@ public sealed class SignalDispatcher : IAsyncDisposable
         return true;
     }
 
+    /// <summary>
+    /// Wait for all dispatched signals to be processed.
+    /// </summary>
+    public async Task FlushAsync(CancellationToken ct = default)
+    {
+        _coordinator.Complete();
+        await _coordinator.DrainAsync(ct).ConfigureAwait(false);
+    }
+
     public async ValueTask DisposeAsync()
     {
         _cts.Cancel();

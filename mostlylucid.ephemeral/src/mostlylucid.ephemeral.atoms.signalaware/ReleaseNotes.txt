@@ -1,0 +1,4 @@
+v1.0.0
+- Initial release
+- Cancel/defer on ambient signals
+- Pattern matching support
