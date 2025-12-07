@@ -48,6 +48,9 @@ jobs:
       - name: Pack all packages
         run: |
           VERSION="${{ inputs.version }}"
+          # Strip leading 'v' if present (NuGet versions must not have v prefix)
+          VERSION="${VERSION#v}"
+          echo "Packing version: $VERSION"
           mkdir -p ./nupkg
 
           # Core package
@@ -56,7 +59,7 @@ jobs:
             -p:PackageVersion=$VERSION \
             --output ./nupkg
 
-          # Atom packages
+          # Atom packages (including data atoms)
           for proj in src/mostlylucid.ephemeral.atoms.*/*.csproj; do
             dotnet pack "$proj" --configuration Release --no-build \
               -p:PackageVersion=$VERSION \
@@ -72,6 +75,18 @@ jobs:
 
           # SQLite demo
           dotnet pack src/mostlylucid.ephemeral.sqlite.singlewriter/mostlylucid.ephemeral.sqlite.singlewriter.csproj \
+            --configuration Release --no-build \
+            -p:PackageVersion=$VERSION \
+            --output ./nupkg
+
+          # Attributes package
+          dotnet pack src/mostlylucid.ephemeral.attributes/mostlylucid.ephemeral.attributes.csproj \
+            --configuration Release --no-build \
+            -p:PackageVersion=$VERSION \
+            --output ./nupkg
+
+          # Logging package
+          dotnet pack src/mostlylucid.ephemeral.logging/mostlylucid.ephemeral.logging.csproj \
             --configuration Release --no-build \
             -p:PackageVersion=$VERSION \
             --output ./nupkg
