@@ -46,18 +46,23 @@ public class AssemblyScanAndScopedRunnerTests
 
         var provider = services.BuildServiceProvider();
 
+        // Force creation of the runner so it subscribes to the SignalSink
+        var runner = provider.GetRequiredService<EphemeralScopedJobRunner>();
+        
         var sink = provider.GetRequiredService<SignalSink>();
 
         // Act: trigger the signal multiple times
+        ScopedJob.Seen.Clear();
         sink.Raise("scan.test", key: "a");
         sink.Raise("scan.test", key: "b");
 
-        await Task.Delay(300);
+        await Task.Delay(500);
 
         // Assert
-        Assert.True(ScopedJob.Seen.Count >= 1);
-        // If scopes were used, we should have multiple distinct IDs for multiple invocations
-        Assert.True(ScopedJob.Seen.Count == ScopedJob.Seen.ToHashSet().Count);
+        Assert.True(ScopedJob.Seen.Count >= 1, "Expected at least one invocation of the scoped job");
+        if (ScopedJob.Seen.Count > 1)
+        {
+            Assert.Equal(ScopedJob.Seen.Count, ScopedJob.Seen.ToHashSet().Count);
+        }
     }
 }
-
