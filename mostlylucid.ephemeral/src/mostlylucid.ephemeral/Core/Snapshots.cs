@@ -15,6 +15,11 @@ public sealed record EphemeralOperationSnapshot(
     bool IsPinned = false)
 {
     /// <summary>
+    /// Backward-compatible accessor for the operation identity.
+    /// </summary>
+    public long OperationId => Id;
+
+    /// <summary>
     /// Check if this operation raised a specific signal.
     /// </summary>
     public bool HasSignal(string signal) => Signals?.Contains(signal) == true;
@@ -36,6 +41,11 @@ public sealed record EphemeralOperationSnapshot<TResult>(
     IReadOnlyList<string>? Signals = null,
     bool IsPinned = false)
 {
+    /// <summary>
+    /// Backward-compatible accessor for the operation identity.
+    /// </summary>
+    public long OperationId => Id;
+
     /// <summary>
     /// Check if this operation raised a specific signal.
     /// </summary>

@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Threading.Channels;
 
 namespace Mostlylucid.Ephemeral;
@@ -6,7 +8,7 @@ namespace Mostlylucid.Ephemeral;
 /// <summary>
 /// Keyed version: per-key sequential execution with fair scheduling.
 /// </summary>
-public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, IOperationPinning
+public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, IOperationPinning, IOperationFinalization
     where TKey : notnull
 {
     /// <summary>
@@ -33,6 +35,7 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
     private readonly object _windowLock = new();
     private readonly ConcurrentDictionary<TKey, KeyLock> _perKeyLocks;
     private readonly ConcurrentDictionary<TKey, int> _perKeyPendingCount;
+    private readonly OperationEchoStore? _echoStore;
     private readonly Task _processingTask;
     private readonly Task? _sourceConsumerTask;
     private readonly TaskCompletionSource _drainTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -44,7 +47,20 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
     /// </summary>
     public event Action<EphemeralOperationSnapshot>? OperationFinalized;
     private void NotifyOperationFinalized(EphemeralOperation op)
-        => OperationFinalized?.Invoke(op.ToSnapshot());
+    {
+        OperationFinalized?.Invoke(op.ToSnapshot());
+        RecordEcho(op);
+    }
+
+    private void RecordEcho(EphemeralOperation op)
+    {
+        if (_echoStore is null)
+            return;
+
+        var signals = op._signals?.ToArray();
+        var echo = new OperationEcho(op.Id, op.Key, signals, DateTimeOffset.UtcNow);
+        _echoStore.Add(echo);
+    }
     private bool _channelIterationComplete;
     private bool _paused;
     private int _pendingCount;
@@ -68,6 +84,9 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
         _globalConcurrency = CreateGate(_options);
         _perKeyLocks = new ConcurrentDictionary<TKey, KeyLock>();
         _perKeyPendingCount = new ConcurrentDictionary<TKey, int>();
+        _echoStore = _options.EnableOperationEcho
+            ? new OperationEchoStore(_options.OperationEchoRetention, _options.OperationEchoCapacity)
+            : null;
 
         _channel = Channel.CreateBounded<T>(new BoundedChannelOptions(_options.MaxTrackedOperations)
         {
@@ -93,6 +112,9 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
         _globalConcurrency = CreateGate(_options);
         _perKeyLocks = new ConcurrentDictionary<TKey, KeyLock>();
         _perKeyPendingCount = new ConcurrentDictionary<TKey, int>();
+        _echoStore = _options.EnableOperationEcho
+            ? new OperationEchoStore(_options.OperationEchoRetention, _options.OperationEchoCapacity)
+            : null;
 
         _channel = Channel.CreateBounded<T>(new BoundedChannelOptions(_options.MaxTrackedOperations)
         {
@@ -208,6 +230,11 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
         }
         return results;
     }
+
+    /// <summary>
+    /// Gets echo copies of signals emitted by operations that were just trimmed.
+    /// </summary>
+    public IReadOnlyList<OperationEcho> GetEchoes() => _echoStore?.Snapshot() ?? Array.Empty<OperationEcho>();
 
     public IReadOnlyList<SignalEvent> GetSignalsByKey(TKey key) => GetSignalsByKey(key.ToString()!);
 

@@ -23,6 +23,22 @@ public sealed class EphemeralOptions
     public int MaxTrackedOperations { get; init; } = 200;
 
     /// <summary>
+    /// Enable a short-lived “echo” of the signals emitted by an operation when it's trimmed.
+    /// Defaults to true so the last-waves of signal activity remain queryable for a moment after eviction.
+    /// </summary>
+    public bool EnableOperationEcho { get; init; } = true;
+
+    /// <summary>
+    /// How long echoed signal copies stay available.
+    /// </summary>
+    public TimeSpan OperationEchoRetention { get; init; } = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// Maximum number of echoed entries retained.
+    /// </summary>
+    public int OperationEchoCapacity { get; init; } = 256;
+
+    /// <summary>
     /// Optional max age for tracked operations.
     /// Older entries are dropped during cleanup sweeps.
     /// </summary>

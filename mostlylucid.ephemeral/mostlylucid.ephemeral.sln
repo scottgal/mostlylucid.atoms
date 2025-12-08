@@ -84,6 +84,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "mostlylucid.ephemeral.atoms
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "mostlylucid.ephemeral.atoms.data.postgres", "src\mostlylucid.ephemeral.atoms.data.postgres\mostlylucid.ephemeral.atoms.data.postgres.csproj", "{EB890EE9-8200-47E8-9B16-4FC07FA025C6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "mostlylucid.ephemeral.atoms.echo", "src\mostlylucid.ephemeral.atoms.echo\mostlylucid.ephemeral.atoms.echo.csproj", "{5E2B8FBA-65D8-47B2-B64C-DA6B5B2D9DF8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -478,6 +480,18 @@ Global
 		{EB890EE9-8200-47E8-9B16-4FC07FA025C6}.Release|x64.Build.0 = Release|Any CPU
 		{EB890EE9-8200-47E8-9B16-4FC07FA025C6}.Release|x86.ActiveCfg = Release|Any CPU
 		{EB890EE9-8200-47E8-9B16-4FC07FA025C6}.Release|x86.Build.0 = Release|Any CPU
+		{5E2B8FBA-65D8-47B2-B64C-DA6B5B2D9DF8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5E2B8FBA-65D8-47B2-B64C-DA6B5B2D9DF8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5E2B8FBA-65D8-47B2-B64C-DA6B5B2D9DF8}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{5E2B8FBA-65D8-47B2-B64C-DA6B5B2D9DF8}.Debug|x64.Build.0 = Debug|Any CPU
+		{5E2B8FBA-65D8-47B2-B64C-DA6B5B2D9DF8}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{5E2B8FBA-65D8-47B2-B64C-DA6B5B2D9DF8}.Debug|x86.Build.0 = Debug|Any CPU
+		{5E2B8FBA-65D8-47B2-B64C-DA6B5B2D9DF8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5E2B8FBA-65D8-47B2-B64C-DA6B5B2D9DF8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5E2B8FBA-65D8-47B2-B64C-DA6B5B2D9DF8}.Release|x64.ActiveCfg = Release|Any CPU
+		{5E2B8FBA-65D8-47B2-B64C-DA6B5B2D9DF8}.Release|x64.Build.0 = Release|Any CPU
+		{5E2B8FBA-65D8-47B2-B64C-DA6B5B2D9DF8}.Release|x86.ActiveCfg = Release|Any CPU
+		{5E2B8FBA-65D8-47B2-B64C-DA6B5B2D9DF8}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -515,5 +529,6 @@ Global
 		{A694406C-DA62-4864-8564-1C39E2DBAA69} = {A1B2C3D4-0001-0001-0001-000000000001}
 		{6F73183B-C7F1-4AA3-AAA5-7C9588E505BC} = {A1B2C3D4-0001-0001-0001-000000000001}
 		{EB890EE9-8200-47E8-9B16-4FC07FA025C6} = {A1B2C3D4-0001-0001-0001-000000000001}
+		{5E2B8FBA-65D8-47B2-B64C-DA6B5B2D9DF8} = {A1B2C3D4-0001-0001-0001-000000000001}
 	EndGlobalSection
 EndGlobal

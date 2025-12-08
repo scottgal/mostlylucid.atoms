@@ -116,6 +116,10 @@ signals.Raise("log.error.application", key: "orders");
 
 This bootstraps a log watcher job that listens for `log.error.*` signals, raises an `incident.escalate` notification, and lets downstream jobs (like ticket creation) fire automatically.
 
+Pair this with `SignalLoggerProvider` so your shared `SignalSink` receives slugged `log.*` signals whenever `Microsoft.Extensions.Logging` emits an error. The attribute runner then reacts to log-derived signals just like any other, keeping log watching and alerting accessible from the same declarative API. Keep the `EphemeralSignalJobRunner`/`SignalSink` wired at startup so the watcher handles log events emitted later in the app lifetime without extra wiring.
+
+For “echo-worthy” jobs you can also create a `TypedSignalSink<EchoPayload>` (sharing the same underlying sink) and let `mostlylucid.ephemeral.atoms.echo` build and persist `OperationEchoEntry<EchoPayload>` records as operations finalize. Just raise `typedSink.Raise("echo.capture", payload, key: signal.Key)` when your handler reaches the critical state.
+
 ## Attribute reference
 ### Tune concurrency, retries, and observability
 `EphemeralSignalJobRunner` accepts `EphemeralOptions` for shared `SignalSink`, batching, or max-tracking limits. The attribute can also emit start/complete/failure signals and control retries, timeouts, and pinning without extra plumbing:
@@ -146,6 +150,13 @@ using var runner = new EphemeralSignalJobRunner(sharedRaySink, handlers, runnerO
 | `AwaitSignals` / `AwaitTimeoutMs` | Delay job execution until other signals are present, useful for fan-in or dependency wiring. |
 
 Annotate a class with `[EphemeralJobs(DefaultPriority = 1, DefaultMaxConcurrency = 2, SignalPrefix = "orders", DefaultLane = "io")]` to apply shared defaults.
+
+### Core job knobs
+
+- `Priority` keeps the same trigger deterministic when multiple handlers listen to the same signal; lower numbers run first.
+- `MaxConcurrency` limits how many executions of the job itself can run at once, while `Lane` lets you pool multiple jobs under shared concurrency caps.
+- `OperationKey`, `KeyFromSignal`, `KeyFromPayload`, and `[KeySource]` control how the resulting operation is tagged so related work shares telemetry and ordering.
+- `Pin`/`ExpireAfterMs` let jobs extend their visibility window (pinning them until a downstream ack or letting them auto-expire), making it easy to build responsibility signals without manual bookkeeping.
 
 ## Best practices
 

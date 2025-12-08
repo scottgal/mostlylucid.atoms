@@ -22,6 +22,18 @@ The library exposes extension methods on `IServiceCollection` to register coordi
   - `services.AddEphemeralWorkCoordinator<T>(string name, Func<IServiceProvider, Func<T, CancellationToken, Task>> bodyFactory, EphemeralOptions? options = null)`
   - When using named coordinators, the extensions create and store a `ConcurrentDictionary<string, EphemeralCoordinatorConfiguration<T>>` in DI, and register an `IEphemeralCoordinatorFactory<T>` singleton that can create coordinators at runtime via `CreateCoordinator(name)`.
 
+For a more idiomatic `IServiceCollection` surface you can also use the shorter helpers:
+
+- `services.AddCoordinator<T>(Func<T, CancellationToken, Task> body, EphemeralOptions? options = null)` – a familiar `AddX` wrapper for `AddEphemeralWorkCoordinator`.
+- `services.AddCoordinator<T>(Func<IServiceProvider, Func<T, CancellationToken, Task>> bodyFactory, EphemeralOptions? options = null)` – factory-aware overload.
+- `services.AddScopedCoordinator<T>(Func<IServiceProvider, Func<T, CancellationToken, Task>> bodyFactory, EphemeralOptions? options = null)` – scoped lifetime variant.
+- `services.AddKeyedCoordinator<T, TKey>(Func<T, TKey> keySelector, Func<T, CancellationToken, Task> body, EphemeralOptions? options = null)` and `services.AddKeyedCoordinator<T, TKey>(Func<T, TKey> keySelector, Func<IServiceProvider, Func<T, CancellationToken, Task>> bodyFactory, EphemeralOptions? options = null)` – keyed aliases.
+- `services.AddScopedKeyedCoordinator<T, TKey>(Func<T, TKey> keySelector, Func<IServiceProvider, Func<T, CancellationToken, Task>> bodyFactory, EphemeralOptions? options = null)` – scoped keyed coordinator.
+
+These helpers simply delegate to the `Ephemeral`-prefixed methods but make the registration/readability mirror other ASP.NET Core services.
+
+Use the `AddCoordinator` family whenever you want the familiar `AddX` naming, including `services.AddScopedCoordinator` and the keyed variants, so coordinators can be registered just like any other service at the lifetime you need.
+
 ## Registering attribute-driven runners
 
 `mostlylucid.ephemeral.attributes` provides helper extensions:

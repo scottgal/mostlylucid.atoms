@@ -1,6 +1,7 @@
+using System;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Threading.Channels;
-
 namespace Mostlylucid.Ephemeral;
 
 /// <summary>
@@ -8,7 +9,7 @@ namespace Mostlylucid.Ephemeral;
 /// Unlike EphemeralForEachAsync (which processes a collection), this stays alive
 /// and lets you enqueue items over time, inspect operations, and gracefully shutdown.
 /// </summary>
-public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPinning
+public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPinning, IOperationFinalization
 {
     private readonly record struct WorkItem(T Item, long? Id);
 
@@ -23,6 +24,7 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPi
     private readonly Task _processingTask;
     private readonly Task? _sourceConsumerTask;
     private readonly TaskCompletionSource _drainTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly OperationEchoStore? _echoStore;
     private bool _completed;
     private bool _channelIterationComplete;
     private bool _paused;
@@ -46,6 +48,9 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPi
         _options = options ?? new EphemeralOptions();
         _cts = new CancellationTokenSource();
         _recent = new ConcurrentQueue<EphemeralOperation>();
+        _echoStore = _options.EnableOperationEcho
+            ? new OperationEchoStore(_options.OperationEchoRetention, _options.OperationEchoCapacity)
+            : null;
         _concurrency = CreateGate(_options);
         _currentMaxConcurrency = _options.MaxConcurrency;
 
@@ -73,6 +78,9 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPi
         _options = options ?? new EphemeralOptions();
         _cts = new CancellationTokenSource();
         _recent = new ConcurrentQueue<EphemeralOperation>();
+        _echoStore = _options.EnableOperationEcho
+            ? new OperationEchoStore(_options.OperationEchoRetention, _options.OperationEchoCapacity)
+            : null;
         _concurrency = CreateGate(_options);
         _currentMaxConcurrency = _options.MaxConcurrency;
 
@@ -153,6 +161,17 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPi
     private void NotifyOperationFinalized(EphemeralOperation op)
     {
         OperationFinalized?.Invoke(op.ToSnapshot());
+        RecordEcho(op);
+    }
+
+    private void RecordEcho(EphemeralOperation op)
+    {
+        if (_echoStore is null)
+            return;
+
+        var signals = op._signals?.ToArray();
+        var echo = new OperationEcho(op.Id, op.Key, signals, DateTimeOffset.UtcNow);
+        _echoStore.Add(echo);
     }
     /// <summary>
     /// Pause processing. Running operations continue, but no new items are started.
@@ -238,6 +257,11 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPi
     /// Gets all signals from recent operations with their source operation identity.
     /// </summary>
     public IReadOnlyList<SignalEvent> GetSignals() => GetSignalsCore(null);
+
+    /// <summary>
+    /// Gets the short-lived echo of signals raised by operations that were just trimmed.
+    /// </summary>
+    public IReadOnlyList<OperationEcho> GetEchoes() => _echoStore?.Snapshot() ?? Array.Empty<OperationEcho>();
 
     /// <summary>
     /// Gets signals from operations matching the predicate.

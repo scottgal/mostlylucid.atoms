@@ -59,6 +59,12 @@ await using var coordinator = new EphemeralWorkCoordinator<WorkItem>(
     {
         MaxConcurrency = 8,
         MaxTrackedOperations = 200,
+
+        // Keep a short-lived echo of trimmed operations so watchers can replay their last signals.
+        EnableOperationEcho = true,
+        OperationEchoRetention = TimeSpan.FromMinutes(1),
+        OperationEchoCapacity = 256,
+
         MaxOperationLifetime = TimeSpan.FromMinutes(5)
     });
 
@@ -112,9 +118,51 @@ if (snapshot.HasResult)
 
 ## Attribute-driven jobs
 
-`mostlylucid.ephemeral.attributes` ships with the core packages and lets you decorate methods with `[EphemeralJob]` or `[EphemeralJobs]` to react to `SignalSink` events declaratively. Load the handlers with `EphemeralSignalJobRunner` and you get the same signal-wave/log-watcher orchestration, just wired through attributes.
+`mostlylucid.ephemeral.attributes` ships with the core packages and lets you decorate methods with `[EphemeralJob]` or `[EphemeralJobs]` to react to `SignalSink` events declaratively. Treat this attribute-driven runner as part of the same canonical surface: handlers join the signal window, signal cache, logging adapters, and responsibility/pinning story you build elsewhere. Each attribute can declare `Priority`, job-level `MaxConcurrency`, `Lane`, key extraction, signal emissions, pinning, retries, and sliding expiry so your pipeline self-composes without extra plumbing.
 
 ```csharp
+var sink = new SignalSink();
+await using var runner = new EphemeralSignalJobRunner(sink, new[] { new LogWatcherJobs(sink) });
+
+// Bootstrapped at startup – the runner now listens for matching signals as the app runs.
+var loggerFactory = LoggerFactory.Create(builder =>
+{
+    builder.AddConsole();
+    builder.AddProvider(new SignalLoggerProvider(new TypedSignalSink<SignalLogPayload>(sink)));
+});
+
+var logger = loggerFactory.CreateLogger("orders");
+logger.LogError(new EventId(1001, "DbFailure"), "Order store failed");
+
+// Any subsequent task that raises `log.error.*` or wired signals automatically enqueues the attributed jobs.
+```
+
+```csharp
+public sealed class LogWatcherJobs
+{
+    private readonly SignalSink _sink;
+
+    public LogWatcherJobs(SignalSink sink) => _sink = sink;
+
+    [EphemeralJob("log.error.*", Priority = 1, MaxConcurrency = 2, Lane = "hot:4", EmitOnComplete = new[] { "incident.created" })]
+    public Task EscalateAsync(SignalEvent signal)
+    {
+        Console.WriteLine($"escalating {signal.Signal} for {signal.Key}");
+        _sink.Raise("incident.created", key: signal.Key);
+        return Task.CompletedTask;
+    }
+
+    [EphemeralJob("incident.created", EmitOnStart = new[] { "incident.monitor.start" })]
+    public Task NotifyAsync(SignalEvent signal)
+    {
+        Console.WriteLine($"notified incident for {signal.Key}");
+        return Task.CompletedTask;
+    }
+}
+```
+
+This bootstraps a watcher at application start and lets later tasks (or logger events) trigger the pipeline without wiring. Attribute jobs can also declare keys via `OperationKey`, `KeyFromSignal`, `KeyFromPayload`, or `[KeySource]`, emit lifecycle signals, pin work until acked, and slot into named lanes. Use `services.AddEphemeralSignalJobRunner<T>()` (or the scoped variant) so DI owns the sink and runner; `services.AddCoordinator<T>(…)` + `services.AddScopedCoordinator<T>(…)` helpers mirror the classic `AddX` surface for coordinators.
+
 [EphemeralJobs(SignalPrefix = "stage", DefaultLane = "pipeline")]
 public sealed class StageJobs
 {
@@ -125,14 +173,11 @@ public sealed class StageJobs
     public Task FinalizeAsync(SignalEvent evt) => Console.Out.WriteLineAsync("final stage");
 }
 
-var sink = new SignalSink();
-await using var runner = new EphemeralSignalJobRunner(sink, new[] { new StageJobs() });
-sink.Raise("stage.ingest");
-```
+var stageSink = new SignalSink();
+await using var stageRunner = new EphemeralSignalJobRunner(stageSink, new[] { new StageJobs() });
+stageSink.Raise("stage.ingest");
 
-Attribute jobs are now a core surface—they emit completion/failure signals, support priority/concurrency settings, and plug into the same caches, log adapters, and workflows you already build with signals.
-
-For DI-first setups use `services.AddEphemeralSignalJobRunner<T>()` or `services.AddEphemeralScopedJobRunner<T>()` so the runner and sink are managed by the container.
+Attribute jobs emit completion/failure signals, support job-level priority/concurrency/lanes, and plug into the same caches, log adapters, and workflows you already build with signals.
 
 ## Coordinator Selection Guide
 
@@ -341,9 +386,65 @@ public class MyService
         await coordinator.EnqueueAsync(new WorkItem());
     }
 }
+
+Modern DI roots may prefer the shorter helpers such as `services.AddCoordinator<T>(...)`, `services.AddScopedCoordinator<T>(...)`, or `services.AddKeyedCoordinator<T, TKey>(...)` since they read like regular `AddX` calls while delegating to the same Ephemeral-specific registrations under the hood.
+
+See also: `docs/Services.md` for a DI-focused guide with examples and best practices.
+
+## Logging & Signals
+
+`mostlylucid.ephemeral.logging` stitches `Microsoft.Extensions.Logging` and the signal world together.
+
+```csharp
+var sink = new SignalSink();
+var typedSink = new TypedSignalSink<SignalLogPayload>(sink);
+
+using var loggerFactory = LoggerFactory.Create(builder =>
+{
+    builder.AddConsole();
+    builder.AddProvider(new SignalLoggerProvider(typedSink));
+});
+
+using var watcher = new EphemeralSignalJobRunner(sink, new[] { new LogWatcherJobs(sink) });
+
+var logger = loggerFactory.CreateLogger("orders");
+logger.LogError(new EventId(1001, "DbFailure"), "Order store failed");
+
+// The log watcher job (see below) now sees `log.error.orders.dbfailure`
+// and raises downstream signals for escalation, while SignalToLoggerAdapter
+// can mirror those signals back into the ILogger pipeline if desired.
 ```
 
-+ See also: `docs/Services.md` for a DI-focused guide with examples and best-practices.
+```csharp
+public sealed class LogWatcherJobs
+{
+    private readonly SignalSink _sink;
+
+    public LogWatcherJobs(SignalSink sink) => _sink = sink;
+
+    [EphemeralJob("log.error.*")]
+    public Task EscalateAsync(SignalEvent signal)
+    {
+        Console.WriteLine($"Escalating {signal.Signal} for {signal.Key}");
+        _sink.Raise("incident.created", key: signal.Key);
+        return Task.CompletedTask;
+    }
+
+    [EphemeralJob("incident.created")]
+    public Task NotifyAsync(SignalEvent signal)
+    {
+        Console.WriteLine($"Notified incident for {signal.Key}");
+        return Task.CompletedTask;
+    }
+}
+```
+
+Use `SignalToLoggerAdapter` when you want signals (including the ones emitted by the jobs above) to appear in normal logs with inferred severity and operation metadata.
+
+## Examples
+
+### Circuit Breaker Pattern
+```
 
 ## Package Ecosystem
 
@@ -364,6 +465,7 @@ Small, opinionated wrappers for common patterns:
 | `mostlylucid.ephemeral.atoms.signalaware` | Pause/cancel intake based on signals |
 | `mostlylucid.ephemeral.atoms.batching` | Time/size-based batching before processing |
 | `mostlylucid.ephemeral.atoms.retry` | Exponential backoff retry with limits |
+| `mostlylucid.ephemeral.atoms.echo` | Capture typed “last words” payloads via `OperationEchoMaker` and persist them with `OperationEchoAtom` |
 
 ### Patterns (Ready-to-Use Compositions)
 
@@ -427,6 +529,8 @@ async Task<User> GetUserAsync(string id) =>
 var signals = cache.GetSignals().Where(s => s.Signal.StartsWith("cache."));
 var stats = cache.GetStats(); // hot/expired counts, size
 ```
+
+> Tip: `MemoryCache` can also be configured with sliding expiration via `MemoryCacheEntryOptions`, but it never tracks hot keys or emits the cache signals that `EphemeralLruCache` does. When you want the cache to self-focus and surface hot/cold telemetry, the LRU cache is the default for `SqliteSingleWriter` and the general recommendation.
 
 ## Examples
 
@@ -539,6 +643,57 @@ await retryable.ExecuteAsync(request);  // Retries with exponential backoff
 - `MaxTrackedOperations` limits window size; old operations evict automatically (LRU)
 - `MaxOperationLifetime` controls how long completed operations stay visible
 - Pinning (`Pin(id)`) prevents eviction for important operations
+- `GetEchoes()` returns the short-lived “echo” copy of the final signal wave when `EnableOperationEcho` is true so observers can replay the last messages just after the operation dies.
+
+```csharp
+// Replay the last traces of trimmed ops (enabled by EnableOperationEcho)
+var echoSignals = coordinator.GetEchoes(pattern: "error.*")
+    .Where(e => e.Timestamp > DateTimeOffset.UtcNow - TimeSpan.FromMinutes(1))
+    .ToList();
+
+if (echoSignals.Count > 0)
+{
+    logger.LogWarning("Recent trimmed errors: {Count}", echoSignals.Count);
+}
+```
+
+`EnableOperationEcho`, `OperationEchoRetention`, and `OperationEchoCapacity` control how long echoes live and how many the coordinator keeps, so you can balance replay observability with a small memory footprint.
+
+- When operations are trimmed (size or age), the coordinator raises `OperationFinalized`. Think of it as the operation's *last words*—subscribe to the event to log diagnostics, emit a final signal, or clean up external resources before the entry disappears.
+
+```csharp
+coordinator.OperationFinalized += snapshot =>
+{
+    if (snapshot.IsPinned)
+    {
+        sink.Raise("responsibility.finalized", key: snapshot.Key);
+    }
+    logger.LogInformation("Finalizing {Signal} (op:{Id}) with {Count} signal(s)", snapshot.Key ?? "none", snapshot.OperationId, snapshot.Signals?.Count ?? 0);
+};
+```
+
+If you need to persist a tiny “last words” record before the operation departs, spin up a dedicated note atom:
+
+```csharp
+using Mostlylucid.Ephemeral.Patterns;
+
+var notes = new LastWordsNoteAtom(async note => await storage.AppendAsync(note));
+
+coordinator.OperationFinalized += snapshot =>
+{
+    var note = new LastWordsNote(
+        OperationId: snapshot.OperationId,
+        Key: snapshot.Key,
+        Signal: snapshot.Signals?.FirstOrDefault(),
+        Timestamp: DateTimeOffset.UtcNow,
+        Metadata: new Dictionary<string, string?> { ["Reason"] = snapshot.IsPinned ? "Responsibility" : "Evicted" });
+
+    _ = notes.EnqueueAsync(note);
+};
+```
+
+`LastWordsNote` stays small (just the op id, key, timestamp, and optional metadata), and the note atom serializes acceptance so you can persist fatal-state externally while the coordinator trims the window.
+```
 
 ## Pin Until Queried: Responsibility Signal
 
@@ -556,7 +711,52 @@ In practice, a file-processing atom might:
 
 This pattern eliminates race conditions (resources announce their availability), creates a self-healing hand-off (pinned work survives coordinator crashes), avoids orphaned resources, and makes for resilient work queues where tasks aren’t lost but also don’t pile up indefinitely. Atoms become autonomous agents, managing their own existence based on responsibility signals.
 
-Use `ResponsibilitySignalManager` with your sink/coordinator to `PinUntilQueried` (default ack signal: `responsibility.ack.*` with key=`operationId`) so the window automatically unpins once the downstream signal appears. Set the optional `description` so the atom can express, “I saved this file, I’m waiting for somebody to see where it landed.” Pass `maxPinDuration` (e.g., `TimeSpan.FromMinutes(5)`) to bound how long pins can extend beyond the normal operation lifetime so the system remains self-cleaning even when queries are delayed.
+Use `ResponsibilitySignalManager` with your sink/coordinator to `PinUntilQueried` (default ack signal: `responsibility.ack.*` with key=`operationId`). You can pin by operation ID and ack pattern, add an optional `description` (like “I saved this file, I’m waiting for someone to see where it landed”), and bound the pin with `maxPinDuration` (e.g., `TimeSpan.FromMinutes(5)`) so the window stays self-cleaning even when readers are slow.
+
+```csharp
+var manager = new ResponsibilitySignalManager(coordinator, sink, maxPinDuration: TimeSpan.FromMinutes(5));
+if (manager.PinUntilQueried(operationId, "file.ready", ackKey: fileId, description: $"Awaiting read of {fileId}"))
+{
+    sink.Raise("file.ready", key: fileId);
+}
+
+// Downstream consumer acknowledges the work
+sink.Raise("file.ready.ack", key: fileId);
+```
+
+Call `CompleteResponsibility(operationId)` when you want to release the pin manually (for retries or downstream failures). The manager unpins automatically when the ack signal arrives, and the coordinator still raises `OperationFinalized` when the entry finally leaves the window so you can capture its “last words” (logs, signals, etc.) before cleanup.
+
+## Echo Maker: capture the “last words”
+
+When you want to archive the most critical state that an operation emits before it vanishes, use `mostlylucid.ephemeral.atoms.echo`. It hooks `TypedSignalSink<TPayload>` into `OperationFinalized`, tracks the typed payloads captured for your chosen signals, and hands you `OperationEchoEntry<TPayload>` records you can persist or alert on.
+
+```csharp
+var sink = new SignalSink();
+var typedSink = new TypedSignalSink<EchoPayload>(sink);
+var echoAtom = new OperationEchoAtom<EchoPayload>(async echo => await repository.AppendAsync(echo));
+
+await using var coordinator = new EphemeralWorkCoordinator<JobItem>(ProcessAsync);
+using var maker = coordinator.EnableOperationEchoing(
+    typedSink,
+    echoAtom,
+    new OperationEchoMakerOptions<EchoPayload>
+    {
+        ActivationSignalPattern = "echo.capture",
+        CaptureSignalPattern = "echo.*",
+        MaxTrackedOperations = 128
+    });
+
+[EphemeralJob("job.done")]
+public Task OnJobDone(SignalEvent signal)
+{
+    typedSink.Raise("echo.capture", new EchoPayload(signal.Key, "archivable"), key: signal.Key);
+    return Task.CompletedTask;
+}
+```
+
+The activation signal (e.g., `echo.capture`) marks the point at which the maker begins tracking the operation, and `CaptureSignalPattern` / `CapturePredicate` let you pare down the payload stream. Attribute handlers simply raise the typed signal with whatever “most critical state” they want echoed, and the atom serializes a bounded, durable note before the coordinator trims the entry.
+
+`EchoPayload` is your own compact record (order id, status, minimal metadata, etc.).
 
 ## Key Concepts
 

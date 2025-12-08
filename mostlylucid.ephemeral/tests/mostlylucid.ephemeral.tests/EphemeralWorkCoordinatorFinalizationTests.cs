@@ -25,10 +25,10 @@ public class EphemeralWorkCoordinatorFinalizationTests
             tcs.TrySetResult(snapshot);
         };
 
-        await coordinator.EnqueueAsync(1);
+        var firstId = await coordinator.EnqueueWithIdAsync(1);
         await coordinator.EnqueueAsync(2);
 
         var finalized = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(1));
-        Assert.Equal(1, finalized.OperationId);
+        Assert.Equal(firstId, finalized.OperationId);
     }
 }

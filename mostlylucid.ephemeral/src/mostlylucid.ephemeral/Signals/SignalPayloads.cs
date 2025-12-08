@@ -37,6 +37,11 @@ public sealed class TypedSignalSink<TPayload>
     }
 
     /// <summary>
+    /// Raised when a typed signal is emitted.
+    /// </summary>
+    public event Action<SignalEvent<TPayload>>? TypedSignalRaised;
+
+    /// <summary>
     /// Underlying untyped sink (for existing APIs).
     /// </summary>
     public SignalSink Untyped => _inner;
@@ -47,6 +52,7 @@ public sealed class TypedSignalSink<TPayload>
     public void Raise(SignalEvent<TPayload> evt)
     {
         _window.Enqueue(evt);
+        TypedSignalRaised?.Invoke(evt);
         _inner.Raise(evt.WithoutPayload());
 
         if ((Interlocked.Increment(ref _raiseCounter) & 0x3FF) == 0)

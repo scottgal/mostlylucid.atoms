@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Threading.Channels;
 
 namespace Mostlylucid.Ephemeral;
@@ -7,7 +9,7 @@ namespace Mostlylucid.Ephemeral;
 /// A work coordinator that captures results from each operation.
 /// Use this when you need to retrieve outcomes (summaries, fingerprints, IDs) from completed work.
 /// </summary>
-public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposable, IOperationPinning
+public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposable, IOperationPinning, IOperationFinalization
 {
     private readonly Channel<TInput> _channel;
     private readonly Func<TInput, CancellationToken, Task<TResult>> _body;
@@ -20,6 +22,7 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
     private readonly Task _processingTask;
     private readonly Task? _sourceConsumerTask;
     private readonly TaskCompletionSource _drainTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly OperationEchoStore? _echoStore;
     private bool _completed;
     private bool _channelIterationComplete;
     private bool _paused;
@@ -35,8 +38,11 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
     /// Raised when an operation exits the window.
     /// </summary>
     public event Action<EphemeralOperationSnapshot>? OperationFinalized;
-    private void NotifyOperationFinalized(EphemeralOperation<TResult> op) =>
+    private void NotifyOperationFinalized(EphemeralOperation<TResult> op)
+    {
         OperationFinalized?.Invoke(op.ToBaseSnapshot());
+        RecordEcho(op);
+    }
 
     public EphemeralResultCoordinator(
         Func<TInput, CancellationToken, Task<TResult>> body,
@@ -47,6 +53,12 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
         _cts = new CancellationTokenSource();
         _recent = new ConcurrentQueue<EphemeralOperation<TResult>>();
         _concurrency = CreateGate(_options);
+        _echoStore = _options.EnableOperationEcho
+            ? new OperationEchoStore(_options.OperationEchoRetention, _options.OperationEchoCapacity)
+            : null;
+        _echoStore = _options.EnableOperationEcho
+            ? new OperationEchoStore(_options.OperationEchoRetention, _options.OperationEchoCapacity)
+            : null;
 
         _channel = Channel.CreateBounded<TInput>(new BoundedChannelOptions(_options.MaxTrackedOperations)
         {
@@ -167,6 +179,11 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
 
     public IReadOnlyList<SignalEvent> GetSignals() => GetSignalsCore(null);
 
+    /// <summary>
+    /// Gets the short-lived echo of signals emitted by operations that were just trimmed.
+    /// </summary>
+    public IReadOnlyList<OperationEcho> GetEchoes() => _echoStore?.Snapshot() ?? Array.Empty<OperationEcho>();
+
     public bool HasSignal(string signalName)
     {
         foreach (var op in _recent)
@@ -198,6 +215,16 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
                 results.Add(new SignalEvent(signal, op.Id, op.Key, timestamp));
         }
         return results;
+    }
+
+    private void RecordEcho(EphemeralOperation<TResult> op)
+    {
+        if (_echoStore is null)
+            return;
+
+        var signals = op._signals?.ToArray();
+        var echo = new OperationEcho(op.Id, op.Key, signals, DateTimeOffset.UtcNow);
+        _echoStore.Add(echo);
     }
 
     public bool Pin(long operationId)
