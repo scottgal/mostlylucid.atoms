@@ -8,7 +8,7 @@ namespace Mostlylucid.Ephemeral;
 /// Unlike EphemeralForEachAsync (which processes a collection), this stays alive
 /// and lets you enqueue items over time, inspect operations, and gracefully shutdown.
 /// </summary>
-public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable
+public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPinning
 {
     private readonly record struct WorkItem(T Item, long? Id);
 
@@ -145,6 +145,15 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable
     /// </summary>
     public int CurrentMaxConcurrency => Volatile.Read(ref _currentMaxConcurrency);
 
+    /// <summary>
+    /// Raised when an operation is removed from the window.
+    /// </summary>
+    public event Action<EphemeralOperationSnapshot>? OperationFinalized;
+
+    private void NotifyOperationFinalized(EphemeralOperation op)
+    {
+        OperationFinalized?.Invoke(op.ToSnapshot());
+    }
     /// <summary>
     /// Pause processing. Running operations continue, but no new items are started.
     /// </summary>
@@ -841,6 +850,10 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable
                     break;
             }
             // Non-pinned ops are dropped (not re-enqueued)
+            else
+            {
+                NotifyOperationFinalized(candidate);
+            }
         }
     }
 
@@ -864,6 +877,10 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable
             if (op.IsPinned || op.Started >= cutoff)
             {
                 _recent.Enqueue(op);
+            }
+            else
+            {
+                NotifyOperationFinalized(op);
             }
         }
     }

@@ -6,7 +6,7 @@ namespace Mostlylucid.Ephemeral;
 /// <summary>
 /// Keyed version: per-key sequential execution with fair scheduling.
 /// </summary>
-public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable
+public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, IOperationPinning
     where TKey : notnull
 {
     /// <summary>
@@ -38,6 +38,13 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable
     private readonly TaskCompletionSource _drainTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private const long KeyLockIdleTimeoutMs = 60_000;
     private bool _completed;
+
+    /// <summary>
+    /// Raised when an operation is evicted from the window.
+    /// </summary>
+    public event Action<EphemeralOperationSnapshot>? OperationFinalized;
+    private void NotifyOperationFinalized(EphemeralOperation op)
+        => OperationFinalized?.Invoke(op.ToSnapshot());
     private bool _channelIterationComplete;
     private bool _paused;
     private int _pendingCount;
@@ -538,6 +545,10 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable
                 _recent.Enqueue(candidate);
                 if (pinnedCount >= _recent.Count) break;
             }
+            else
+            {
+                NotifyOperationFinalized(candidate);
+            }
         }
     }
 
@@ -553,6 +564,10 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable
         while (scanBudget-- > 0 && _recent.TryDequeue(out var op))
         {
             if (op.IsPinned || op.Started >= cutoff) _recent.Enqueue(op);
+            else
+            {
+                NotifyOperationFinalized(op);
+            }
         }
     }
 

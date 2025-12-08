@@ -540,6 +540,24 @@ await retryable.ExecuteAsync(request);  // Retries with exponential backoff
 - `MaxOperationLifetime` controls how long completed operations stay visible
 - Pinning (`Pin(id)`) prevents eviction for important operations
 
+## Pin Until Queried: Responsibility Signal
+
+One of the trickiest problems in distributed systems is balancing resource cleanup with clear ownership, so we introduced the **Responsibility Signal**.
+
+1. **Self-declared responsibility.** An atom can emit `pins` when it completes, indicating “I’m still responsible for this result until someone else asks.” It keeps itself alive until a downstream consumer queries it.
+2. **Automatic resource management.** Once the consumer has inspected or acknowledged the work, the atom unpins itself and resumes the normal eviction timetable. Nothing disappears too soon, and nothing lingers forever.
+3. **Durable yet ephemeral.** You get the durability you need for reliable hand-offs while keeping the window self-cleaning whenever coordination succeeds.
+
+In practice, a file-processing atom might:
+
+1. Emit `file.processed`, set `{ pinned: true, status: "awaiting_query", file_location: "/bucket/uuid" }`, and keep the result alive.
+2. Wait for Coordinator B to query the file (maybe via signals or `EphemeralWorkCoordinator`), reply with metadata, and flip the internal state to `{ pinned: false, status: "complete" }`.
+3. Finally allow the usual TTL-driven eviction to remove the operation.
+
+This pattern eliminates race conditions (resources announce their availability), creates a self-healing hand-off (pinned work survives coordinator crashes), avoids orphaned resources, and makes for resilient work queues where tasks aren’t lost but also don’t pile up indefinitely. Atoms become autonomous agents, managing their own existence based on responsibility signals.
+
+Use `ResponsibilitySignalManager` with your sink/coordinator to `PinUntilQueried` (default ack signal: `responsibility.ack.*` with key=`operationId`) so the window automatically unpins once the downstream signal appears. Set the optional `description` so the atom can express, “I saved this file, I’m waiting for somebody to see where it landed.” Pass `maxPinDuration` (e.g., `TimeSpan.FromMinutes(5)`) to bound how long pins can extend beyond the normal operation lifetime so the system remains self-cleaning even when queries are delayed.
+
 ## Key Concepts
 
 ### Operation Lifecycle

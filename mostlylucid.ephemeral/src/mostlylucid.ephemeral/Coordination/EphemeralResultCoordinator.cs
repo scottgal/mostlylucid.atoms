@@ -7,7 +7,7 @@ namespace Mostlylucid.Ephemeral;
 /// A work coordinator that captures results from each operation.
 /// Use this when you need to retrieve outcomes (summaries, fingerprints, IDs) from completed work.
 /// </summary>
-public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposable
+public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposable, IOperationPinning
 {
     private readonly Channel<TInput> _channel;
     private readonly Func<TInput, CancellationToken, Task<TResult>> _body;
@@ -30,6 +30,13 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
     private int _activeTaskCount;
     private long _lastTrimTicks;
     private long _lastReadCleanupTicks;
+
+    /// <summary>
+    /// Raised when an operation exits the window.
+    /// </summary>
+    public event Action<EphemeralOperationSnapshot>? OperationFinalized;
+    private void NotifyOperationFinalized(EphemeralOperation<TResult> op) =>
+        OperationFinalized?.Invoke(op.ToBaseSnapshot());
 
     public EphemeralResultCoordinator(
         Func<TInput, CancellationToken, Task<TResult>> body,
@@ -421,6 +428,10 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
                 _recent.Enqueue(candidate);
                 if (pinnedCount >= _recent.Count) break;
             }
+            else
+            {
+                NotifyOperationFinalized(candidate);
+            }
         }
     }
 
@@ -436,6 +447,10 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
         while (scanBudget-- > 0 && _recent.TryDequeue(out var op))
         {
             if (op.IsPinned || op.Started >= cutoff) _recent.Enqueue(op);
+            else
+            {
+                NotifyOperationFinalized(op);
+            }
         }
     }
 
