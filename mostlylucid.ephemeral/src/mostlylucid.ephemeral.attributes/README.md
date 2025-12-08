@@ -156,12 +156,14 @@ Attribute jobs can declare `Pin = true` so the coordinator keeps their operation
 that pin to a downstream acknowledgement, optionally adding a `description` such as “the file is ready for pickup” and a
 `maxPinDuration` so the window still self-cleans if nobody arrives.
 
-```csharp
-var manager = new ResponsibilitySignalManager(coordinator, sink, maxPinDuration: TimeSpan.FromMinutes(5));
-manager.PinUntilQueried(operationId, "responsibility.ack.file", description: "awaiting file pickup");
-```
+ ```csharp
+ var manager = new ResponsibilitySignalManager(coordinator, sink, maxPinDuration: TimeSpan.FromMinutes(5));
+ manager.PinUntilQueried(operationId, "responsibility.ack.file", description: "awaiting file pickup");
+ ```
 
-When the ack signal arrives the pin is released automatically, eliminating races between producers and consumers.
+This creates a “responsibility signal” where the job announces it has handed off state (file paths, metadata, etc.) that another reader owes it. The pin keeps the operation visible until the ack signal arrives, so the coordinator never evicts the resource while it is still needed.
+ 
+  When the ack signal arrives the pin is released automatically, eliminating races between producers and consumers.
 Combine this with `OperationEchoMaker`/`OperationEchoAtom` (see `mostlylucid.ephemeral.atoms.echo`) if you need
 structured “last words”: capture the key signals or typed payloads that summarize the operation before it vanishes so
 molecules or auditors can still taste the soup.

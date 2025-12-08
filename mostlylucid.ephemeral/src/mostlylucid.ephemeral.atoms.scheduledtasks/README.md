@@ -18,6 +18,8 @@ If you just want to wait for every pending task to complete (for example in test
 atom, call `durable.WaitForIdleAsync()`. `DrainAsync` still requires `Complete()` because it waits for the coordinator
 to stop accepting new work, but `WaitForIdleAsync` simply polls until `PendingCount` and `ActiveCount` hit zero so you
 can enqueue more work afterwards.
+
+Each DurableTask carries the schedule Name, Signal, optional Key, the configured Payload, and the human-readable Description. Downstream listeners treat the emitted signal as the durable record of what ran (filenames, URLs, metadata, etc.) so they can keep logging, tracing, or acknowledging the work in the same coordinator window.
 `
 
 The atom exposes EnqueueAsync to post durable work plus DrainAsync/DisposeAsync for graceful shutdown.

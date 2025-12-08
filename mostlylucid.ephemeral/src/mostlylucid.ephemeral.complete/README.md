@@ -159,6 +159,8 @@ schedules via `ScheduledTaskDefinition` (cron, signal, optional `key`, `payload`
 raises the configured signal inside a coordinator window, so it inherits pinning, logging, and responsibility semantics
 while your molecules or attribute pipelines respond to the emitted signal wave.
 
+Every `DurableTask` carries the schedule `Name`, `Signal`, optional `Key`, even a typed `Payload`, and `Description`, so downstream listeners immediately know which job ran and what metadata (filenames, URLs, etc.) to consume. Call `DurableTaskAtom.WaitForIdleAsync()` when you just want to wait for the current burst of scheduled work to finish without completing the atom, keeping the scheduler ready for the next cron tick.
+
 ### Logging & Signals
 
 `mostlylucid.ephemeral.logging` mirrors Microsoft.Extensions.Logging into signals and vice versa. Start by attaching

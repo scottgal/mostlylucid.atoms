@@ -484,6 +484,8 @@ Small, opinionated wrappers for common patterns:
 
 The `mostlylucid.ephemeral.atoms.scheduledtasks` package turns cron definitions (or JSON files of schedules) into durable, pinned work. `DurableTaskAtom` tracks each job inside its own coordinator, and `ScheduledTasksAtom` uses `ScheduledTaskDefinition.LoadFromJsonFile` (cron, signal, key, payload, timezone, `runOnStartup`, etc.) to raise a `DurableTask` that in turn emits the configured signal. Keep the runner alive at startup so downstream coordinators, log watchers, or molecules can respond to the emitted `signal.*` events without extra glue.
 
+Each `DurableTask` is annotated with the schedule `Name`, emitted `Signal`, optional `Key`, `Payload`, and human-readable `Description`. Downstream listeners treat that signal as the job handle—no extra wiring is needed to pass along filenames, URLs, or metadata. When you just need to wait for every scheduled task to finish firing (for example, in a test), call `DurableTaskAtom.WaitForIdleAsync()` so you can observe `PendingCount`/`ActiveCount` without stopping the atom.
+
 ### Patterns (Ready-to-Use Compositions)
 
 Production-ready implementations:
