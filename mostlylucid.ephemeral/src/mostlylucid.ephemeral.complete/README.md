@@ -700,6 +700,21 @@ var signals = cache.GetSignals("cache.*"); // cache.hot/evict/miss/hit
 > for hot keys. `EphemeralLruCache` is the self-optimizing default in the core package (and in `SqliteSingleWriter`)
 > whenever you want the cache to focus on the active working set.
 
+### Window Size Atom
+
+> **Package:** [mostlylucid.ephemeral.atoms.windowsize](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.windowsize)
+
+The atom listens for `window.size.*` or `window.time.*` commands, clamps the requested capacity/retention, and calls
+`SignalSink.UpdateWindowSize` so you can expand or shrink the shared window from another coordinator or signal watcher.
+
+```csharp
+var sink = new SignalSink(maxCapacity: 250);
+await using var atom = new WindowSizeAtom(sink);
+
+sink.Raise("window.size.decrease:50");
+sink.Raise("window.time.set:00:02:00");
+```
+
 ### Echo Maker
 
 > **Package:** [mostlylucid.ephemeral.atoms.echo](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.echo)

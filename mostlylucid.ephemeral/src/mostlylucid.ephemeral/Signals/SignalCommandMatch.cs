@@ -1,3 +1,5 @@
+using System;
+
 namespace Mostlylucid.Ephemeral;
 
 public readonly struct SignalCommandMatch

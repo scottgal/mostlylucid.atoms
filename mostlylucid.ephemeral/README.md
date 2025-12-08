@@ -116,6 +116,32 @@ if (snapshot.HasResult)
     Console.WriteLine(snapshot.Result);
 ```
 
+## Registering in dependency injection
+
+The familiar `AddX` helpers make it easy to drop coordinators and attribute runners into ASP.NET Core without reshaping your hosting code:
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddCoordinator<WorkItem>(
+    async (item, ct) => await ProcessAsync(item, ct),
+    new EphemeralOptions { MaxConcurrency = 8 });
+
+builder.Services.AddEphemeralSignalJobRunner<LogWatcherJobs>();
+
+var app = builder.Build();
+app.MapPost("/", async ([FromServices] IEphemeralCoordinatorFactory<WorkItem> factory, WorkItem item) =>
+{
+    var coordinator = factory.CreateCoordinator();
+    await coordinator.EnqueueAsync(item);
+    return Results.Accepted();
+});
+
+await app.RunAsync();
+```
+
+`services.AddCoordinator<T>(...)` and its scoped/keyed variants simply wrap the `AddEphemeral…` helpers with a familiar surface, keeping registration consistent with other ASP.NET Core services.
+
 ## Attribute-driven jobs
 
 `mostlylucid.ephemeral.attributes` ships with the core packages and lets you decorate methods with `[EphemeralJob]` or `[EphemeralJobs]` to react to `SignalSink` events declaratively. Treat this attribute-driven runner as part of the same canonical surface: handlers join the signal window, signal cache, logging adapters, and responsibility/pinning story you build elsewhere. Each attribute can declare `Priority`, job-level `MaxConcurrency`, `Lane`, key extraction, signal emissions, pinning, retries, and sliding expiry so your pipeline self-composes without extra plumbing.
@@ -515,6 +541,8 @@ Small, opinionated wrappers for common patterns:
 | `mostlylucid.ephemeral.atoms.signalaware` | Pause/cancel intake based on signals |
 | `mostlylucid.ephemeral.atoms.batching` | Time/size-based batching before processing |
 | `mostlylucid.ephemeral.atoms.retry` | Exponential backoff retry with limits |
+| `mostlylucid.ephemeral.atoms.windowsize` | Signal-based window/retention adjustments for shared sink windows |
+| `mostlylucid.ephemeral.atoms.windowsize` | Signals can grow/shrink the signal window/retention (window size atom) |
 | `mostlylucid.ephemeral.atoms.molecules` | Molecules/atom-trigger helpers for signal-driven workflows |
 | `mostlylucid.ephemeral.atoms.scheduledtasks` | Cron/JSON-driven durable tasks using `DurableTaskAtom` + `ScheduledTasksAtom` |
 | `mostlylucid.ephemeral.atoms.echo` | Capture typed “last words” payloads via `OperationEchoMaker` and persist them with `OperationEchoAtom` |
@@ -560,6 +588,22 @@ Production-ready implementations:
 | `SlidingCacheAtom` | Sliding on every hit + absolute max lifetime | Async factory + dedupe; rich signals | `atoms.slidingcache` |
 | `EphemeralLruCache` (default) | Sliding on hit; hot keys extend TTL; LRU-style eviction | Hot detection (`cache.hot/evict` signals) | Core + `sqlite.singlewriter` |
 | `MemoryCache` (legacy/optional) | Sliding TTL only | No hot tracking or dedupe | Only if you opt out of LRU |
+
+### Window Size Atom
+
+> **Package:** [mostlylucid.ephemeral.atoms.windowsize](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.windowsize)
+
+Raise `window.size.*` or `window.time.*` commands on a shared `SignalSink` to expand/shrink the tracked capacity and retention age with the same semantics as you use on rate limit signals.
+
+```csharp
+var sink = new SignalSink(maxCapacity: 200, maxAge: TimeSpan.FromMinutes(1));
+await using var atom = new WindowSizeAtom(sink);
+
+sink.Raise("window.size.increase:100");
+sink.Raise("window.time.set:00:05:00");
+```
+
+The atom clamps every change through `SignalSink.UpdateWindowSize`, so you can safely wire it to backpressure/event signals without duplicating parsing logic.
 
 ### Sample: Self-optimizing hot-key cache (EphemeralLruCache)
 

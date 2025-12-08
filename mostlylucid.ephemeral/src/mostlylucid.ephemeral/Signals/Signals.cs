@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace Mostlylucid.Ephemeral;
 
@@ -326,15 +328,33 @@ public interface ISignalEmitter
 /// </summary>
 public sealed class SignalSink
 {
-    private readonly TimeSpan _maxAge;
-    private readonly int _maxCapacity;
+        private long _maxAgeTicks;
+        private int _maxCapacity;
     private readonly ConcurrentQueue<SignalEvent> _window = new();
     private long _raiseCounter;
+
+    private readonly object _windowSizeLock = new();
 
     public SignalSink(int maxCapacity = 1000, TimeSpan? maxAge = null)
     {
         _maxCapacity = maxCapacity;
-        _maxAge = maxAge ?? TimeSpan.FromMinutes(1);
+        _maxAgeTicks = (maxAge ?? TimeSpan.FromMinutes(1)).Ticks;
+    }
+
+    public int MaxCapacity => Volatile.Read(ref _maxCapacity);
+
+    public TimeSpan MaxAge => TimeSpan.FromTicks(Volatile.Read(ref _maxAgeTicks));
+
+    public void UpdateWindowSize(int? maxCapacity = null, TimeSpan? maxAge = null)
+    {
+        lock (_windowSizeLock)
+        {
+            if (maxCapacity.HasValue)
+                Interlocked.Exchange(ref _maxCapacity, Math.Max(1, maxCapacity.Value));
+
+            if (maxAge.HasValue && maxAge.Value > TimeSpan.Zero)
+                Interlocked.Exchange(ref _maxAgeTicks, maxAge.Value.Ticks);
+        }
     }
 
     /// <summary>
@@ -428,7 +448,7 @@ public sealed class SignalSink
 
     private void Cleanup()
     {
-        var cutoff = DateTimeOffset.UtcNow - _maxAge;
+        var cutoff = DateTimeOffset.UtcNow - MaxAge;
 
         // Size-based
         while (_window.Count > _maxCapacity && _window.TryDequeue(out _))
