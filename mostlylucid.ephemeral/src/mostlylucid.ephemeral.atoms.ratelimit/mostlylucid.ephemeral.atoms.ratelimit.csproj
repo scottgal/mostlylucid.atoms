@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net6.0;net7.0;net8.0;net9.0;net10.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Threading.RateLimiting" Version="8.0.0" />
+    <ProjectReference Include="..\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj" />
+  </ItemGroup>
+</Project>

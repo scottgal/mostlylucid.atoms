@@ -402,6 +402,45 @@ Modern DI roots may prefer the shorter helpers such as `services.AddCoordinator<
 
 See also: `docs/Services.md` for a DI-focused guide with examples and best practices.
 
+## Lane + Key Configuration (Simple config, hidden power)
+
+Priority-aware coordinators let you treat the `AddCoordinator` helpers as the chef, the lane name as the bowl (hot/normal/cold), and the key selector as the per-entity handle. You keep the familiar `EphemeralOptions` surface but gain signal-aware gates, named lanes, and hidden concurrency limits without rewriting your body logic.
+
+```csharp
+var sink = new SignalSink();
+var lanes = new[]
+{
+    new PriorityLane("hot:4", CancelOnSignals: new HashSet<string> { "maintenance" }),
+    new PriorityLane("normal"),
+    new PriorityLane("slow:2")
+};
+
+await using var coordinator = new PriorityWorkCoordinator<WorkItem>(
+    new PriorityWorkCoordinatorOptions<WorkItem>(
+        async (item, ct) => await processor.ProcessAsync(item, ct),
+        lanes,
+        new EphemeralOptions { Signals = sink }));
+
+await coordinator.EnqueueAsync(new WorkItem("order-42"), laneName: "hot");   // hot path
+await coordinator.EnqueueAsync(new WorkItem("order-43"), laneName: "slow");  // cold lane
+```
+
+If you need per-key ordering, drop in `PriorityKeyedWorkCoordinator`. Reuse the same `lanes` array, plug in a `keySelector`, and the coordinator still respects lanes while keeping every key sequential.
+
+```csharp
+var keyed = new PriorityKeyedWorkCoordinator<WorkItem, string>(
+    new PriorityKeyedWorkCoordinatorOptions<WorkItem, string>(
+        order => order.CustomerId,
+        async (order, ct) => await processor.ProcessPerCustomerAsync(order, ct),
+        lanes,
+        new EphemeralOptions { Signals = sink }));
+
+await keyed.EnqueueAsync(new WorkItem("order-42") { CustomerId = "A" }, laneName: "hot");
+await keyed.EnqueueAsync(new WorkItem("order-44") { CustomerId = "B" }, laneName: "normal");
+```
+
+Those lane names (and optional `MaxDepth`, `CancelOnSignals`, `DeferOnSignals`) become part of your observability surface—traffic counts, logs, and signals can all report “hot” vs. “slow” without any ceremony. Combine with the keyed helpers so the hidden power of lanes is still available even when the coordinator is grouped by customer, tenant, or any other key.
+
 ## Logging & Signals
 
 `mostlylucid.ephemeral.logging` stitches `Microsoft.Extensions.Logging` and the signal world together.

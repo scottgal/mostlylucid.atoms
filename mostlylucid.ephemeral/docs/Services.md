@@ -32,6 +32,28 @@ For a more idiomatic `IServiceCollection` surface you can also use the shorter h
 
 These helpers simply delegate to the `Ephemeral`-prefixed methods but make the registration/readability mirror other ASP.NET Core services.
 
+## Lane-aware coordinators
+
+Priority-aware coordinators extend the same `AddCoordinator` idea with named lanes (`PriorityLane`) and optional signal gates on each lane. Register `PriorityWorkCoordinator` or `PriorityKeyedWorkCoordinator` as a singleton whenever you need hot/cold separation while keeping per-key ordering.
+
+```csharp
+var sink = new SignalSink();
+var lanes = new[]
+{
+    new PriorityLane("hot:4", CancelOnSignals: new HashSet<string> { "maintenance" }),
+    new PriorityLane("normal"),
+    new PriorityLane("slow:2")
+};
+
+services.AddSingleton(_ => new PriorityWorkCoordinator<WorkItem>(
+    new PriorityWorkCoordinatorOptions<WorkItem>(
+        async (item, ct) => await itemProcessor.ProcessAsync(item, ct),
+        lanes,
+        new EphemeralOptions { Signals = sink })));
+```
+
+Keys are still handled with the keyed helpers—`PriorityKeyedWorkCoordinator` simply adds your key selector so each partition remains sequential while the lane pump still favors the hot bowl.
+
 Use the `AddCoordinator` family whenever you want the familiar `AddX` naming, including `services.AddScopedCoordinator` and the keyed variants, so coordinators can be registered just like any other service at the lifetime you need.
 
 ## Registering attribute-driven runners

@@ -25,6 +25,7 @@ section below.
     - [SignalAwareAtom](#signalawareatom)
     - [BatchingAtom](#batchingatom)
     - [RetryAtom](#retryatom)
+    - [RateLimitAtom](#ratelimitatom)
     - [Data Storage Atoms](#data-storage-atoms)
     - [MoleculeRunner & AtomTrigger](#moleculerunner--atomtrigger)
     - [SlidingCacheAtom](#slidingcacheatom)
@@ -1204,6 +1205,45 @@ public class MyService(IEphemeralCoordinatorFactory<WorkItem> factory)
 Modern DI roots may prefer the shorter helpers such as `services.AddCoordinator<T>(...)`,
 `services.AddScopedCoordinator<T>(...)`, or `services.AddKeyedCoordinator<T, TKey>(...)` since they read like normal
 `AddX` registrations; they simply delegate to the Ephemeral-specific helpers under the hood.
+
+## Lane + Key Configuration (Simple config, hidden power)
+
+`mostlylucid.ephemeral.complete` bundles `PriorityWorkCoordinator` and the keyed variants, so the same “AddCoordinator” surface you use at startup can send work through named lanes. Configure a few lane names, give them optional `MaxDepth`, and rely on the coordinator to drain “hot” lanes before “slow” lanes while still observing any request keys.
+
+```csharp
+var sink = new SignalSink();
+var lanes = new[]
+{
+    new PriorityLane("hot:4", CancelOnSignals: new HashSet<string> { "maintenance" }),
+    new PriorityLane("normal"),
+    new PriorityLane("slow:2")
+};
+
+await using var coordinator = new PriorityWorkCoordinator<WorkItem>(
+    new PriorityWorkCoordinatorOptions<WorkItem>(
+        async (item, ct) => await processor.ProcessAsync(item, ct),
+        lanes,
+        new EphemeralOptions { Signals = sink }));
+
+await coordinator.EnqueueAsync(new WorkItem("order-42"), laneName: "hot");
+await coordinator.EnqueueAsync(new WorkItem("order-43"), laneName: "slow");
+```
+
+Use `PriorityKeyedWorkCoordinator` if you also need per-key ordering—the lane decisions still happen in the pump, but a built-in key selector keeps every partition sequential.
+
+```csharp
+var keyed = new PriorityKeyedWorkCoordinator<WorkItem, string>(
+    new PriorityKeyedWorkCoordinatorOptions<WorkItem, string>(
+        order => order.CustomerId,
+        async (order, ct) => await processor.ProcessPerCustomerAsync(order, ct),
+        lanes,
+        new EphemeralOptions { Signals = sink }));
+
+await keyed.EnqueueAsync(new WorkItem("order-42") { CustomerId = "A" }, laneName: "hot");
+await keyed.EnqueueAsync(new WorkItem("order-44") { CustomerId = "B" }, laneName: "normal");
+```
+
+Think of the coordinator as the chef, lanes as the bowls, and keys as the spoons that keep each customer’s order sequential—the hidden power that keeps work ordered, throttled, and signal-aware without extra ceremony.
 
 ---
 

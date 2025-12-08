@@ -1,3 +1,5 @@
+using Mostlylucid.Ephemeral;
+
 namespace Mostlylucid.Ephemeral.Patterns.AdaptiveRate;
 
 /// <summary>
@@ -53,14 +55,16 @@ public class AdaptiveRateService<T> : IAsyncDisposable
     public static bool TryParseRetryAfter(string signal, out TimeSpan delay)
     {
         delay = default;
-        var parts = signal.Split(':', 2);
-        if (parts.Length != 2) return false;
+        if (!SignalCommandMatch.TryParse(signal, "rate-limit", out var match))
+            return false;
 
-        var payload = parts[1].Trim();
-        if (!payload.EndsWith("ms", StringComparison.OrdinalIgnoreCase)) return false;
+        var trimmed = match.Payload.Trim();
+        if (!trimmed.EndsWith("ms", StringComparison.OrdinalIgnoreCase))
+            return false;
 
-        var numPart = payload[..^2];
-        if (!int.TryParse(numPart, out var ms) || ms < 0) return false;
+        var numPart = trimmed[..^2];
+        if (!int.TryParse(numPart, out var ms) || ms < 0)
+            return false;
 
         delay = TimeSpan.FromMilliseconds(ms);
         return true;
