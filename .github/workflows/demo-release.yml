@@ -57,16 +57,7 @@ jobs:
         run: dotnet restore mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo/mostlylucid.ephemeral.demo.csproj
 
       - name: Publish single-file executable
-        run: |
-          dotnet publish mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo/mostlylucid.ephemeral.demo.csproj \
-            -c Release \
-            -r ${{ matrix.runtime }} \
-            --self-contained true \
-            -p:PublishSingleFile=true \
-            -p:PublishTrimmed=false \
-            -p:DebugType=None \
-            -p:DebugSymbols=false \
-            -o publish/${{ matrix.runtime }}
+        run: dotnet publish mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo/mostlylucid.ephemeral.demo.csproj -c Release -r ${{ matrix.runtime }} --self-contained -p:PublishSingleFile=true -p:PublishTrimmed=false -p:DebugType=None -p:DebugSymbols=false -o publish/${{ matrix.runtime }}
 
       - name: Rename artifact (Windows)
         if: startsWith(matrix.runtime, 'win')
