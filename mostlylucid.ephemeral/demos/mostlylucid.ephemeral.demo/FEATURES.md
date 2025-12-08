@@ -390,11 +390,15 @@ After running all demos, users understand:
 - Or: Pre-built executable (no runtime needed)
 - Terminal with ANSI color support
 
-### Performance
-- Signal raising: < 10 microseconds
-- Pattern matching: < 1 microsecond
-- State queries: < 100 nanoseconds
-- Zero allocations in hot paths
+### Performance (Actual Benchmark Results)
+- Signal raising (no listeners): **~46 µs** (114 KB allocated)
+- Signal raising (1 listener): **~1.6 ms** (1.5 MB allocated)
+- Pattern matching: **~22 µs** (zero allocations)
+- Command parsing: **~196 µs** (816 KB allocated)
+- State queries: **~50 µs** (640 KB allocated for 10k queries)
+- WindowSizeAtom commands: **~46 µs** (106 KB allocated)
+- Signal chain (3 atoms): **~134 ms** for 100 complete chains
+- Concurrent signal raising: **~202 µs** (10 threads × 100 signals)
 
 ### Memory
 - Bounded signal windows

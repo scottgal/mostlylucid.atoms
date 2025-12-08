@@ -1,4 +1,8 @@
+using System.Threading;
 using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Exporters;
+using BenchmarkDotNet.Exporters.Csv;
+using BenchmarkDotNet.Exporters.Json;
 using BenchmarkDotNet.Running;
 using Mostlylucid.Ephemeral;
 using Mostlylucid.Ephemeral.Atoms.RateLimit;
@@ -8,6 +12,10 @@ namespace Mostlylucid.Ephemeral.Demo;
 
 [MemoryDiagnoser]
 [SimpleJob(warmupCount: 3, iterationCount: 5)]
+[MarkdownExporterAttribute.GitHub]
+[CsvExporter]
+[HtmlExporter]
+[JsonExporter]
 public class SignalBenchmarks
 {
     private SignalSink _sink = null!;
@@ -15,11 +23,17 @@ public class SignalBenchmarks
     private WindowSizeAtom _windowAtom = null!;
     private RateLimitAtom _rateAtom = null!;
 
+    private BenchmarkTestAtom _benchAtom = null!;
+
     [GlobalSetup]
     public void Setup()
     {
         _sink = new SignalSink(maxCapacity: 1000);
 
+        // Use efficient BenchmarkTestAtom instead of demo TestAtom
+        _benchAtom = new BenchmarkTestAtom(_sink);
+
+        // Legacy TestAtom for state query benchmark only
         _atom = new TestAtom(
             _sink,
             "BenchAtom",
@@ -46,23 +60,37 @@ public class SignalBenchmarks
         await _rateAtom.DisposeAsync();
     }
 
+    private SignalSink _emptySink = null!;
+
+    [IterationSetup]
+    public void IterationSetup()
+    {
+        _emptySink = new SignalSink();
+    }
+
     [Benchmark(Description = "Signal Raise (no listeners)")]
     public void Signal_Raise_NoListeners()
     {
-        var emptySink = new SignalSink();
         for (int i = 0; i < 1000; i++)
         {
-            emptySink.Raise("test.signal");
+            _emptySink.Raise("test.signal");
         }
     }
 
     [Benchmark(Description = "Signal Raise (1 listener)")]
     public void Signal_Raise_OneListener()
     {
+        // Reset counter
+        var initialCount = _benchAtom.GetCount();
+
         for (int i = 0; i < 1000; i++)
         {
             _sink.Raise("test.input");
         }
+
+        // Ensure signals were processed (prevents optimization removal)
+        if (_benchAtom.GetCount() - initialCount != 1000)
+            throw new InvalidOperationException("Signal processing failed");
     }
 
     [Benchmark(Description = "Signal Pattern Matching")]
@@ -136,30 +164,30 @@ public class SignalBenchmarks
     public async Task SignalChain_ThreeAtoms()
     {
         var sink = new SignalSink();
+        var completionTcs = new TaskCompletionSource<bool>();
+        var completedCount = 0;
 
-        await using var atom1 = new TestAtom(
-            sink, "A",
-            listenSignals: new List<string> { "input" },
-            signalResponses: new Dictionary<string, string> { { "input", "stepA" } },
-            processingDelay: TimeSpan.Zero);
+        await using var atom1 = new BenchmarkChainAtom(sink, "input", "stepA");
+        await using var atom2 = new BenchmarkChainAtom(sink, "stepA", "stepB");
+        await using var atom3 = new BenchmarkChainAtom(sink, "stepB", "output");
 
-        await using var atom2 = new TestAtom(
-            sink, "B",
-            listenSignals: new List<string> { "stepA" },
-            signalResponses: new Dictionary<string, string> { { "stepA", "stepB" } },
-            processingDelay: TimeSpan.Zero);
-
-        await using var atom3 = new TestAtom(
-            sink, "C",
-            listenSignals: new List<string> { "stepB" },
-            signalResponses: new Dictionary<string, string> { { "stepB", "output" } },
-            processingDelay: TimeSpan.Zero);
+        // Track completion
+        sink.SignalRaised += (signal) =>
+        {
+            if (signal.Signal == "output")
+            {
+                if (Interlocked.Increment(ref completedCount) == 100)
+                    completionTcs.TrySetResult(true);
+            }
+        };
 
         for (int i = 0; i < 100; i++)
         {
             sink.Raise("input");
-            await Task.Delay(1); // Allow signal propagation
         }
+
+        // Wait for all chains to complete (with timeout)
+        await Task.WhenAny(completionTcs.Task, Task.Delay(5000));
     }
 
     [Benchmark(Description = "Concurrent Signal Raising")]
@@ -184,10 +212,80 @@ public class SignalBenchmarks
     }
 }
 
+/// <summary>
+/// Optimized test atom for benchmarks - no delays, minimal allocations
+/// </summary>
+public class BenchmarkTestAtom : IAsyncDisposable
+{
+    private readonly SignalSink _sink;
+    private int _count = 0;
+
+    public BenchmarkTestAtom(SignalSink sink)
+    {
+        _sink = sink;
+        _sink.SignalRaised += OnSignal;
+    }
+
+    private void OnSignal(SignalEvent signal)
+    {
+        // Minimal processing - just increment counter
+        if (signal.Signal == "test.input")
+        {
+            _count++;
+        }
+    }
+
+    public int GetCount() => _count;
+
+    public ValueTask DisposeAsync()
+    {
+        _sink.SignalRaised -= OnSignal;
+        return default;
+    }
+}
+
+/// <summary>
+/// Optimized chain atom - immediate signal re-emission, no allocations
+/// </summary>
+public class BenchmarkChainAtom : IAsyncDisposable
+{
+    private readonly SignalSink _sink;
+    private readonly string _listenSignal;
+    private readonly string _emitSignal;
+
+    public BenchmarkChainAtom(SignalSink sink, string listenSignal, string emitSignal)
+    {
+        _sink = sink;
+        _listenSignal = listenSignal;
+        _emitSignal = emitSignal;
+        _sink.SignalRaised += OnSignal;
+    }
+
+    private void OnSignal(SignalEvent signal)
+    {
+        // Immediate re-emission, no async, no allocations
+        if (signal.Signal == _listenSignal)
+        {
+            _sink.Raise(_emitSignal);
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _sink.SignalRaised -= OnSignal;
+        return default;
+    }
+}
+
 public static class BenchmarkRunner
 {
     public static void RunBenchmarks()
     {
         BenchmarkDotNet.Running.BenchmarkRunner.Run<SignalBenchmarks>();
+    }
+
+    public static void RunBenchmark(string benchmarkName)
+    {
+        BenchmarkDotNet.Running.BenchmarkRunner.Run<SignalBenchmarks>(args: new[] { $"--filter=*{benchmarkName}*" });
     }
 }
