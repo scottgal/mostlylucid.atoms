@@ -764,6 +764,147 @@ public class SignalBenchmarks
         });
     }
 
+    // ========== COORDINATOR BENCHMARKS ==========
+    // These test the actual Ephemeral coordinators (the core library value)
+
+    [Benchmark(Description = "EphemeralWorkCoordinator Enqueue (100K items, 16 concurrency) - Queue throughput")]
+    public async Task WorkCoordinator_Enqueue_100K()
+    {
+        var tcs = new TaskCompletionSource<bool>();
+        var processedCount = 0;
+        var targetCount = 100_000;
+
+        var coordinator = new EphemeralWorkCoordinator<int>(async (item, ct) =>
+        {
+            // Minimal work - just counting
+            if (Interlocked.Increment(ref processedCount) == targetCount)
+                tcs.TrySetResult(true);
+            await Task.CompletedTask;
+        }, new EphemeralOptions
+        {
+            MaxConcurrency = 16,
+            MaxTrackedOperations = 100000
+        });
+
+        // Enqueue 100K items
+        for (int i = 0; i < targetCount; i++)
+        {
+            await coordinator.EnqueueAsync(i);
+        }
+
+        // Wait for ALL work to complete
+        await tcs.Task;
+        await coordinator.DisposeAsync();
+    }
+
+    [Benchmark(Description = "EphemeralKeyedWorkCoordinator (10K keys × 10 items) - Per-key sequential processing")]
+    public async Task KeyedCoordinator_10KKeys_10Items()
+    {
+        var tcs = new TaskCompletionSource<bool>();
+        var processedCount = 0;
+        var targetCount = 100_000;
+
+        // T=string (the item), TKey=string (extracted from item by keySelector)
+        var coordinator = new EphemeralKeyedWorkCoordinator<string, string>(
+            keySelector: item => item.Split('.')[1], // Extract key from "key.123.item.5"
+            body: async (item, ct) =>
+            {
+                if (Interlocked.Increment(ref processedCount) == targetCount)
+                    tcs.TrySetResult(true);
+                await Task.CompletedTask;
+            },
+            options: new EphemeralOptions
+            {
+                MaxConcurrency = 16,
+                MaxTrackedOperations = 100000
+            });
+
+        // 10K keys × 10 items each = 100K total
+        for (int key = 0; key < 10_000; key++)
+        {
+            for (int item = 0; item < 10; item++)
+            {
+                await coordinator.EnqueueAsync($"key.{key}.item.{item}");
+            }
+        }
+
+        await tcs.Task;
+        await coordinator.DisposeAsync();
+    }
+
+    [Benchmark(Description = "EphemeralForEachAsync (100K items, 16 concurrency) - Parallel collection processing")]
+    public async Task ForEachAsync_100K_Concurrency16()
+    {
+        var items = Enumerable.Range(0, 100_000).ToList();
+        var processedCount = 0;
+
+        // EphemeralForEachAsync already waits for completion
+        await items.EphemeralForEachAsync(async (item, op) =>
+        {
+            Interlocked.Increment(ref processedCount);
+            await Task.CompletedTask;
+        }, new EphemeralOptions
+        {
+            MaxConcurrency = 16
+        });
+
+        // Verify all processed
+        if (processedCount != 100_000)
+            throw new InvalidOperationException($"Expected 100K, got {processedCount}");
+    }
+
+    [Benchmark(Description = "EphemeralForEachAsync (10K items, 32 concurrency) - Maximum parallelism")]
+    public async Task ForEachAsync_10K_Concurrency32()
+    {
+        var items = Enumerable.Range(0, 10_000).ToList();
+        var processedCount = 0;
+
+        await items.EphemeralForEachAsync(async (item, op) =>
+        {
+            Interlocked.Increment(ref processedCount);
+            await Task.CompletedTask;
+        }, new EphemeralOptions
+        {
+            MaxConcurrency = 32
+        });
+
+        if (processedCount != 10_000)
+            throw new InvalidOperationException($"Expected 10K, got {processedCount}");
+    }
+
+    [Benchmark(Description = "EphemeralResultCoordinator (50K items) - Result capture + retrieval overhead")]
+    public async Task ResultCoordinator_50K_Results()
+    {
+        var tcs = new TaskCompletionSource<bool>();
+        var completedCount = 0;
+        var targetCount = 50_000;
+
+        var coordinator = new EphemeralResultCoordinator<int, string>(async (item, ct) =>
+        {
+            if (Interlocked.Increment(ref completedCount) == targetCount)
+                tcs.TrySetResult(true);
+            return $"result.{item}";
+        }, new EphemeralOptions
+        {
+            MaxConcurrency = 16,
+            MaxTrackedOperations = 50000
+        });
+
+        // Enqueue 50K items
+        for (int i = 0; i < targetCount; i++)
+        {
+            await coordinator.EnqueueAsync(i);
+        }
+
+        await tcs.Task;
+        var snapshot = coordinator.GetSnapshot();
+        await coordinator.DisposeAsync();
+
+        // Verify results captured
+        if (snapshot.Count != targetCount)
+            throw new InvalidOperationException($"Expected {targetCount} results, got {snapshot.Count}");
+    }
+
     // THE FINALE: Maximum parallelism stress test with progressive scaling
     [Benchmark(Description = "🔥 FINALE: Full System Stress (1→32 cores, 2M+ signals) - Ultimate scalability test")]
     public void MaxParallelism_BallsOut_Finale()
