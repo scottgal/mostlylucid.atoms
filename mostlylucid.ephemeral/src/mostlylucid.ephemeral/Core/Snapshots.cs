@@ -1,7 +1,7 @@
 namespace Mostlylucid.Ephemeral;
 
 /// <summary>
-/// Immutable snapshot of an ephemeral operation's state.
+///     Immutable snapshot of an ephemeral operation's state.
 /// </summary>
 public sealed record EphemeralOperationSnapshot(
     long Id,
@@ -15,18 +15,21 @@ public sealed record EphemeralOperationSnapshot(
     bool IsPinned = false)
 {
     /// <summary>
-    /// Backward-compatible accessor for the operation identity.
+    ///     Backward-compatible accessor for the operation identity.
     /// </summary>
     public long OperationId => Id;
 
     /// <summary>
-    /// Check if this operation raised a specific signal.
+    ///     Check if this operation raised a specific signal.
     /// </summary>
-    public bool HasSignal(string signal) => Signals?.Contains(signal) == true;
+    public bool HasSignal(string signal)
+    {
+        return Signals?.Contains(signal) == true;
+    }
 }
 
 /// <summary>
-/// Snapshot of an operation that captures a result of type TResult.
+///     Snapshot of an operation that captures a result of type TResult.
 /// </summary>
 public sealed record EphemeralOperationSnapshot<TResult>(
     long Id,
@@ -42,12 +45,15 @@ public sealed record EphemeralOperationSnapshot<TResult>(
     bool IsPinned = false)
 {
     /// <summary>
-    /// Backward-compatible accessor for the operation identity.
+    ///     Backward-compatible accessor for the operation identity.
     /// </summary>
     public long OperationId => Id;
 
     /// <summary>
-    /// Check if this operation raised a specific signal.
+    ///     Check if this operation raised a specific signal.
     /// </summary>
-    public bool HasSignal(string signal) => Signals?.Contains(signal) == true;
+    public bool HasSignal(string signal)
+    {
+        return Signals?.Contains(signal) == true;
+    }
 }

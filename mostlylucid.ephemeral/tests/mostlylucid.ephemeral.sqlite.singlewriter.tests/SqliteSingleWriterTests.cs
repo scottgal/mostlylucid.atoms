@@ -1,8 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using Mostlylucid.Ephemeral.Sqlite;
-using Mostlylucid.Ephemeral;
 using Microsoft.Data.Sqlite;
 using Xunit;
 
@@ -26,10 +21,7 @@ public class SqliteSingleWriterTests
                 ("INSERT INTO Items (Name, Value) VALUES (@Name, @Value)", new { Name = "three", Value = 3 })
             };
 
-            foreach (var (sql, parameters) in inserts)
-            {
-                await writer.WriteAsync(sql, parameters);
-            }
+            foreach (var (sql, parameters) in inserts) await writer.WriteAsync(sql, parameters);
 
             var count = await writer.QueryAsync(async conn =>
             {
@@ -47,10 +39,7 @@ public class SqliteSingleWriterTests
                 cmd.CommandText = "SELECT Value FROM Items ORDER BY Id";
                 var list = new List<int>();
                 await using var reader = await cmd.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    list.Add(reader.GetInt32(0));
-                }
+                while (await reader.ReadAsync()) list.Add(reader.GetInt32(0));
                 return list;
             });
 
@@ -112,13 +101,13 @@ public class SqliteSingleWriterTests
         await using var writer = CreateWriter(dbPath);
         try
         {
-            await EnsureSchemaAsync(writer, uniqueName: true);
+            await EnsureSchemaAsync(writer, true);
 
             var ex = await Assert.ThrowsAsync<SqliteException>(async () =>
             {
                 await writer.WriteBatchAsync(new[]
                 {
-                    ("INSERT INTO Items (Name, Value) VALUES ('dup', 1)", (object?)null),
+                    ("INSERT INTO Items (Name, Value) VALUES ('dup', 1)", null),
                     ("INSERT INTO Items (Name, Value) VALUES ('dup', 2)", (object?)null) // Violates UNIQUE
                 });
             });
@@ -148,15 +137,15 @@ public class SqliteSingleWriterTests
         await using var writer = CreateWriter(dbPath);
         try
         {
-            await EnsureSchemaAsync(writer, uniqueName: true);
+            await EnsureSchemaAsync(writer, true);
 
             await Assert.ThrowsAsync<SqliteException>(async () =>
             {
                 await writer.WriteBatchAsync(new[]
                 {
-                    ("INSERT INTO Items (Name, Value) VALUES ('ok', 1)", (object?)null),
+                    ("INSERT INTO Items (Name, Value) VALUES ('ok', 1)", null),
                     ("INSERT INTO Items (Name, Value) VALUES ('ok', 2)", (object?)null) // duplicate
-                }, transactional: false);
+                }, false);
             });
 
             var count = await writer.QueryAsync(async conn =>
@@ -225,9 +214,9 @@ public class SqliteSingleWriterTests
         try
         {
             await writer.WriteAsync("""
-CREATE TABLE IF NOT EXISTS Parents (Id INTEGER PRIMARY KEY);
-CREATE TABLE IF NOT EXISTS Children (Id INTEGER PRIMARY KEY, ParentId INTEGER NOT NULL, FOREIGN KEY(ParentId) REFERENCES Parents(Id));
-""");
+                                    CREATE TABLE IF NOT EXISTS Parents (Id INTEGER PRIMARY KEY);
+                                    CREATE TABLE IF NOT EXISTS Children (Id INTEGER PRIMARY KEY, ParentId INTEGER NOT NULL, FOREIGN KEY(ParentId) REFERENCES Parents(Id));
+                                    """);
 
             // Foreign key should be enforced by PRAGMA foreign_keys=ON
             await Assert.ThrowsAsync<SqliteException>(async () =>
@@ -319,7 +308,8 @@ CREATE TABLE IF NOT EXISTS Children (Id INTEGER PRIMARY KEY, ParentId INTEGER NO
             await writer.WriteAsync("INSERT INTO Items (Name, Value) VALUES ('second', 2)");
 
             // Raise external invalidation
-            externalSink.Raise(new SignalEvent($"cache.invalidate:{cacheKey}", EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
+            externalSink.Raise(new SignalEvent($"cache.invalidate:{cacheKey}", EphemeralIdGenerator.NextId(), null,
+                DateTimeOffset.UtcNow));
             await Task.Delay(800); // Allow poll loop to process comfortably
 
             var second = await writer.ReadAsync(cacheKey, async conn =>
@@ -341,28 +331,32 @@ CREATE TABLE IF NOT EXISTS Children (Id INTEGER PRIMARY KEY, ParentId INTEGER NO
         }
     }
 
-    private static string CreateDbPath() =>
-        Path.Combine(Path.GetTempPath(), $"ephemeral-sqlite-{Guid.NewGuid():N}.db");
+    private static string CreateDbPath()
+    {
+        return Path.Combine(Path.GetTempPath(), $"ephemeral-sqlite-{Guid.NewGuid():N}.db");
+    }
 
-    private static SqliteSingleWriter CreateWriter(string dbPath) =>
-        SqliteSingleWriter.GetOrCreate(
+    private static SqliteSingleWriter CreateWriter(string dbPath)
+    {
+        return SqliteSingleWriter.GetOrCreate(
             $"Data Source={dbPath};Mode=ReadWriteCreate;Cache=Shared",
             new SqliteSingleWriterOptions
             {
                 SampleRate = 1,
                 MaxTrackedWrites = 256
             });
+    }
 
     private static async Task EnsureSchemaAsync(SqliteSingleWriter writer, bool uniqueName = false)
     {
         var nameConstraint = uniqueName ? "TEXT NOT NULL UNIQUE" : "TEXT NOT NULL";
         await writer.WriteAsync($"""
-CREATE TABLE IF NOT EXISTS Items (
-    Id INTEGER PRIMARY KEY AUTOINCREMENT,
-    Name {nameConstraint},
-    Value INTEGER NOT NULL
-);
-""");
+                                 CREATE TABLE IF NOT EXISTS Items (
+                                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                     Name {nameConstraint},
+                                     Value INTEGER NOT NULL
+                                 );
+                                 """);
     }
 
     private static void Cleanup(string dbPath)

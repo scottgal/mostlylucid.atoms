@@ -1,15 +1,16 @@
 namespace Mostlylucid.Ephemeral.Patterns;
 
 /// <summary>
-/// Small helper that serializes “last words” notes via an <see cref="EphemeralWorkCoordinator{T}"/>.
-/// Designed for the brief window when an operation is being collected so you can persist minimal state.
+///     Small helper that serializes “last words” notes via an <see cref="EphemeralWorkCoordinator{T}" />.
+///     Designed for the brief window when an operation is being collected so you can persist minimal state.
 /// </summary>
 public sealed class LastWordsNoteAtom : IAsyncDisposable
 {
     private readonly EphemeralWorkCoordinator<LastWordsNote> _coordinator;
 
     /// <summary>
-    /// Creates a note atom. The provided <paramref name="persist"/> callback runs inside an <see cref="EphemeralWorkCoordinator{T}"/> with <see cref="EphemeralOptions.MaxConcurrency"/> = 1 by default.
+    ///     Creates a note atom. The provided <paramref name="persist" /> callback runs inside an
+    ///     <see cref="EphemeralWorkCoordinator{T}" /> with <see cref="EphemeralOptions.MaxConcurrency" /> = 1 by default.
     /// </summary>
     public LastWordsNoteAtom(Func<LastWordsNote, CancellationToken, Task> persist, EphemeralOptions? options = null)
     {
@@ -27,7 +28,17 @@ public sealed class LastWordsNoteAtom : IAsyncDisposable
     }
 
     /// <summary>
-    /// Enqueue a note. Call from an operation finalization callback.
+    ///     Releases resources. Waits for in-flight notes to finish.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        _coordinator.Complete();
+        await _coordinator.DrainAsync().ConfigureAwait(false);
+        await _coordinator.DisposeAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Enqueue a note. Call from an operation finalization callback.
     /// </summary>
     public ValueTask EnqueueAsync(LastWordsNote note, CancellationToken cancellationToken = default)
     {
@@ -35,18 +46,10 @@ public sealed class LastWordsNoteAtom : IAsyncDisposable
     }
 
     /// <summary>
-    /// Flush any pending notes.
+    ///     Flush any pending notes.
     /// </summary>
-    public Task DrainAsync(CancellationToken cancellationToken = default) =>
-        _coordinator.DrainAsync(cancellationToken);
-
-    /// <summary>
-    /// Releases resources. Waits for in-flight notes to finish.
-    /// </summary>
-    public async ValueTask DisposeAsync()
+    public Task DrainAsync(CancellationToken cancellationToken = default)
     {
-        _coordinator.Complete();
-        await _coordinator.DrainAsync().ConfigureAwait(false);
-        await _coordinator.DisposeAsync().ConfigureAwait(false);
+        return _coordinator.DrainAsync(cancellationToken);
     }
 }

@@ -1,14 +1,12 @@
-using System;
-
 namespace Mostlylucid.Ephemeral.Atoms.Echo;
 
 /// <summary>
-/// Convenience helpers to hook the echo maker into any coordinator that exposes the finalization event.
+///     Convenience helpers to hook the echo maker into any coordinator that exposes the finalization event.
 /// </summary>
 public static class OperationEchoMakerExtensions
 {
     /// <summary>
-    /// Starts an echo maker that persists echoes through an <see cref="OperationEchoAtom{TPayload}"/>.
+    ///     Starts an echo maker that persists echoes through an <see cref="OperationEchoAtom{TPayload}" />.
     /// </summary>
     public static OperationEchoMaker<TPayload> EnableOperationEchoing<TPayload>(
         this IOperationFinalization coordinator,
@@ -21,7 +19,7 @@ public static class OperationEchoMakerExtensions
     }
 
     /// <summary>
-    /// Starts an echo maker that invokes the provided callback for each captured echo.
+    ///     Starts an echo maker that invokes the provided callback for each captured echo.
     /// </summary>
     public static OperationEchoMaker<TPayload> EnableOperationEchoing<TPayload>(
         this IOperationFinalization coordinator,

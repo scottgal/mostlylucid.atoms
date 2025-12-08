@@ -15,7 +15,10 @@ public class ParallelEphemeralTests
             async (item, ct) =>
             {
                 await Task.Delay(10, ct);
-                lock (lockObj) processed.Add(item);
+                lock (lockObj)
+                {
+                    processed.Add(item);
+                }
             },
             new EphemeralOptions { MaxConcurrency = 4 });
 
@@ -39,8 +42,12 @@ public class ParallelEphemeralTests
                     running++;
                     if (running > maxRunning) maxRunning = running;
                 }
+
                 await Task.Delay(50, ct);
-                lock (lockObj) running--;
+                lock (lockObj)
+                {
+                    running--;
+                }
             },
             new EphemeralOptions { MaxConcurrency = 3 });
 
@@ -55,7 +62,7 @@ public class ParallelEphemeralTests
             (Key: "A", Value: 1),
             (Key: "B", Value: 1),
             (Key: "A", Value: 2),
-            (Key: "B", Value: 2),
+            (Key: "B", Value: 2)
         };
         var order = new List<(string Key, int Value)>();
         var lockObj = new object();
@@ -65,7 +72,10 @@ public class ParallelEphemeralTests
             async (item, ct) =>
             {
                 await Task.Delay(20, ct);
-                lock (lockObj) order.Add(item);
+                lock (lockObj)
+                {
+                    order.Add(item);
+                }
             },
             new EphemeralOptions { MaxConcurrency = 4, MaxConcurrencyPerKey = 1 });
 

@@ -88,11 +88,11 @@ Oldest completed operations are evicted when the limit is reached.
 
 ## Configuration Trade-offs
 
-| Window Size | Memory | Observability |
-|-------------|--------|---------------|
-| Small (50)  | Low    | Recent only   |
-| Medium (500)| Medium | Good history  |
-| Large (5000)| Higher | Full tracking |
+| Window Size  | Memory | Observability |
+|--------------|--------|---------------|
+| Small (50)   | Low    | Recent only   |
+| Medium (500) | Medium | Good history  |
+| Large (5000) | Higher | Full tracking |
 
 ---
 
@@ -161,9 +161,9 @@ Console.WriteLine($"Snapshot contains: {snapshot.Count} operations");
 
 ## Related Packages
 
-| Package | Description |
-|---------|-------------|
-| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral) | Core library |
+| Package                                                                                         | Description    |
+|-------------------------------------------------------------------------------------------------|----------------|
+| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral)                   | Core library   |
 | [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All in one DLL |
 
 ## License

@@ -4,10 +4,10 @@ namespace Mostlylucid.Ephemeral;
 
 internal sealed class OperationEchoStore
 {
-    private readonly ConcurrentQueue<OperationEcho> _queue = new();
-    private readonly TimeSpan _retention;
     private readonly int _capacity;
     private readonly object _lock = new();
+    private readonly ConcurrentQueue<OperationEcho> _queue = new();
+    private readonly TimeSpan _retention;
 
     public OperationEchoStore(TimeSpan retention, int capacity)
     {
@@ -42,13 +42,11 @@ internal sealed class OperationEchoStore
         while (_queue.Count > 0)
         {
             if (_queue.TryPeek(out var head))
-            {
                 if (head.FinalizedAt < cutoff || _queue.Count > _capacity)
                 {
                     _queue.TryDequeue(out _);
                     continue;
                 }
-            }
 
             break;
         }

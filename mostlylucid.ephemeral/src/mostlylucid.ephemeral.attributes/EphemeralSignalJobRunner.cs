@@ -1,37 +1,30 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Mostlylucid.Ephemeral;
-
 namespace Mostlylucid.Ephemeral.Attributes;
 
 /// <summary>
-/// Listens for signals and enqueues attributed jobs on a background coordinator.
-/// Jobs can specify a Lane to control concurrency grouping - jobs in the same lane
-/// share concurrency gates while still being able to interact via signals.
+///     Listens for signals and enqueues attributed jobs on a background coordinator.
+///     Jobs can specify a Lane to control concurrency grouping - jobs in the same lane
+///     share concurrency gates while still being able to interact via signals.
 /// </summary>
 public sealed class EphemeralSignalJobRunner : IAsyncDisposable
 {
-    private readonly SignalSink _signals;
     private readonly EphemeralKeyedWorkCoordinator<EphemeralJobInvocation, string> _coordinator;
-    private readonly IReadOnlyList<EphemeralJobDescriptor> _jobs;
     private readonly CancellationTokenSource _cts = new();
-    private readonly Dictionary<string, SemaphoreSlim> _laneGates = new();
     private readonly Dictionary<string, SemaphoreSlim> _jobGates = new();
+    private readonly Dictionary<string, SemaphoreSlim> _laneGates = new();
+    private readonly SignalSink _signals;
 
-    public EphemeralSignalJobRunner(SignalSink signals, IEnumerable<object> jobTargets, EphemeralOptions? options = null)
+    public EphemeralSignalJobRunner(SignalSink signals, IEnumerable<object> jobTargets,
+        EphemeralOptions? options = null)
     {
         _signals = signals ?? throw new ArgumentNullException(nameof(signals));
         if (jobTargets is null) throw new ArgumentNullException(nameof(jobTargets));
 
-        _jobs = EphemeralJobScanner.ScanAll(jobTargets);
-        if (_jobs.Count == 0)
+        Jobs = EphemeralJobScanner.ScanAll(jobTargets);
+        if (Jobs.Count == 0)
             throw new ArgumentException("No attributed jobs were discovered.", nameof(jobTargets));
 
         // Create per-job concurrency gates (for MaxConcurrency on individual jobs)
-        foreach (var job in _jobs)
+        foreach (var job in Jobs)
         {
             var key = $"{job.Target.GetType().FullName}.{job.Method.Name}";
             if (job.EffectiveMaxConcurrency > 0)
@@ -40,7 +33,7 @@ public sealed class EphemeralSignalJobRunner : IAsyncDisposable
 
         // Create per-lane concurrency gates (for lane-based concurrency control)
         // Use explicit LaneMaxConcurrency if set (highest wins), otherwise sum of job concurrencies
-        var laneGroups = _jobs.GroupBy(j => j.Lane).ToList();
+        var laneGroups = Jobs.GroupBy(j => j.Lane).ToList();
         foreach (var group in laneGroups)
         {
             var explicitConcurrency = group.Max(j => j.LaneMaxConcurrency);
@@ -53,7 +46,7 @@ public sealed class EphemeralSignalJobRunner : IAsyncDisposable
         var opts = options ?? new EphemeralOptions();
         opts = new EphemeralOptions
         {
-            MaxConcurrency = opts.MaxConcurrency > 0 ? opts.MaxConcurrency : Math.Max(1, _jobs.Count),
+            MaxConcurrency = opts.MaxConcurrency > 0 ? opts.MaxConcurrency : Math.Max(1, Jobs.Count),
             Signals = _signals,
             MaxConcurrencyPerKey = 1, // Sequential per key for ordering
             EnableFairScheduling = true,
@@ -75,12 +68,29 @@ public sealed class EphemeralSignalJobRunner : IAsyncDisposable
 
     public int PendingCount => _coordinator.PendingCount;
     public int ActiveCount => _coordinator.ActiveCount;
-    public IReadOnlyList<EphemeralJobDescriptor> Jobs => _jobs;
+    public IReadOnlyList<EphemeralJobDescriptor> Jobs { get; }
+
     public IReadOnlyCollection<string> Lanes => _laneGates.Keys;
+
+    public async ValueTask DisposeAsync()
+    {
+        _signals.SignalRaised -= OnSignal;
+        _cts.Cancel();
+        await _coordinator.DisposeAsync().ConfigureAwait(false);
+        _cts.Dispose();
+
+        foreach (var gate in _jobGates.Values)
+            gate.Dispose();
+        _jobGates.Clear();
+
+        foreach (var gate in _laneGates.Values)
+            gate.Dispose();
+        _laneGates.Clear();
+    }
 
     private void OnSignal(SignalEvent signal)
     {
-        foreach (var job in _jobs)
+        foreach (var job in Jobs)
         {
             if (!job.Matches(signal))
                 continue;
@@ -110,16 +120,12 @@ public sealed class EphemeralSignalJobRunner : IAsyncDisposable
         {
             // Wait for prerequisite signals if specified
             if (job.AwaitSignals is { Count: > 0 } awaitSignals)
-            {
                 await WaitForSignalsAsync(awaitSignals, job.AwaitTimeout, ct).ConfigureAwait(false);
-            }
 
             // Emit start signals
             if (attr.EmitOnStart is { Length: > 0 } startSignals)
-            {
                 foreach (var sig in startSignals)
                     _signals.Raise(sig, work.Signal.Key);
-            }
 
             var attempts = 0;
             var maxAttempts = Math.Max(1, attr.MaxRetries + 1);
@@ -144,10 +150,8 @@ public sealed class EphemeralSignalJobRunner : IAsyncDisposable
 
                     // Success - emit completion signals
                     if (attr.EmitOnComplete is { Length: > 0 } completeSignals)
-                    {
                         foreach (var sig in completeSignals)
                             _signals.Raise(sig, work.Signal.Key);
-                    }
 
                     return;
                 }
@@ -174,10 +178,8 @@ public sealed class EphemeralSignalJobRunner : IAsyncDisposable
             {
                 // Emit failure signals
                 if (attr.EmitOnFailure is { Length: > 0 } failSignals)
-                {
                     foreach (var sig in failSignals)
                         _signals.Raise(sig, work.Signal.Key);
-                }
 
                 _signals.Raise($"job.failed:{job.Method.Name}:{lastError.GetType().Name}", work.Signal.Key);
 
@@ -192,24 +194,8 @@ public sealed class EphemeralSignalJobRunner : IAsyncDisposable
         }
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        _signals.SignalRaised -= OnSignal;
-        _cts.Cancel();
-        await _coordinator.DisposeAsync().ConfigureAwait(false);
-        _cts.Dispose();
-
-        foreach (var gate in _jobGates.Values)
-            gate.Dispose();
-        _jobGates.Clear();
-
-        foreach (var gate in _laneGates.Values)
-            gate.Dispose();
-        _laneGates.Clear();
-    }
-
     /// <summary>
-    /// Wait for all prerequisite signals to be present in the sink.
+    ///     Wait for all prerequisite signals to be present in the sink.
     /// </summary>
     private async Task WaitForSignalsAsync(IReadOnlyList<string> patterns, TimeSpan? timeout, CancellationToken ct)
     {
@@ -228,13 +214,11 @@ public sealed class EphemeralSignalJobRunner : IAsyncDisposable
         {
             var allFound = true;
             foreach (var pattern in patterns)
-            {
                 if (!_signals.Detect(s => StringPatternMatcher.Matches(s.Signal, pattern)))
                 {
                     allFound = false;
                     break;
                 }
-            }
 
             if (allFound)
                 return;
@@ -252,5 +236,8 @@ public sealed class EphemeralSignalJobRunner : IAsyncDisposable
         ct.ThrowIfCancellationRequested();
     }
 
-    private sealed record EphemeralJobInvocation(EphemeralJobDescriptor Descriptor, SignalEvent Signal, object? Payload);
+    private sealed record EphemeralJobInvocation(
+        EphemeralJobDescriptor Descriptor,
+        SignalEvent Signal,
+        object? Payload);
 }

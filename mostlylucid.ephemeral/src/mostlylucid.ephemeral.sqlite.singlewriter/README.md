@@ -3,7 +3,8 @@
 [![NuGet](https://img.shields.io/nuget/v/mostlylucid.ephemeral.sqlite.singlewriter.svg)](https://www.nuget.org/packages/mostlylucid.ephemeral.sqlite.singlewriter)
 [![License](https://img.shields.io/badge/license-Unlicense-blue.svg)](../../UNLICENSE)
 
-SQLite single-writer helper using Ephemeral patterns for serialized writes, cached reads, and signal-based observability.
+SQLite single-writer helper using Ephemeral patterns for serialized writes, cached reads, and signal-based
+observability.
 
 ```bash
 dotnet add package mostlylucid.ephemeral.sqlite.singlewriter
@@ -38,11 +39,16 @@ await writer.WriteAndInvalidateAsync(
 
 ## Why Ephemeral Here?
 
-- **Single writer = long-lived coordinator**: uses `EphemeralWorkCoordinator` with `MaxConcurrency=1` so every write flows through the same queue and is tracked with snapshots and signals.
-- **Signals everywhere**: write start/done/error, batch begin/commit/rollback, per-statement counts, WAL/foreign key pragmas, cache hits/misses/sets/invalidations, and external invalidation echoes keep the internal state visible.
-- **Self-focusing cache**: `EphemeralLruCache` extends TTL for hot keys and emits `cache.hot/evict` signals so you can watch churn and invalidate centrally.
-- **Cross-process invalidation**: a shared `SignalSink` lets other components raise `cache.invalidate:*`; the single writer listens and clears its cache automatically while emitting `cache.invalidate.external:*`.
-- **Backpressure-friendly**: write operations are small `WriteCommand` ephemerals; sampling via `SampleRate` keeps signal noise down but still lets you see live branches inside a batch/transaction.
+- **Single writer = long-lived coordinator**: uses `EphemeralWorkCoordinator` with `MaxConcurrency=1` so every write
+  flows through the same queue and is tracked with snapshots and signals.
+- **Signals everywhere**: write start/done/error, batch begin/commit/rollback, per-statement counts, WAL/foreign key
+  pragmas, cache hits/misses/sets/invalidations, and external invalidation echoes keep the internal state visible.
+- **Self-focusing cache**: `EphemeralLruCache` extends TTL for hot keys and emits `cache.hot/evict` signals so you can
+  watch churn and invalidate centrally.
+- **Cross-process invalidation**: a shared `SignalSink` lets other components raise `cache.invalidate:*`; the single
+  writer listens and clears its cache automatically while emitting `cache.invalidate.external:*`.
+- **Backpressure-friendly**: write operations are small `WriteCommand` ephemerals; sampling via `SampleRate` keeps
+  signal noise down but still lets you see live branches inside a batch/transaction.
 
 ---
 
@@ -204,30 +210,30 @@ ValueTask DisposeAsync();
 
 ## Signals Emitted
 
-| Signal | Description |
-|--------|-------------|
-| `write.enqueue` | Write queued |
-| `write.start` | Write started |
-| `write.done:Nrows:Nms` | Write completed with row count and duration |
-| `write.error:message` | Write failed |
-| `write.batch.enqueue` | Batch write queued |
-| `write.tx.enqueue` | Transaction queued |
-| `write.flush.start` | Flush started |
-| `write.flush.done` | Flush completed |
-| `cache.hit:key` | Cache hit |
-| `cache.miss:key` | Cache miss |
-| `cache.set:key` | Cache entry set |
-| `cache.invalidate:key` | Cache entry invalidated |
-| `cache.hot:key` | Key became hot |
-| `cache.evict:key` | Key evicted |
-| `read.start:key` | Read started |
-| `read.done:key` | Read completed |
-| `query.start` | Query started |
-| `connection.open.write` | Writer connection opened |
-| `connection.open.read` | Reader connection opened |
-| `pragma.busy_timeout` | Busy timeout pragma set |
-| `pragma.foreign_keys.on` | Foreign keys enabled |
-| `pragma.wal.on` | WAL mode enabled |
+| Signal                   | Description                                 |
+|--------------------------|---------------------------------------------|
+| `write.enqueue`          | Write queued                                |
+| `write.start`            | Write started                               |
+| `write.done:Nrows:Nms`   | Write completed with row count and duration |
+| `write.error:message`    | Write failed                                |
+| `write.batch.enqueue`    | Batch write queued                          |
+| `write.tx.enqueue`       | Transaction queued                          |
+| `write.flush.start`      | Flush started                               |
+| `write.flush.done`       | Flush completed                             |
+| `cache.hit:key`          | Cache hit                                   |
+| `cache.miss:key`         | Cache miss                                  |
+| `cache.set:key`          | Cache entry set                             |
+| `cache.invalidate:key`   | Cache entry invalidated                     |
+| `cache.hot:key`          | Key became hot                              |
+| `cache.evict:key`        | Key evicted                                 |
+| `read.start:key`         | Read started                                |
+| `read.done:key`          | Read completed                              |
+| `query.start`            | Query started                               |
+| `connection.open.write`  | Writer connection opened                    |
+| `connection.open.read`   | Reader connection opened                    |
+| `pragma.busy_timeout`    | Busy timeout pragma set                     |
+| `pragma.foreign_keys.on` | Foreign keys enabled                        |
+| `pragma.wal.on`          | WAL mode enabled                            |
 
 ---
 
@@ -349,12 +355,13 @@ sharedSink.Raise(new SignalEvent("cache.invalidate:users:count",
 
 Pick the cache behavior that fits the scenario:
 
-| Cache | Expiration Model | Specialization | Where/Why |
-|-------|------------------|----------------|-----------|
+| Cache                         | Expiration Model                                                       | Specialization                                                                                           | Where/Why                                                                                             |
+|-------------------------------|------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|
 | `EphemeralLruCache` (default) | Sliding on every hit; hot keys get extended TTL and LRU-style eviction | Emits `cache.hot/evict` signals; best when you want the cache to self-focus on frequently accessed keys. |
-| `SlidingCacheAtom` | Sliding on every hit plus absolute max lifetime | Deduplicates concurrent computes; emits rich signals | Separate package (`atoms.slidingcache`) if you need async factories with sliding expiration baked in. |
+| `SlidingCacheAtom`            | Sliding on every hit plus absolute max lifetime                        | Deduplicates concurrent computes; emits rich signals                                                     | Separate package (`atoms.slidingcache`) if you need async factories with sliding expiration baked in. |
 
-> Tip: Default `ReadAsync` uses `EphemeralLruCache` so you get hot-key bias automatically; reach for `SlidingCacheAtom` when you need async factories + dedupe.
+> Tip: Default `ReadAsync` uses `EphemeralLruCache` so you get hot-key bias automatically; reach for `SlidingCacheAtom`
+> when you need async factories + dedupe.
 
 ### Example: Self-optimizing hot-key cache
 
@@ -385,9 +392,9 @@ var signals = cache.GetSignals("cache.*"); // cache.hot/evict, etc.
 
 ## Related Packages
 
-| Package | Description |
-|---------|-------------|
-| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral) | Core library |
+| Package                                                                                         | Description    |
+|-------------------------------------------------------------------------------------------------|----------------|
+| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral)                   | Core library   |
 | [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All in one DLL |
 
 ## License

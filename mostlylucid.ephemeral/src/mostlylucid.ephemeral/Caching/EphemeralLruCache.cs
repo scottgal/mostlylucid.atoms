@@ -3,22 +3,22 @@ using System.Collections.Concurrent;
 namespace Mostlylucid.Ephemeral;
 
 /// <summary>
-/// Self-focusing LRU cache: sliding expiration on every hit, with extended TTL for hot keys.
-/// Emits signals for hit/miss/hot/evict and cleans up via a background coordinator.
+///     Self-focusing LRU cache: sliding expiration on every hit, with extended TTL for hot keys.
+///     Emits signals for hit/miss/hot/evict and cleans up via a background coordinator.
 /// </summary>
 public sealed class EphemeralLruCache<TKey, TValue> : IAsyncDisposable where TKey : notnull
 {
     private readonly ConcurrentDictionary<TKey, CacheEntry> _cache = new();
-    private readonly EphemeralWorkCoordinator<EvictionWork> _evictionCoordinator;
-    private readonly SignalSink _signals;
-    private readonly TimeSpan _defaultTtl;
-    private readonly TimeSpan _hotKeyExtension;
-    private readonly int _hotAccessThreshold;
-    private readonly int _maxSize;
     private readonly CancellationTokenSource _cts = new();
+    private readonly TimeSpan _defaultTtl;
+    private readonly EphemeralWorkCoordinator<EvictionWork> _evictionCoordinator;
     private readonly Task _evictionLoop;
-    private int _accessCount;
+    private readonly int _hotAccessThreshold;
+    private readonly TimeSpan _hotKeyExtension;
+    private readonly int _maxSize;
     private readonly int _sampleRate;
+    private readonly SignalSink _signals;
+    private int _accessCount;
 
     public EphemeralLruCache(EphemeralLruCacheOptions? options = null)
     {
@@ -29,34 +29,50 @@ public sealed class EphemeralLruCache<TKey, TValue> : IAsyncDisposable where TKe
         _maxSize = options.MaxSize;
         _sampleRate = Math.Max(1, options.SampleRate);
 
-        _signals = new SignalSink(maxCapacity: _maxSize * 2, maxAge: TimeSpan.FromMinutes(5));
+        _signals = new SignalSink(_maxSize * 2, TimeSpan.FromMinutes(5));
 
         // Singleton eviction coordinator - background cleanup
         _evictionCoordinator = new EphemeralWorkCoordinator<EvictionWork>(
             (work, ct) =>
             {
                 if (work.Type == EvictionWorkType.Evict && _cache.TryRemove(work.Key, out _))
-                {
-                    _signals.Raise(new SignalEvent($"cache.evict:{work.Key}", EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
-                }
+                    _signals.Raise(new SignalEvent($"cache.evict:{work.Key}", EphemeralIdGenerator.NextId(), null,
+                        DateTimeOffset.UtcNow));
 
                 return Task.CompletedTask;
             },
             new EphemeralOptions
             {
-                MaxConcurrency = 1,  // Single eviction thread
+                MaxConcurrency = 1, // Single eviction thread
                 MaxTrackedOperations = 64,
                 Signals = _signals
             });
 
-    _evictionLoop = Task.Run(RunEvictionLoopAsync);
+        _evictionLoop = Task.Run(RunEvictionLoopAsync);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _cts.Cancel();
+        try
+        {
+            await _evictionLoop;
+        }
+        catch
+        {
+        }
+
+        _cts.Dispose();
+        await _evictionCoordinator.DisposeAsync();
     }
 
     /// <summary>
-    /// Gets or adds a value. Sliding expiry on every hit; hot keys get extended TTL.
+    ///     Gets or adds a value. Sliding expiry on every hit; hot keys get extended TTL.
     /// </summary>
-    public TValue GetOrAdd(TKey key, Func<TKey, TValue> factory) =>
-        GetOrAdd(key, factory, ttl: null);
+    public TValue GetOrAdd(TKey key, Func<TKey, TValue> factory)
+    {
+        return GetOrAdd(key, factory, null);
+    }
 
     public TValue GetOrAdd(TKey key, Func<TKey, TValue> factory, TimeSpan? ttl)
     {
@@ -100,10 +116,12 @@ public sealed class EphemeralLruCache<TKey, TValue> : IAsyncDisposable where TKe
     }
 
     /// <summary>
-    /// Async version with factory.
+    ///     Async version with factory.
     /// </summary>
-    public Task<TValue> GetOrAddAsync(TKey key, Func<TKey, Task<TValue>> factory) =>
-        GetOrAddAsync(key, factory, ttl: null);
+    public Task<TValue> GetOrAddAsync(TKey key, Func<TKey, Task<TValue>> factory)
+    {
+        return GetOrAddAsync(key, factory, null);
+    }
 
     public async Task<TValue> GetOrAddAsync(TKey key, Func<TKey, Task<TValue>> factory, TimeSpan? ttl)
     {
@@ -147,21 +165,25 @@ public sealed class EphemeralLruCache<TKey, TValue> : IAsyncDisposable where TKe
     }
 
     /// <summary>
-    /// Manually invalidate a key.
+    ///     Manually invalidate a key.
     /// </summary>
     public void Invalidate(TKey key)
     {
         if (_cache.TryRemove(key, out _))
-            _signals.Raise(new SignalEvent($"cache.invalidate:{key}", EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
+            _signals.Raise(new SignalEvent($"cache.invalidate:{key}", EphemeralIdGenerator.NextId(), null,
+                DateTimeOffset.UtcNow));
     }
 
     /// <summary>
-    /// Get recent cache signals for observability.
+    ///     Get recent cache signals for observability.
     /// </summary>
-    public IReadOnlyList<SignalEvent> GetSignals() => _signals.Sense();
+    public IReadOnlyList<SignalEvent> GetSignals()
+    {
+        return _signals.Sense();
+    }
 
     /// <summary>
-    /// Get cache statistics.
+    ///     Get cache statistics.
     /// </summary>
     public CacheStats GetStats()
     {
@@ -174,7 +196,7 @@ public sealed class EphemeralLruCache<TKey, TValue> : IAsyncDisposable where TKe
     }
 
     /// <summary>
-    /// Try to get without invoking the factory. Applies sliding refresh on hit.
+    ///     Try to get without invoking the factory. Applies sliding refresh on hit.
     /// </summary>
     public bool TryGet(TKey key, out TValue? value)
     {
@@ -221,7 +243,6 @@ public sealed class EphemeralLruCache<TKey, TValue> : IAsyncDisposable where TKe
     private async Task RunEvictionLoopAsync()
     {
         while (!_cts.IsCancellationRequested)
-        {
             try
             {
                 await Task.Delay(TimeSpan.FromSeconds(1), _cts.Token);
@@ -233,9 +254,7 @@ public sealed class EphemeralLruCache<TKey, TValue> : IAsyncDisposable where TKe
                     .ToList();
 
                 foreach (var key in toEvict)
-                {
                     await _evictionCoordinator.EnqueueAsync(new EvictionWork(key, EvictionWorkType.Evict));
-                }
 
                 // Size-based eviction: remove coldest keys
                 if (_cache.Count > _maxSize)
@@ -248,32 +267,20 @@ public sealed class EphemeralLruCache<TKey, TValue> : IAsyncDisposable where TKe
                         .ToList();
 
                     foreach (var key in coldKeys)
-                    {
                         await _evictionCoordinator.EnqueueAsync(new EvictionWork(key, EvictionWorkType.Evict));
-                    }
                 }
             }
-            catch (OperationCanceledException) { }
-            catch { /* swallow to keep loop alive */ }
-        }
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        _cts.Cancel();
-        try { await _evictionLoop; } catch { }
-        _cts.Dispose();
-        await _evictionCoordinator.DisposeAsync();
+            catch (OperationCanceledException)
+            {
+            }
+            catch
+            {
+                /* swallow to keep loop alive */
+            }
     }
 
     private sealed class CacheEntry
     {
-        public TValue Value { get; }
-        public DateTimeOffset Expiry { get; set; }
-        public DateTimeOffset LastAccess { get; set; }
-        public int AccessCount { get; set; }
-        public TimeSpan BaseTtl { get; }
-
         public CacheEntry(TValue value, DateTimeOffset expiry, DateTimeOffset lastAccess, TimeSpan baseTtl)
         {
             Value = value;
@@ -282,14 +289,25 @@ public sealed class EphemeralLruCache<TKey, TValue> : IAsyncDisposable where TKe
             AccessCount = 1;
             BaseTtl = baseTtl;
         }
+
+        public TValue Value { get; }
+        public DateTimeOffset Expiry { get; set; }
+        public DateTimeOffset LastAccess { get; set; }
+        public int AccessCount { get; set; }
+        public TimeSpan BaseTtl { get; }
     }
 
     private readonly record struct EvictionWork(TKey Key, EvictionWorkType Type);
-    private enum EvictionWorkType { Evict, TriggerCleanup }
+
+    private enum EvictionWorkType
+    {
+        Evict,
+        TriggerCleanup
+    }
 }
 
 /// <summary>
-/// Options for EphemeralLruCache.
+///     Options for EphemeralLruCache.
 /// </summary>
 public sealed class EphemeralLruCacheOptions
 {
@@ -310,6 +328,6 @@ public sealed class EphemeralLruCacheOptions
 }
 
 /// <summary>
-/// Cache statistics snapshot.
+///     Cache statistics snapshot.
 /// </summary>
 public readonly record struct CacheStats(int TotalEntries, int HotEntries, int ExpiredEntries, int MaxSize);

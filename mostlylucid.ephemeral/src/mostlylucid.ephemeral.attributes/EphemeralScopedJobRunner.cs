@@ -1,17 +1,10 @@
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
-using Mostlylucid.Ephemeral;
 
 namespace Mostlylucid.Ephemeral.Attributes;
 
 /// <summary>
-/// Job descriptor that resolves from DI scope per execution.
+///     Job descriptor that resolves from DI scope per execution.
 /// </summary>
 public sealed class ScopedJobDescriptor
 {
@@ -27,10 +20,14 @@ public sealed class ScopedJobDescriptor
     public int LaneMaxConcurrency { get; init; }
     public TimeSpan? Timeout => Attribute.TimeoutMs > 0 ? TimeSpan.FromMilliseconds(Attribute.TimeoutMs) : null;
     public IReadOnlyList<string>? AwaitSignals => Attribute.AwaitSignals;
-    public TimeSpan? AwaitTimeout => Attribute.AwaitTimeoutMs > 0 ? TimeSpan.FromMilliseconds(Attribute.AwaitTimeoutMs) : null;
 
-    public bool Matches(SignalEvent signal) =>
-        StringPatternMatcher.Matches(signal.Signal, EffectiveTriggerSignal);
+    public TimeSpan? AwaitTimeout =>
+        Attribute.AwaitTimeoutMs > 0 ? TimeSpan.FromMilliseconds(Attribute.AwaitTimeoutMs) : null;
+
+    public bool Matches(SignalEvent signal)
+    {
+        return StringPatternMatcher.Matches(signal.Signal, EffectiveTriggerSignal);
+    }
 
     public string? ExtractKey(SignalEvent signal)
     {
@@ -41,21 +38,20 @@ public sealed class ScopedJobDescriptor
 }
 
 /// <summary>
-/// Signal-driven job runner that creates a DI scope per job execution.
-/// Each job gets fresh scoped services (DbContext, storage atoms, etc.).
+///     Signal-driven job runner that creates a DI scope per job execution.
+///     Each job gets fresh scoped services (DbContext, storage atoms, etc.).
 /// </summary>
 public sealed class EphemeralScopedJobRunner : IAsyncDisposable
 {
+    private readonly CancellationTokenSource _cts = new();
+    private readonly Dictionary<string, SemaphoreSlim> _jobGates = new();
+    private readonly Dictionary<string, SemaphoreSlim> _laneGates = new();
     private readonly IServiceProvider _serviceProvider;
     private readonly SignalSink _signals;
     private EphemeralKeyedWorkCoordinator<ScopedJobInvocation, string> _coordinator = null!;
-    private readonly IReadOnlyList<ScopedJobDescriptor> _jobs;
-    private readonly CancellationTokenSource _cts = new();
-    private readonly Dictionary<string, SemaphoreSlim> _laneGates = new();
-    private readonly Dictionary<string, SemaphoreSlim> _jobGates = new();
 
     /// <summary>
-    /// Creates a scoped job runner from registered job types.
+    ///     Creates a scoped job runner from registered job types.
     /// </summary>
     /// <param name="serviceProvider">Root service provider for creating scopes</param>
     /// <param name="signals">Signal sink for job triggers</param>
@@ -70,8 +66,8 @@ public sealed class EphemeralScopedJobRunner : IAsyncDisposable
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         _signals = signals ?? throw new ArgumentNullException(nameof(signals));
 
-        _jobs = ScanJobTypes(jobTypes);
-        if (_jobs.Count == 0)
+        Jobs = ScanJobTypes(jobTypes);
+        if (Jobs.Count == 0)
             throw new ArgumentException("No attributed jobs were discovered.", nameof(jobTypes));
 
         InitializeGates();
@@ -81,7 +77,7 @@ public sealed class EphemeralScopedJobRunner : IAsyncDisposable
     }
 
     /// <summary>
-    /// Creates a scoped job runner by scanning assemblies for job types.
+    ///     Creates a scoped job runner by scanning assemblies for job types.
     /// </summary>
     public EphemeralScopedJobRunner(
         IServiceProvider serviceProvider,
@@ -94,28 +90,43 @@ public sealed class EphemeralScopedJobRunner : IAsyncDisposable
 
     public int PendingCount => _coordinator.PendingCount;
     public int ActiveCount => _coordinator.ActiveCount;
-    public IReadOnlyList<ScopedJobDescriptor> Jobs => _jobs;
+    public IReadOnlyList<ScopedJobDescriptor> Jobs { get; }
+
     public IReadOnlyCollection<string> Lanes => _laneGates.Keys;
+
+    public async ValueTask DisposeAsync()
+    {
+        _signals.SignalRaised -= OnSignal;
+        _cts.Cancel();
+        await _coordinator.DisposeAsync().ConfigureAwait(false);
+        _cts.Dispose();
+
+        foreach (var gate in _jobGates.Values)
+            gate.Dispose();
+        _jobGates.Clear();
+
+        foreach (var gate in _laneGates.Values)
+            gate.Dispose();
+        _laneGates.Clear();
+    }
 
     private static IEnumerable<Type> ScanAssembliesForJobTypes(IEnumerable<Assembly> assemblies)
     {
         foreach (var assembly in assemblies)
+        foreach (var type in assembly.GetTypes())
         {
-            foreach (var type in assembly.GetTypes())
+            // Include types with EphemeralJobsAttribute OR any method with EphemeralJobAttribute
+            if (type.GetCustomAttribute<EphemeralJobsAttribute>() != null)
             {
-                // Include types with EphemeralJobsAttribute OR any method with EphemeralJobAttribute
-                if (type.GetCustomAttribute<EphemeralJobsAttribute>() != null)
-                {
-                    yield return type;
-                    continue;
-                }
-
-                var hasJobMethods = type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                    .Any(m => m.GetCustomAttribute<EphemeralJobAttribute>() != null);
-
-                if (hasJobMethods)
-                    yield return type;
+                yield return type;
+                continue;
             }
+
+            var hasJobMethods = type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .Any(m => m.GetCustomAttribute<EphemeralJobAttribute>() != null);
+
+            if (hasJobMethods)
+                yield return type;
         }
     }
 
@@ -147,8 +158,10 @@ public sealed class EphemeralScopedJobRunner : IAsyncDisposable
                     Attribute = attr,
                     ClassAttribute = classAttr,
                     EffectiveTriggerSignal = triggerSignal,
-                    EffectivePriority = attr.Priority != 0 ? attr.Priority : (classAttr?.DefaultPriority ?? 0),
-                    EffectiveMaxConcurrency = attr.MaxConcurrency != 1 ? attr.MaxConcurrency : (classAttr?.DefaultMaxConcurrency ?? 1),
+                    EffectivePriority = attr.Priority != 0 ? attr.Priority : classAttr?.DefaultPriority ?? 0,
+                    EffectiveMaxConcurrency = attr.MaxConcurrency != 1
+                        ? attr.MaxConcurrency
+                        : classAttr?.DefaultMaxConcurrency ?? 1,
                     Lane = laneName,
                     LaneMaxConcurrency = laneConcurrency
                 });
@@ -177,7 +190,7 @@ public sealed class EphemeralScopedJobRunner : IAsyncDisposable
     private void InitializeGates()
     {
         // Per-job gates
-        foreach (var job in _jobs)
+        foreach (var job in Jobs)
         {
             var key = $"{job.JobType.FullName}.{job.Method.Name}";
             if (job.EffectiveMaxConcurrency > 0)
@@ -185,7 +198,7 @@ public sealed class EphemeralScopedJobRunner : IAsyncDisposable
         }
 
         // Per-lane gates
-        var laneGroups = _jobs.GroupBy(j => j.Lane).ToList();
+        var laneGroups = Jobs.GroupBy(j => j.Lane).ToList();
         foreach (var group in laneGroups)
         {
             var explicitConcurrency = group.Max(j => j.LaneMaxConcurrency);
@@ -201,7 +214,7 @@ public sealed class EphemeralScopedJobRunner : IAsyncDisposable
         var opts = options ?? new EphemeralOptions();
         opts = new EphemeralOptions
         {
-            MaxConcurrency = opts.MaxConcurrency > 0 ? opts.MaxConcurrency : Math.Max(1, _jobs.Count),
+            MaxConcurrency = opts.MaxConcurrency > 0 ? opts.MaxConcurrency : Math.Max(1, Jobs.Count),
             Signals = _signals,
             MaxConcurrencyPerKey = 1,
             EnableFairScheduling = true,
@@ -220,7 +233,7 @@ public sealed class EphemeralScopedJobRunner : IAsyncDisposable
 
     private void OnSignal(SignalEvent signal)
     {
-        foreach (var job in _jobs)
+        foreach (var job in Jobs)
         {
             if (!job.Matches(signal))
                 continue;
@@ -231,7 +244,7 @@ public sealed class EphemeralScopedJobRunner : IAsyncDisposable
     }
 
     /// <summary>
-    /// Executes a job within a fresh DI scope.
+    ///     Executes a job within a fresh DI scope.
     /// </summary>
     private async Task ExecuteJobInScopeAsync(ScopedJobInvocation work, CancellationToken ct)
     {
@@ -252,16 +265,12 @@ public sealed class EphemeralScopedJobRunner : IAsyncDisposable
         {
             // Wait for prerequisite signals
             if (job.AwaitSignals is { Count: > 0 } awaitSignals)
-            {
                 await WaitForSignalsAsync(awaitSignals, job.AwaitTimeout, ct).ConfigureAwait(false);
-            }
 
             // Emit start signals
             if (attr.EmitOnStart is { Length: > 0 } startSignals)
-            {
                 foreach (var sig in startSignals)
                     _signals.Raise(sig, work.Signal.Key);
-            }
 
             var attempts = 0;
             var maxAttempts = Math.Max(1, attr.MaxRetries + 1);
@@ -294,10 +303,8 @@ public sealed class EphemeralScopedJobRunner : IAsyncDisposable
 
                         // Update CancellationToken in args
                         for (var i = 0; i < args.Length; i++)
-                        {
                             if (args[i] is CancellationToken)
                                 args[i] = effectiveCt;
-                        }
                     }
 
                     try
@@ -313,10 +320,8 @@ public sealed class EphemeralScopedJobRunner : IAsyncDisposable
 
                         // Success - emit completion signals
                         if (attr.EmitOnComplete is { Length: > 0 } completeSignals)
-                        {
                             foreach (var sig in completeSignals)
                                 _signals.Raise(sig, work.Signal.Key);
-                        }
 
                         return;
                     }
@@ -363,10 +368,8 @@ public sealed class EphemeralScopedJobRunner : IAsyncDisposable
             if (lastError != null)
             {
                 if (attr.EmitOnFailure is { Length: > 0 } failSignals)
-                {
                     foreach (var sig in failSignals)
                         _signals.Raise(sig, work.Signal.Key);
-                }
 
                 _signals.Raise($"job.failed:{job.Method.Name}:{lastError.GetType().Name}", work.Signal.Key);
 
@@ -402,26 +405,16 @@ public sealed class EphemeralScopedJobRunner : IAsyncDisposable
             var param = parameters[i];
 
             if (param.ParameterType == typeof(CancellationToken))
-            {
                 args[i] = ct;
-            }
             else if (param.ParameterType == typeof(SignalEvent))
-            {
                 args[i] = signal;
-            }
             else if (payload != null && param.ParameterType.IsInstanceOfType(payload))
-            {
                 args[i] = payload;
-            }
             else if (param.HasDefaultValue)
-            {
                 args[i] = param.DefaultValue;
-            }
             else
-            {
                 throw new InvalidOperationException(
                     $"Cannot resolve parameter '{param.Name}' of type {param.ParameterType.Name}");
-            }
         }
 
         return args;
@@ -457,22 +450,6 @@ public sealed class EphemeralScopedJobRunner : IAsyncDisposable
         }
 
         ct.ThrowIfCancellationRequested();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        _signals.SignalRaised -= OnSignal;
-        _cts.Cancel();
-        await _coordinator.DisposeAsync().ConfigureAwait(false);
-        _cts.Dispose();
-
-        foreach (var gate in _jobGates.Values)
-            gate.Dispose();
-        _jobGates.Clear();
-
-        foreach (var gate in _laneGates.Values)
-            gate.Dispose();
-        _laneGates.Clear();
     }
 
     private sealed record ScopedJobInvocation(ScopedJobDescriptor Descriptor, SignalEvent Signal, object? Payload);

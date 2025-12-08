@@ -1,18 +1,14 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
 
 namespace Mostlylucid.Ephemeral.Attributes;
 
 /// <summary>
-/// Helper to discover attributed job methods.
+///     Helper to discover attributed job methods.
 /// </summary>
 public static class EphemeralJobScanner
 {
     /// <summary>
-    /// Enumerates job descriptors for the provided target object.
+    ///     Enumerates job descriptors for the provided target object.
     /// </summary>
     public static IReadOnlyList<EphemeralJobDescriptor> Scan(object target)
     {
@@ -37,7 +33,7 @@ public static class EphemeralJobScanner
     }
 
     /// <summary>
-    /// Scan multiple targets and return all descriptors sorted by priority.
+    ///     Scan multiple targets and return all descriptors sorted by priority.
     /// </summary>
     public static IReadOnlyList<EphemeralJobDescriptor> ScanAll(IEnumerable<object> targets)
     {
@@ -50,9 +46,10 @@ public static class EphemeralJobScanner
     }
 
     /// <summary>
-    /// Scan assemblies for types with EphemeralJobsAttribute and create instances.
+    ///     Scan assemblies for types with EphemeralJobsAttribute and create instances.
     /// </summary>
-    public static IReadOnlyList<EphemeralJobDescriptor> ScanAssemblies(IEnumerable<Assembly> assemblies, Func<Type, object?> factory)
+    public static IReadOnlyList<EphemeralJobDescriptor> ScanAssemblies(IEnumerable<Assembly> assemblies,
+        Func<Type, object?> factory)
     {
         if (assemblies is null) throw new ArgumentNullException(nameof(assemblies));
         if (factory is null) throw new ArgumentNullException(nameof(factory));
@@ -60,16 +57,14 @@ public static class EphemeralJobScanner
         var descriptors = new List<EphemeralJobDescriptor>();
 
         foreach (var assembly in assemblies)
+        foreach (var type in assembly.GetTypes())
         {
-            foreach (var type in assembly.GetTypes())
-            {
-                if (type.GetCustomAttribute<EphemeralJobsAttribute>() == null)
-                    continue;
+            if (type.GetCustomAttribute<EphemeralJobsAttribute>() == null)
+                continue;
 
-                var instance = factory(type);
-                if (instance != null)
-                    descriptors.AddRange(Scan(instance));
-            }
+            var instance = factory(type);
+            if (instance != null)
+                descriptors.AddRange(Scan(instance));
         }
 
         return descriptors.OrderBy(d => d.EffectivePriority).ToList();
@@ -78,9 +73,8 @@ public static class EphemeralJobScanner
     private static void ValidateMethod(MethodInfo method)
     {
         if (!typeof(Task).IsAssignableFrom(method.ReturnType) && !typeof(ValueTask).IsAssignableFrom(method.ReturnType))
-        {
-            throw new InvalidOperationException($"Method '{method.Name}' must return Task or ValueTask when marked with {nameof(EphemeralJobAttribute)}.");
-        }
+            throw new InvalidOperationException(
+                $"Method '{method.Name}' must return Task or ValueTask when marked with {nameof(EphemeralJobAttribute)}.");
 
         var parameters = method.GetParameters();
         var validTypes = new[] { typeof(CancellationToken), typeof(SignalEvent) };
@@ -100,10 +94,12 @@ public static class EphemeralJobScanner
                 continue;
 
             // Allow value types that are common payloads
-            if (param.ParameterType.IsPrimitive || param.ParameterType == typeof(Guid) || param.ParameterType == typeof(DateTime))
+            if (param.ParameterType.IsPrimitive || param.ParameterType == typeof(Guid) ||
+                param.ParameterType == typeof(DateTime))
                 continue;
 
-            throw new InvalidOperationException($"Parameter '{param.Name}' in job '{method.Name}' must have a default value or be CancellationToken/SignalEvent/payload type.");
+            throw new InvalidOperationException(
+                $"Parameter '{param.Name}' in job '{method.Name}' must have a default value or be CancellationToken/SignalEvent/payload type.");
         }
     }
 }

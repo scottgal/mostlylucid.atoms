@@ -126,7 +126,8 @@ await using var runner = new EphemeralSignalJobRunner(sink, new[] { new ErrorAle
 sink.Raise("error.database.connection");
 ```
 
-Handlers created from the attribute package see the same signal stream, but the wiring lives right next to the logic that responds to `error.*` patterns.
+Handlers created from the attribute package see the same signal stream, but the wiring lives right next to the logic
+that responds to `error.*` patterns.
 
 ---
 
@@ -191,12 +192,12 @@ foreach (var req in requests)
 
 ## Related Packages
 
-| Package | Description |
-|---------|-------------|
-| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral) | Core library |
-| [mostlylucid.ephemeral.patterns.anomalydetector](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.anomalydetector) | Anomaly detection |
-| [mostlylucid.ephemeral.patterns.telemetry](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.telemetry) | Telemetry integration |
-| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All in one DLL |
+| Package                                                                                                                         | Description           |
+|---------------------------------------------------------------------------------------------------------------------------------|-----------------------|
+| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral)                                                   | Core library          |
+| [mostlylucid.ephemeral.patterns.anomalydetector](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.anomalydetector) | Anomaly detection     |
+| [mostlylucid.ephemeral.patterns.telemetry](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.telemetry)             | Telemetry integration |
+| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete)                                 | All in one DLL        |
 
 ## License
 

@@ -1,6 +1,3 @@
-using System.Threading;
-using System.Threading.Tasks;
-using Mostlylucid.Ephemeral;
 using Xunit;
 
 namespace Mostlylucid.Ephemeral.Tests;
@@ -28,7 +25,7 @@ public class SignalOrchestrationTests
     public async Task SignalConsensus_WaitsForQuorum()
     {
         var sink = new SignalSink();
-        var waitTask = SignalConsensus.WaitForQuorumAsync(sink, "vote.*", required: 3, timeout: TimeSpan.FromSeconds(2));
+        var waitTask = SignalConsensus.WaitForQuorumAsync(sink, "vote.*", 3, TimeSpan.FromSeconds(2));
 
         sink.Raise("vote.a");
         sink.Raise("vote.b");
@@ -60,10 +57,10 @@ public class SignalOrchestrationTests
                     throw;
                 }
             },
-            EmitOnStart: new[] { "stage.detect.start" },
-            EmitOnComplete: new[] { "stage.detect.complete" });
+            new[] { "stage.detect.start" },
+            new[] { "stage.detect.complete" });
 
-        await using var executor = new SignalWaveExecutor(sink, new[] { stage }, earlyExitSignals: new[] { "early.exit" }, maxConcurrentStages: 1);
+        await using var executor = new SignalWaveExecutor(sink, new[] { stage }, new[] { "early.exit" }, 1);
         executor.Start();
 
         sink.Raise("stage.start");
@@ -98,10 +95,7 @@ public class SignalOrchestrationTests
     {
         var sink = new SignalSink();
 
-        for (var i = 1; i <= 5; i++)
-        {
-            ProgressSignals.Emit(sink, "work", i, 5, sampleRate: 2);
-        }
+        for (var i = 1; i <= 5; i++) ProgressSignals.Emit(sink, "work", i, 5, 2);
 
         var signals = sink.Sense(s => s.Signal.StartsWith("progress:")).Count;
         Assert.Equal(3, signals); // 2, 4 (sampled) and 5 (final)

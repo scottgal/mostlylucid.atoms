@@ -1,37 +1,31 @@
-using System;
-using System.IO;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
-using Mostlylucid.Ephemeral;
-using Mostlylucid.Ephemeral.Atoms.Data;
 
 namespace Mostlylucid.Ephemeral.Atoms.Data.File;
 
 /// <summary>
-/// Configuration specific to file-based storage.
+///     Configuration specific to file-based storage.
 /// </summary>
 public class FileDataStorageConfig : DataStorageConfig
 {
     /// <summary>
-    /// Base directory for storing files. Default is "./data".
+    ///     Base directory for storing files. Default is "./data".
     /// </summary>
     public string BasePath { get; set; } = "./data";
 
     /// <summary>
-    /// File extension for stored files. Default is ".json".
+    ///     File extension for stored files. Default is ".json".
     /// </summary>
     public string FileExtension { get; set; } = ".json";
 
     /// <summary>
-    /// JSON serializer options. Default uses indented formatting.
+    ///     JSON serializer options. Default uses indented formatting.
     /// </summary>
     public JsonSerializerOptions? JsonOptions { get; set; }
 }
 
 /// <summary>
-/// File-based JSON data storage atom.
-/// Stores each key-value pair as a separate JSON file.
+///     File-based JSON data storage atom.
+///     Stores each key-value pair as a separate JSON file.
 /// </summary>
 /// <typeparam name="TKey">Type of the key (must be convertible to valid filename).</typeparam>
 /// <typeparam name="TValue">Type of the value (must be JSON-serializable).</typeparam>
@@ -40,7 +34,6 @@ public sealed class FileDataStorageAtom<TKey, TValue> : DataStorageAtomBase<TKey
 {
     private readonly FileDataStorageConfig _fileConfig;
     private readonly JsonSerializerOptions _jsonOptions;
-    private readonly string _storagePath;
 
     public FileDataStorageAtom(SignalSink signals, FileDataStorageConfig config)
         : base(signals, config)
@@ -52,12 +45,12 @@ public sealed class FileDataStorageAtom<TKey, TValue> : DataStorageAtomBase<TKey
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
 
-        _storagePath = Path.Combine(_fileConfig.BasePath, _fileConfig.DatabaseName);
-        Directory.CreateDirectory(_storagePath);
+        StoragePath = Path.Combine(_fileConfig.BasePath, _fileConfig.DatabaseName);
+        Directory.CreateDirectory(StoragePath);
     }
 
     /// <summary>
-    /// Creates a file storage atom with default configuration.
+    ///     Creates a file storage atom with default configuration.
     /// </summary>
     public FileDataStorageAtom(SignalSink signals, string databaseName, string basePath = "./data")
         : this(signals, new FileDataStorageConfig
@@ -68,10 +61,15 @@ public sealed class FileDataStorageAtom<TKey, TValue> : DataStorageAtomBase<TKey
     {
     }
 
+    /// <summary>
+    ///     Gets the storage directory path.
+    /// </summary>
+    public string StoragePath { get; }
+
     private string GetFilePath(TKey key)
     {
         var fileName = SanitizeFileName(key.ToString() ?? "null");
-        return Path.Combine(_storagePath, $"{fileName}{_fileConfig.FileExtension}");
+        return Path.Combine(StoragePath, $"{fileName}{_fileConfig.FileExtension}");
     }
 
     private static string SanitizeFileName(string name)
@@ -92,8 +90,8 @@ public sealed class FileDataStorageAtom<TKey, TValue> : DataStorageAtomBase<TKey
         await System.IO.File.WriteAllTextAsync(tempPath, json, ct).ConfigureAwait(false);
 
         // Atomic move (overwrite if exists)
-        
-        System.IO.File.Move(tempPath, path, overwrite: true);
+
+        System.IO.File.Move(tempPath, path, true);
     }
 
     protected override async Task<TValue?> LoadInternalAsync(TKey key, CancellationToken ct)
@@ -121,35 +119,24 @@ public sealed class FileDataStorageAtom<TKey, TValue> : DataStorageAtomBase<TKey
     }
 
     /// <summary>
-    /// Gets the storage directory path.
-    /// </summary>
-    public string StoragePath => _storagePath;
-
-    /// <summary>
-    /// Lists all keys in storage.
+    ///     Lists all keys in storage.
     /// </summary>
     public IEnumerable<string> ListKeys()
     {
-        if (!Directory.Exists(_storagePath))
+        if (!Directory.Exists(StoragePath))
             yield break;
 
-        foreach (var file in Directory.EnumerateFiles(_storagePath, $"*{_fileConfig.FileExtension}"))
-        {
+        foreach (var file in Directory.EnumerateFiles(StoragePath, $"*{_fileConfig.FileExtension}"))
             yield return Path.GetFileNameWithoutExtension(file);
-        }
     }
 
     /// <summary>
-    /// Clears all stored data.
+    ///     Clears all stored data.
     /// </summary>
     public void Clear()
     {
-        if (Directory.Exists(_storagePath))
-        {
-            foreach (var file in Directory.EnumerateFiles(_storagePath, $"*{_fileConfig.FileExtension}"))
-            {
+        if (Directory.Exists(StoragePath))
+            foreach (var file in Directory.EnumerateFiles(StoragePath, $"*{_fileConfig.FileExtension}"))
                 System.IO.File.Delete(file);
-            }
-        }
     }
 }

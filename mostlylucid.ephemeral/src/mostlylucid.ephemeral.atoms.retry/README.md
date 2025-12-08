@@ -69,12 +69,14 @@ await atom.DisposeAsync();
 ## Backoff Strategies
 
 ### Default (Linear)
+
 ```csharp
 // 50ms, 100ms, 150ms
 new RetryAtom<T>(body, maxAttempts: 3);
 ```
 
 ### Exponential
+
 ```csharp
 // 100ms, 200ms, 400ms, 800ms
 new RetryAtom<T>(body, maxAttempts: 5,
@@ -82,6 +84,7 @@ new RetryAtom<T>(body, maxAttempts: 5,
 ```
 
 ### Fixed
+
 ```csharp
 // Always 500ms
 new RetryAtom<T>(body, maxAttempts: 3,
@@ -89,6 +92,7 @@ new RetryAtom<T>(body, maxAttempts: 3,
 ```
 
 ### With Jitter
+
 ```csharp
 var rng = new Random();
 new RetryAtom<T>(body, maxAttempts: 5,
@@ -124,11 +128,11 @@ await atom.DrainAsync();
 
 ## Related Packages
 
-| Package | Description |
-|---------|-------------|
-| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral) | Core library |
+| Package                                                                                                                       | Description     |
+|-------------------------------------------------------------------------------------------------------------------------------|-----------------|
+| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral)                                                 | Core library    |
 | [mostlylucid.ephemeral.patterns.circuitbreaker](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.circuitbreaker) | Circuit breaker |
-| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All in one DLL |
+| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete)                               | All in one DLL  |
 
 ## License
 

@@ -1,12 +1,7 @@
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-using Mostlylucid.Ephemeral;
-
 namespace Mostlylucid.Ephemeral.Atoms.Molecules;
 
 /// <summary>
-/// Defines a reusable workflow triggered by a signal pattern.
+///     Defines a reusable workflow triggered by a signal pattern.
 /// </summary>
 public sealed class MoleculeBlueprint
 {
@@ -25,19 +20,21 @@ public sealed class MoleculeBlueprint
     }
 
     /// <summary>
-    /// Display name of the molecule.
+    ///     Display name of the molecule.
     /// </summary>
     public string Name { get; }
 
     /// <summary>
-    /// Signal pattern that fires this molecule.
+    ///     Signal pattern that fires this molecule.
     /// </summary>
     public string TriggerPattern { get; }
 
     internal IReadOnlyList<Func<MoleculeContext, CancellationToken, Task>> Steps => _steps;
 
+    private Func<SignalEvent, bool>? Condition { get; }
+
     /// <summary>
-    /// Adds another atom step to the molecule.
+    ///     Adds another atom step to the molecule.
     /// </summary>
     public MoleculeBlueprint AddAtom(Func<MoleculeContext, CancellationToken, Task> step)
     {
@@ -47,7 +44,7 @@ public sealed class MoleculeBlueprint
     }
 
     /// <summary>
-    /// Adds a synchronous atom step.
+    ///     Adds a synchronous atom step.
     /// </summary>
     public MoleculeBlueprint AddAtom(Action<MoleculeContext> step)
     {
@@ -61,7 +58,7 @@ public sealed class MoleculeBlueprint
     }
 
     /// <summary>
-    /// Remove steps matching the provided predicate.
+    ///     Remove steps matching the provided predicate.
     /// </summary>
     public int RemoveAtoms(Predicate<Func<MoleculeContext, CancellationToken, Task>> predicate)
     {
@@ -69,9 +66,9 @@ public sealed class MoleculeBlueprint
         return _steps.RemoveAll(predicate);
     }
 
-    private Func<SignalEvent, bool>? Condition { get; }
-
-    internal bool Matches(SignalEvent signal) =>
-        StringPatternMatcher.Matches(signal.Signal, TriggerPattern)
-        && (Condition?.Invoke(signal) ?? true);
+    internal bool Matches(SignalEvent signal)
+    {
+        return StringPatternMatcher.Matches(signal.Signal, TriggerPattern)
+               && (Condition?.Invoke(signal) ?? true);
+    }
 }

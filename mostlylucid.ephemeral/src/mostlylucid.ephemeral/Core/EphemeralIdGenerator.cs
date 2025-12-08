@@ -4,8 +4,8 @@ using System.Runtime.CompilerServices;
 namespace Mostlylucid.Ephemeral;
 
 /// <summary>
-/// High-performance ID generator using XxHash64.
-/// Thread-safe, allocation-free after warmup.
+///     High-performance ID generator using XxHash64.
+///     Thread-safe, allocation-free after warmup.
 /// </summary>
 public static class EphemeralIdGenerator
 {
@@ -14,8 +14,8 @@ public static class EphemeralIdGenerator
     private static readonly int ProcessId = Environment.ProcessId;
 
     /// <summary>
-    /// Generates a fast, unique 64-bit ID using XxHash64.
-    /// Combines process start time, process ID, and counter for cross-process uniqueness.
+    ///     Generates a fast, unique 64-bit ID using XxHash64.
+    ///     Combines process start time, process ID, and counter for cross-process uniqueness.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static long NextId()

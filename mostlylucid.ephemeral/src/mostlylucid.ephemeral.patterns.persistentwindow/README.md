@@ -2,7 +2,8 @@
 
 [![NuGet](https://img.shields.io/nuget/v/mostlylucid.ephemeral.patterns.persistentwindow.svg)](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.persistentwindow)
 
-Signal window that periodically persists to SQLite and restores on restart. Survives process restarts while maintaining in-memory performance.
+Signal window that periodically persists to SQLite and restores on restart. Survives process restarts while maintaining
+in-memory performance.
 
 ```bash
 dotnet add package mostlylucid.ephemeral.patterns.persistentwindow
@@ -122,14 +123,14 @@ ValueTask DisposeAsync();
 
 ## Signals Emitted
 
-| Signal | Description |
-|--------|-------------|
-| `window.initialized` | SQLite schema created |
-| `window.raise` | Signal raised (sampled) |
-| `window.flush.start:{count}` | Starting flush |
-| `window.flush.done:{count}` | Flush completed |
-| `window.flush.error` | Flush failed |
-| `window.load.done:{count}` | Signals loaded from disk |
+| Signal                       | Description              |
+|------------------------------|--------------------------|
+| `window.initialized`         | SQLite schema created    |
+| `window.raise`               | Signal raised (sampled)  |
+| `window.flush.start:{count}` | Starting flush           |
+| `window.flush.done:{count}`  | Flush completed          |
+| `window.flush.error`         | Flush failed             |
+| `window.load.done:{count}`   | Signals loaded from disk |
 
 ---
 
@@ -243,12 +244,12 @@ CREATE INDEX idx_signals_signal ON signals(signal);
 
 ## Related Packages
 
-| Package | Description |
-|---------|-------------|
-| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral) | Core library |
-| [mostlylucid.ephemeral.sqlite.singlewriter](https://www.nuget.org/packages/mostlylucid.ephemeral.sqlite.singlewriter) | SQLite helper |
+| Package                                                                                                                           | Description     |
+|-----------------------------------------------------------------------------------------------------------------------------------|-----------------|
+| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral)                                                     | Core library    |
+| [mostlylucid.ephemeral.sqlite.singlewriter](https://www.nuget.org/packages/mostlylucid.ephemeral.sqlite.singlewriter)             | SQLite helper   |
 | [mostlylucid.ephemeral.patterns.signallogwatcher](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.signallogwatcher) | Signal watching |
-| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All in one DLL |
+| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete)                                   | All in one DLL  |
 
 ## License
 

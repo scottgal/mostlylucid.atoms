@@ -15,7 +15,10 @@ public class EphemeralKeyedWorkCoordinatorTests
             async (item, ct) =>
             {
                 await Task.Delay(20, ct);
-                lock (lockObj) order.Add(item);
+                lock (lockObj)
+                {
+                    order.Add(item);
+                }
             },
             new EphemeralOptions { MaxConcurrency = 4 });
 
@@ -55,8 +58,12 @@ public class EphemeralKeyedWorkCoordinatorTests
                     if (activeKeys.Count > maxConcurrentKeys)
                         maxConcurrentKeys = activeKeys.Count;
                 }
+
                 await Task.Delay(50, ct);
-                lock (lockObj) activeKeys.Remove(item.Key);
+                lock (lockObj)
+                {
+                    activeKeys.Remove(item.Key);
+                }
             },
             new EphemeralOptions { MaxConcurrency = 4 });
 

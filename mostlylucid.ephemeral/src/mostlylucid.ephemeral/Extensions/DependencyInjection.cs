@@ -5,8 +5,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace Mostlylucid.Ephemeral;
 
 /// <summary>
-/// Factory interface for creating named/typed ephemeral work coordinators.
-/// Similar to IHttpClientFactory - each named coordinator shares configuration but has independent state.
+///     Factory interface for creating named/typed ephemeral work coordinators.
+///     Similar to IHttpClientFactory - each named coordinator shares configuration but has independent state.
 /// </summary>
 public interface IEphemeralCoordinatorFactory<T>
 {
@@ -14,7 +14,7 @@ public interface IEphemeralCoordinatorFactory<T>
 }
 
 /// <summary>
-/// Factory interface for creating named/typed keyed ephemeral work coordinators.
+///     Factory interface for creating named/typed keyed ephemeral work coordinators.
 /// </summary>
 public interface IEphemeralKeyedCoordinatorFactory<T, TKey>
     where TKey : notnull
@@ -23,7 +23,7 @@ public interface IEphemeralKeyedCoordinatorFactory<T, TKey>
 }
 
 /// <summary>
-/// Configuration for a named coordinator.
+///     Configuration for a named coordinator.
 /// </summary>
 public sealed class EphemeralCoordinatorConfiguration<T>
 {
@@ -32,7 +32,7 @@ public sealed class EphemeralCoordinatorConfiguration<T>
 }
 
 /// <summary>
-/// Configuration for a named keyed coordinator.
+///     Configuration for a named keyed coordinator.
 /// </summary>
 public sealed class EphemeralKeyedCoordinatorConfiguration<T, TKey>
     where TKey : notnull
@@ -43,7 +43,7 @@ public sealed class EphemeralKeyedCoordinatorConfiguration<T, TKey>
 }
 
 /// <summary>
-/// Builder for configuring named ephemeral coordinators.
+///     Builder for configuring named ephemeral coordinators.
 /// </summary>
 public interface IEphemeralCoordinatorBuilder<T>
 {
@@ -65,9 +65,9 @@ internal sealed class EphemeralCoordinatorBuilder<T> : IEphemeralCoordinatorBuil
 
 internal sealed class EphemeralCoordinatorFactory<T> : IEphemeralCoordinatorFactory<T>, IDisposable
 {
-    private readonly IServiceProvider _serviceProvider;
     private readonly ConcurrentDictionary<string, EphemeralCoordinatorConfiguration<T>> _configurations;
     private readonly ConcurrentDictionary<string, Lazy<EphemeralWorkCoordinator<T>>> _coordinators = new();
+    private readonly IServiceProvider _serviceProvider;
     private bool _disposed;
 
     public EphemeralCoordinatorFactory(
@@ -76,6 +76,16 @@ internal sealed class EphemeralCoordinatorFactory<T> : IEphemeralCoordinatorFact
     {
         _serviceProvider = serviceProvider;
         _configurations = configurations;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        foreach (var lazy in _coordinators.Values)
+            if (lazy.IsValueCreated)
+                lazy.Value.Cancel();
     }
 
     public EphemeralWorkCoordinator<T> CreateCoordinator(string name = "")
@@ -89,38 +99,23 @@ internal sealed class EphemeralCoordinatorFactory<T> : IEphemeralCoordinatorFact
         return _coordinators.GetOrAdd(name, n => new Lazy<EphemeralWorkCoordinator<T>>(() =>
         {
             if (!_configurations.TryGetValue(n, out var config))
-            {
                 throw new InvalidOperationException(
                     $"No coordinator configuration found for name '{n}'. " +
                     $"Call AddEphemeralWorkCoordinator<{typeof(T).Name}>(\"{n}\", ...) during registration.");
-            }
 
             var body = config.BodyFactory!(_serviceProvider);
             return new EphemeralWorkCoordinator<T>(body, config.Options);
         })).Value;
     }
-
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-
-        foreach (var lazy in _coordinators.Values)
-        {
-            if (lazy.IsValueCreated)
-            {
-                lazy.Value.Cancel();
-            }
-        }
-    }
 }
 
-internal sealed class EphemeralKeyedCoordinatorFactory<T, TKey> : IEphemeralKeyedCoordinatorFactory<T, TKey>, IDisposable
+internal sealed class EphemeralKeyedCoordinatorFactory<T, TKey> : IEphemeralKeyedCoordinatorFactory<T, TKey>,
+    IDisposable
     where TKey : notnull
 {
-    private readonly IServiceProvider _serviceProvider;
     private readonly ConcurrentDictionary<string, EphemeralKeyedCoordinatorConfiguration<T, TKey>> _configurations;
     private readonly ConcurrentDictionary<string, Lazy<EphemeralKeyedWorkCoordinator<T, TKey>>> _coordinators = new();
+    private readonly IServiceProvider _serviceProvider;
     private bool _disposed;
 
     public EphemeralKeyedCoordinatorFactory(
@@ -129,6 +124,16 @@ internal sealed class EphemeralKeyedCoordinatorFactory<T, TKey> : IEphemeralKeye
     {
         _serviceProvider = serviceProvider;
         _configurations = configurations;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        foreach (var lazy in _coordinators.Values)
+            if (lazy.IsValueCreated)
+                lazy.Value.Cancel();
     }
 
     public EphemeralKeyedWorkCoordinator<T, TKey> CreateCoordinator(string name = "")
@@ -142,34 +147,18 @@ internal sealed class EphemeralKeyedCoordinatorFactory<T, TKey> : IEphemeralKeye
         return _coordinators.GetOrAdd(name, n => new Lazy<EphemeralKeyedWorkCoordinator<T, TKey>>(() =>
         {
             if (!_configurations.TryGetValue(n, out var config))
-            {
                 throw new InvalidOperationException(
                     $"No keyed coordinator configuration found for name '{n}'. " +
                     $"Call AddEphemeralKeyedWorkCoordinator<{typeof(T).Name}, {typeof(TKey).Name}>(\"{n}\", ...) during registration.");
-            }
 
             var body = config.BodyFactory!(_serviceProvider);
             return new EphemeralKeyedWorkCoordinator<T, TKey>(config.KeySelector!, body, config.Options);
         })).Value;
     }
-
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-
-        foreach (var lazy in _coordinators.Values)
-        {
-            if (lazy.IsValueCreated)
-            {
-                lazy.Value.Cancel();
-            }
-        }
-    }
 }
 
 /// <summary>
-/// DI extensions for registering ephemeral work coordinators as services.
+///     DI extensions for registering ephemeral work coordinators as services.
 /// </summary>
 public static class EphemeralServiceCollectionExtensions
 {
@@ -337,7 +326,10 @@ public static class EphemeralServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Alias for <see cref="AddEphemeralWorkCoordinator{T}(IServiceCollection, Func{IServiceProvider, Func{T, CancellationToken, Task}}, EphemeralOptions?)"/> so coordinators read like service registrations.
+    ///     Alias for
+    ///     <see
+    ///         cref="AddEphemeralWorkCoordinator{T}(IServiceCollection, Func{IServiceProvider, Func{T, CancellationToken, Task}}, EphemeralOptions?)" />
+    ///     so coordinators read like service registrations.
     /// </summary>
     public static IServiceCollection AddCoordinator<T>(
         this IServiceCollection services,
@@ -348,7 +340,9 @@ public static class EphemeralServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Alias for <see cref="AddEphemeralWorkCoordinator{T}(IServiceCollection, Func{T, CancellationToken, Task}, EphemeralOptions?)"/>.
+    ///     Alias for
+    ///     <see cref="AddEphemeralWorkCoordinator{T}(IServiceCollection, Func{T, CancellationToken, Task}, EphemeralOptions?)" />
+    ///     .
     /// </summary>
     public static IServiceCollection AddCoordinator<T>(
         this IServiceCollection services,
@@ -359,7 +353,10 @@ public static class EphemeralServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Alias for <see cref="AddScopedEphemeralWorkCoordinator{T}(IServiceCollection, Func{IServiceProvider, Func{T, CancellationToken, Task}}, EphemeralOptions?)"/>.
+    ///     Alias for
+    ///     <see
+    ///         cref="AddScopedEphemeralWorkCoordinator{T}(IServiceCollection, Func{IServiceProvider, Func{T, CancellationToken, Task}}, EphemeralOptions?)" />
+    ///     .
     /// </summary>
     public static IServiceCollection AddScopedCoordinator<T>(
         this IServiceCollection services,
@@ -370,7 +367,10 @@ public static class EphemeralServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Alias for <see cref="AddEphemeralKeyedWorkCoordinator{T, TKey}(IServiceCollection, Func{T, TKey}, Func{T, CancellationToken, Task}, EphemeralOptions?)"/>.
+    ///     Alias for
+    ///     <see
+    ///         cref="AddEphemeralKeyedWorkCoordinator{T, TKey}(IServiceCollection, Func{T, TKey}, Func{T, CancellationToken, Task}, EphemeralOptions?)" />
+    ///     .
     /// </summary>
     public static IServiceCollection AddKeyedCoordinator<T, TKey>(
         this IServiceCollection services,
@@ -383,7 +383,10 @@ public static class EphemeralServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Alias for <see cref="AddEphemeralKeyedWorkCoordinator{T, TKey}(IServiceCollection, Func{T, TKey}, Func{IServiceProvider, Func{T, CancellationToken, Task}}, EphemeralOptions?)"/>.
+    ///     Alias for
+    ///     <see
+    ///         cref="AddEphemeralKeyedWorkCoordinator{T, TKey}(IServiceCollection, Func{T, TKey}, Func{IServiceProvider, Func{T, CancellationToken, Task}}, EphemeralOptions?)" />
+    ///     .
     /// </summary>
     public static IServiceCollection AddKeyedCoordinator<T, TKey>(
         this IServiceCollection services,
@@ -396,7 +399,10 @@ public static class EphemeralServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Alias for <see cref="AddScopedEphemeralKeyedWorkCoordinator{T, TKey}(IServiceCollection, Func{T, TKey}, Func{IServiceProvider, Func{T, CancellationToken, Task}}, EphemeralOptions?)"/>.
+    ///     Alias for
+    ///     <see
+    ///         cref="AddScopedEphemeralKeyedWorkCoordinator{T, TKey}(IServiceCollection, Func{T, TKey}, Func{IServiceProvider, Func{T, CancellationToken, Task}}, EphemeralOptions?)" />
+    ///     .
     /// </summary>
     public static IServiceCollection AddScopedKeyedCoordinator<T, TKey>(
         this IServiceCollection services,

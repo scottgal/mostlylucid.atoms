@@ -4,22 +4,27 @@ Attribute-driven, signal-aware jobs that wire themselves into an `EphemeralWorkC
 
 This package exposes:
 
-| API | What it does |
-| --- | --- |
+| API                                | What it does                                                                                                                                                       |
+|------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `[EphemeralJob("signal.pattern")]` | Decorates a method (returning `Task` or `ValueTask`) with the matching signal pattern trigger. Combines optional `CancellationToken` and `SignalEvent` parameters. |
-| `EphemeralJobScanner` | Reflection helper that enumerates all annotated methods on a target instance and builds descriptors. |
-| `EphemeralSignalJobRunner` | Listens on a shared `SignalSink`, matches incoming signals to job descriptors, and enqueues them on an internal `EphemeralWorkCoordinator`. |
+| `EphemeralJobScanner`              | Reflection helper that enumerates all annotated methods on a target instance and builds descriptors.                                                               |
+| `EphemeralSignalJobRunner`         | Listens on a shared `SignalSink`, matches incoming signals to job descriptors, and enqueues them on an internal `EphemeralWorkCoordinator`.                        |
 
 ### Attribute knobs at a glance
 
-- **Ordering & lanes** – `Priority`, per-job `MaxConcurrency`, and `Lane` keep hot paths composable while slower work stays in separate lanes (class-level defaults via `EphemeralJobsAttribute.DefaultLane` / `.DefaultMaxConcurrency`).
-- **Keying & tagging** – `OperationKey`, `KeyFromSignal`, `KeyFromPayload`, and `[KeySource]` capture meaningful keys so logging, telemetry, or fair scheduling stays aligned.
-- **Pinning & retries** – `Pin`, `ExpireAfterMs`, `AwaitSignals`, `MaxRetries`, and `RetryDelayMs` extend visibility, gate execution until dependencies arrive, and heal horizontally without leaking operations.
-- **Signal choreography** – `EmitOnStart`, `EmitOnComplete`, and `EmitOnFailure` automatically raise downstream signals for your molecules, log watchers, or other coordinators.
+- **Ordering & lanes** – `Priority`, per-job `MaxConcurrency`, and `Lane` keep hot paths composable while slower work
+  stays in separate lanes (class-level defaults via `EphemeralJobsAttribute.DefaultLane` / `.DefaultMaxConcurrency`).
+- **Keying & tagging** – `OperationKey`, `KeyFromSignal`, `KeyFromPayload`, and `[KeySource]` capture meaningful keys so
+  logging, telemetry, or fair scheduling stays aligned.
+- **Pinning & retries** – `Pin`, `ExpireAfterMs`, `AwaitSignals`, `MaxRetries`, and `RetryDelayMs` extend visibility,
+  gate execution until dependencies arrive, and heal horizontally without leaking operations.
+- **Signal choreography** – `EmitOnStart`, `EmitOnComplete`, and `EmitOnFailure` automatically raise downstream signals
+  for your molecules, log watchers, or other coordinators.
 
 ## Examples
 
 ### Simple stage pipeline
+
 ```csharp
 var signals = new SignalSink();
 using var runner = new EphemeralSignalJobRunner(signals, new[] { new PipelineStages() });
@@ -48,9 +53,13 @@ signals.Raise("stage.transform.input");
 ```
 
 ### Signal-aware coordination
-Use glob patterns (`stage.transform.*`), `OperationKey`, or the `KeyFrom*` helpers to keep your pipeline keyed and prioritized (see the attribute reference below). The runner feeds all matching jobs into a bounded coordinator, so downstream stages automatically execute as soon as the upstream signal fires.
+
+Use glob patterns (`stage.transform.*`), `OperationKey`, or the `KeyFrom*` helpers to keep your pipeline keyed and
+prioritized (see the attribute reference below). The runner feeds all matching jobs into a bounded coordinator, so
+downstream stages automatically execute as soon as the upstream signal fires.
 
 ### Job-level concurrency and retries
+
 Each job attribute controls **that specific job type only**, not the entire queue. This allows fine-grained control:
 
 ```csharp
@@ -82,6 +91,7 @@ This snippet shows how to:
 5. Extract keys from signals (`KeyFromSignal`) or payloads (`KeyFromPayload` / `[KeySource]`).
 
 ### Lanes for workload separation
+
 Use lanes to separate different types of work (I/O-bound, CPU-bound, fast, slow):
 
 ```csharp
@@ -103,6 +113,7 @@ public class DataProcessor
 ```
 
 ### Logging watcher pipeline
+
 ```csharp
 [EphemeralJob("log.error.*")]
 public Task RaiseIncidentAsync(SignalEvent signal)
@@ -121,11 +132,18 @@ public Task CreateTicketAsync(SignalEvent signal, CancellationToken ct)
 signals.Raise("log.error.application", key: "orders");
 ```
 
-This bootstraps a log watcher job that listens for `log.error.*` signals, raises an `incident.escalate` notification, and lets downstream jobs (like ticket creation) fire automatically.
+This bootstraps a log watcher job that listens for `log.error.*` signals, raises an `incident.escalate` notification,
+and lets downstream jobs (like ticket creation) fire automatically.
 
-Pair this with `SignalLoggerProvider` so your shared `SignalSink` receives slugged `log.*` signals whenever `Microsoft.Extensions.Logging` emits an error. The attribute runner then reacts to log-derived signals just like any other, keeping log watching and alerting accessible from the same declarative API. Keep the `EphemeralSignalJobRunner`/`SignalSink` wired at startup so the watcher handles log events emitted later in the app lifetime without extra wiring, and any later service that raises `log.*` or related signals (like `incident.created`) will automatically trigger the attributed jobs you already registered.
+Pair this with `SignalLoggerProvider` so your shared `SignalSink` receives slugged `log.*` signals whenever
+`Microsoft.Extensions.Logging` emits an error. The attribute runner then reacts to log-derived signals just like any
+other, keeping log watching and alerting accessible from the same declarative API. Keep the `EphemeralSignalJobRunner`/
+`SignalSink` wired at startup so the watcher handles log events emitted later in the app lifetime without extra wiring,
+and any later service that raises `log.*` or related signals (like `incident.created`) will automatically trigger the
+attributed jobs you already registered.
 
-Now that the runner is listening, any later task can raise the watched signal directly and the same pipeline fires without extra dependencies:
+Now that the runner is listening, any later task can raise the watched signal directly and the same pipeline fires
+without extra dependencies:
 
 ```csharp
 sink.Raise("log.error.orders.dbfailure", key: "orders");
@@ -133,22 +151,36 @@ sink.Raise("log.error.orders.dbfailure", key: "orders");
 
 ### Pin until queried & echoes
 
-Attribute jobs can declare `Pin = true` so the coordinator keeps their operations alive after completion. Use `ResponsibilitySignalManager.PinUntilQueried` (default ack pattern `responsibility.ack.*` with key=`operationId`) to tie that pin to a downstream acknowledgement, optionally adding a `description` such as “the file is ready for pickup” and a `maxPinDuration` so the window still self-cleans if nobody arrives.
+Attribute jobs can declare `Pin = true` so the coordinator keeps their operations alive after completion. Use
+`ResponsibilitySignalManager.PinUntilQueried` (default ack pattern `responsibility.ack.*` with key=`operationId`) to tie
+that pin to a downstream acknowledgement, optionally adding a `description` such as “the file is ready for pickup” and a
+`maxPinDuration` so the window still self-cleans if nobody arrives.
 
 ```csharp
 var manager = new ResponsibilitySignalManager(coordinator, sink, maxPinDuration: TimeSpan.FromMinutes(5));
 manager.PinUntilQueried(operationId, "responsibility.ack.file", description: "awaiting file pickup");
 ```
 
-When the ack signal arrives the pin is released automatically, eliminating races between producers and consumers. Combine this with `OperationEchoMaker`/`OperationEchoAtom` (see `mostlylucid.ephemeral.atoms.echo`) if you need structured “last words”: capture the key signals or typed payloads that summarize the operation before it vanishes so molecules or auditors can still taste the soup.
+When the ack signal arrives the pin is released automatically, eliminating races between producers and consumers.
+Combine this with `OperationEchoMaker`/`OperationEchoAtom` (see `mostlylucid.ephemeral.atoms.echo`) if you need
+structured “last words”: capture the key signals or typed payloads that summarize the operation before it vanishes so
+molecules or auditors can still taste the soup.
 
-For “echo-worthy” jobs you can also create a `TypedSignalSink<EchoPayload>` (sharing the same underlying sink) and let `mostlylucid.ephemeral.atoms.echo` build and persist `OperationEchoEntry<EchoPayload>` records as operations finalize. Just raise `typedSink.Raise("echo.capture", payload, key: signal.Key)` when your handler reaches the critical state.
+For “echo-worthy” jobs you can also create a `TypedSignalSink<EchoPayload>` (sharing the same underlying sink) and let
+`mostlylucid.ephemeral.atoms.echo` build and persist `OperationEchoEntry<EchoPayload>` records as operations finalize.
+Just raise `typedSink.Raise("echo.capture", payload, key: signal.Key)` when your handler reaches the critical state.
 
-For “echo-worthy” jobs you can also create a `TypedSignalSink<EchoPayload>` (sharing the same underlying sink) and let `mostlylucid.ephemeral.atoms.echo` build and persist `OperationEchoEntry<EchoPayload>` records as operations finalize. Just raise `typedSink.Raise("echo.capture", payload, key: signal.Key)` when your handler reaches the critical state.
+For “echo-worthy” jobs you can also create a `TypedSignalSink<EchoPayload>` (sharing the same underlying sink) and let
+`mostlylucid.ephemeral.atoms.echo` build and persist `OperationEchoEntry<EchoPayload>` records as operations finalize.
+Just raise `typedSink.Raise("echo.capture", payload, key: signal.Key)` when your handler reaches the critical state.
 
 ## Attribute reference
+
 ### Tune concurrency, retries, and observability
-`EphemeralSignalJobRunner` accepts `EphemeralOptions` for shared `SignalSink`, batching, or max-tracking limits. The attribute can also emit start/complete/failure signals and control retries, timeouts, and pinning without extra plumbing:
+
+`EphemeralSignalJobRunner` accepts `EphemeralOptions` for shared `SignalSink`, batching, or max-tracking limits. The
+attribute can also emit start/complete/failure signals and control retries, timeouts, and pinning without extra
+plumbing:
 
 ```csharp
 var runnerOptions = new EphemeralOptions
@@ -163,32 +195,41 @@ using var runner = new EphemeralSignalJobRunner(sharedRaySink, handlers, runnerO
 
 ## Attribute reference
 
-| Property | Description |
-| --- | --- |
-| `TriggerSignal` | Glob pattern that raises this job (`orders.*`, `cache.flush`, etc.). `EphemeralJobsAttribute.SignalPrefix` can prepend a namespace to every method in the class. |
+| Property                                                            | Description                                                                                                                                                                                                                                                                                |
+|---------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `TriggerSignal`                                                     | Glob pattern that raises this job (`orders.*`, `cache.flush`, etc.). `EphemeralJobsAttribute.SignalPrefix` can prepend a namespace to every method in the class.                                                                                                                           |
 | `OperationKey` / `KeyFromSignal` / `KeyFromPayload` / `[KeySource]` | Control how the resulting operation is tagged. Keys help group telemetry and make custom concurrency policies easier. `KeyFromPayload` reads a property path from the typed payload (`"User.Id"`), and `KeySource` lets you annotate the parameter whose ToString() should become the key. |
-| `Priority` | Lower numbers run first. Useful when multiple handlers listen to the same trigger and you want deterministic ordering. **Controls this job only, not the queue.** |
-| `MaxConcurrency` | Controls how many executions of **this specific job** can run in parallel; use `EphemeralJobsAttribute.DefaultMaxConcurrency` to share defaults across the class. `-1` means unlimited. **Does not affect other jobs.** |
-| `Lane` | Processing lane for workload separation. Format: `"name"` or `"name:concurrency"` (e.g., `"io"`, `"cpu:4"`). Jobs in the same lane share concurrency control. Use `EphemeralJobsAttribute.DefaultLane` for class defaults. |
-| `EmitOnStart` / `EmitOnComplete` / `EmitOnFailure` | Additional signals the job raises automatically, making downstream stages composable without manual `SignalSink` calls. |
-| `SwallowExceptions`, `MaxRetries`, `RetryDelayMs` | Retry helpers that convert exceptions into signals while keeping the runner alive. |
-| `Pin` / `ExpireAfterMs` | Keep jobs visible in the coordinator (pin) or allow them to expire after a custom window. |
-| `AwaitSignals` / `AwaitTimeoutMs` | Delay job execution until other signals are present, useful for fan-in or dependency wiring. |
+| `Priority`                                                          | Lower numbers run first. Useful when multiple handlers listen to the same trigger and you want deterministic ordering. **Controls this job only, not the queue.**                                                                                                                          |
+| `MaxConcurrency`                                                    | Controls how many executions of **this specific job** can run in parallel; use `EphemeralJobsAttribute.DefaultMaxConcurrency` to share defaults across the class. `-1` means unlimited. **Does not affect other jobs.**                                                                    |
+| `Lane`                                                              | Processing lane for workload separation. Format: `"name"` or `"name:concurrency"` (e.g., `"io"`, `"cpu:4"`). Jobs in the same lane share concurrency control. Use `EphemeralJobsAttribute.DefaultLane` for class defaults.                                                                 |
+| `EmitOnStart` / `EmitOnComplete` / `EmitOnFailure`                  | Additional signals the job raises automatically, making downstream stages composable without manual `SignalSink` calls.                                                                                                                                                                    |
+| `SwallowExceptions`, `MaxRetries`, `RetryDelayMs`                   | Retry helpers that convert exceptions into signals while keeping the runner alive.                                                                                                                                                                                                         |
+| `Pin` / `ExpireAfterMs`                                             | Keep jobs visible in the coordinator (pin) or allow them to expire after a custom window.                                                                                                                                                                                                  |
+| `AwaitSignals` / `AwaitTimeoutMs`                                   | Delay job execution until other signals are present, useful for fan-in or dependency wiring.                                                                                                                                                                                               |
 
-Annotate a class with `[EphemeralJobs(DefaultPriority = 1, DefaultMaxConcurrency = 2, SignalPrefix = "orders", DefaultLane = "io")]` to apply shared defaults.
+Annotate a class with
+`[EphemeralJobs(DefaultPriority = 1, DefaultMaxConcurrency = 2, SignalPrefix = "orders", DefaultLane = "io")]` to apply
+shared defaults.
 
 ### Core job knobs
 
-- `Priority` keeps the same trigger deterministic when multiple handlers listen to the same signal; lower numbers run first.
-- `MaxConcurrency` limits how many executions of the job itself can run at once, while `Lane` lets you pool multiple jobs under shared concurrency caps.
-- `OperationKey`, `KeyFromSignal`, `KeyFromPayload`, and `[KeySource]` control how the resulting operation is tagged so related work shares telemetry and ordering.
-- `Pin`/`ExpireAfterMs` let jobs extend their visibility window (pinning them until a downstream ack or letting them auto-expire), making it easy to build responsibility signals without manual bookkeeping.
+- `Priority` keeps the same trigger deterministic when multiple handlers listen to the same signal; lower numbers run
+  first.
+- `MaxConcurrency` limits how many executions of the job itself can run at once, while `Lane` lets you pool multiple
+  jobs under shared concurrency caps.
+- `OperationKey`, `KeyFromSignal`, `KeyFromPayload`, and `[KeySource]` control how the resulting operation is tagged so
+  related work shares telemetry and ordering.
+- `Pin`/`ExpireAfterMs` let jobs extend their visibility window (pinning them until a downstream ack or letting them
+  auto-expire), making it easy to build responsibility signals without manual bookkeeping.
 
 ## Best practices
 
-1. **Keep signals descriptive.** Use dotted prefixes and include event semantics (`orders.receive`, `orders.retry.failed`) so pattern matching stays readable.
-2. **Chain completion signals.** Emit `EmitOnComplete` signals so downstream jobs trigger automatically instead of manually wiring observers.
-3. **Reuse runners.** Multiple handler instances can share a single `EphemeralSignalJobRunner`; it deduplicates descriptors and merges priorities for you.
+1. **Keep signals descriptive.** Use dotted prefixes and include event semantics (`orders.receive`,
+   `orders.retry.failed`) so pattern matching stays readable.
+2. **Chain completion signals.** Emit `EmitOnComplete` signals so downstream jobs trigger automatically instead of
+   manually wiring observers.
+3. **Reuse runners.** Multiple handler instances can share a single `EphemeralSignalJobRunner`; it deduplicates
+   descriptors and merges priorities for you.
 
 ## Dependency Injection
 
@@ -204,11 +245,14 @@ services.AddEphemeralSignalJobRunner<StageJobs>();
 
 Why you sometimes saw `services.AddSingleton<StageJobs>()` in examples
 
-- Historically examples showed `AddSingleton<T>()` to ensure a single instance of job handlers lived for the app lifetime. That pattern forces a singleton lifetime even if the job needs scoped services.
+- Historically examples showed `AddSingleton<T>()` to ensure a single instance of job handlers lived for the app
+  lifetime. That pattern forces a singleton lifetime even if the job needs scoped services.
 - The extensions now prefer resolving an already-registered instance from DI. This means:
-  - If you want a singleton handler, register it as `AddSingleton<T>()` explicitly.
-  - If your job depends on scoped services, register it as `AddScoped<T>()` and use `AddEphemeralScopedJobRunner<T>()` so the runner resolves fresh scoped instances per invocation.
-  - If you don't register the job type, the runner will create instances using ActivatorUtilities (constructor injection) and treat them as effectively singletons inside the runner.
+    - If you want a singleton handler, register it as `AddSingleton<T>()` explicitly.
+    - If your job depends on scoped services, register it as `AddScoped<T>()` and use `AddEphemeralScopedJobRunner<T>()`
+      so the runner resolves fresh scoped instances per invocation.
+    - If you don't register the job type, the runner will create instances using ActivatorUtilities (constructor
+      injection) and treat them as effectively singletons inside the runner.
 
 Short ASP.NET Core "4-line" example (minimal hosting)
 
@@ -238,7 +282,9 @@ app.Run();
 ```
 
 Notes:
-- The runner prefers resolved instances when available, so `AddSingleton<T>()` is not required unless you specifically want a singleton.
+
+- The runner prefers resolved instances when available, so `AddSingleton<T>()` is not required unless you specifically
+  want a singleton.
 - Use `AddEphemeralScopedJobRunner<T>()` when jobs need scoped services per invocation (e.g., DbContext).
 
 ### Assembly-scan convenience
@@ -254,4 +300,6 @@ services.AddEphemeralScopedJobRunner(typeof(OrderJobs).Assembly);
 ```
 
 ## Packaging
-Install via NuGet: `dotnet add package mostlylucid.ephemeral.attributes`. The package is included in `mostlylucid.ephemeral.complete` but you can also consume it standalone when you only need declarative pipelines.
+
+Install via NuGet: `dotnet add package mostlylucid.ephemeral.attributes`. The package is included in
+`mostlylucid.ephemeral.complete` but you can also consume it standalone when you only need declarative pipelines.

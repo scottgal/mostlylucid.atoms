@@ -63,7 +63,8 @@ await service.DisposeAsync();
 
 ## How It Works
 
-When a `rate-limit` or `rate-limit:XXXms` signal is present, new work is automatically deferred. No explicit coordination needed between operations.
+When a `rate-limit` or `rate-limit:XXXms` signal is present, new work is automatically deferred. No explicit
+coordination needed between operations.
 
 ```
 [Request] -> Check signals -> [rate-limit:1000ms] -> Wait 1s -> Process
@@ -99,11 +100,11 @@ foreach (var request in requests)
 
 ## Related Packages
 
-| Package | Description |
-|---------|-------------|
-| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral) | Core library |
+| Package                                                                                                                   | Description          |
+|---------------------------------------------------------------------------------------------------------------------------|----------------------|
+| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral)                                             | Core library         |
 | [mostlylucid.ephemeral.patterns.backpressure](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.backpressure) | Backpressure pattern |
-| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All in one DLL |
+| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete)                           | All in one DLL       |
 
 ## License
 

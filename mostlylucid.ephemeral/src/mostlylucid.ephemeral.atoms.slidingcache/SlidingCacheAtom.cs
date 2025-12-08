@@ -3,28 +3,28 @@ using System.Collections.Concurrent;
 namespace Mostlylucid.Ephemeral.Atoms.SlidingCache;
 
 /// <summary>
-/// Caches work results with sliding expiration - accessing a result resets its TTL.
-/// Results that haven't been accessed expire and are recomputed on next request.
+///     Caches work results with sliding expiration - accessing a result resets its TTL.
+///     Results that haven't been accessed expire and are recomputed on next request.
 /// </summary>
 /// <typeparam name="TKey">Cache key type</typeparam>
 /// <typeparam name="TResult">Cached result type</typeparam>
 public sealed class SlidingCacheAtom<TKey, TResult> : IAsyncDisposable where TKey : notnull
 {
+    private readonly TimeSpan _absoluteExpiration;
     private readonly ConcurrentDictionary<TKey, CacheEntry> _cache = new();
-    private readonly Func<TKey, CancellationToken, Task<TResult>> _factory;
+    private readonly SemaphoreSlim _cleanupLock = new(1, 1);
+    private readonly Task _cleanupLoop;
     private readonly EphemeralWorkCoordinator<CacheRequest> _coordinator;
+    private readonly CancellationTokenSource _cts = new();
+    private readonly Func<TKey, CancellationToken, Task<TResult>> _factory;
+    private readonly int _maxSize;
+    private readonly int _sampleRate;
     private readonly SignalSink _signals;
     private readonly TimeSpan _slidingExpiration;
-    private readonly TimeSpan _absoluteExpiration;
-    private readonly int _maxSize;
-    private readonly CancellationTokenSource _cts = new();
-    private readonly Task _cleanupLoop;
-    private readonly SemaphoreSlim _cleanupLock = new(1, 1);
     private int _accessCount;
-    private readonly int _sampleRate;
 
     /// <summary>
-    /// Creates a new sliding cache atom.
+    ///     Creates a new sliding cache atom.
     /// </summary>
     /// <param name="factory">Async factory to compute values for cache misses</param>
     /// <param name="slidingExpiration">Time without access before entry expires (default: 5 minutes)</param>
@@ -48,7 +48,7 @@ public sealed class SlidingCacheAtom<TKey, TResult> : IAsyncDisposable where TKe
         _maxSize = maxSize;
         _sampleRate = Math.Max(1, sampleRate);
 
-        _signals = signals ?? new SignalSink(maxCapacity: maxSize * 2, maxAge: TimeSpan.FromMinutes(5));
+        _signals = signals ?? new SignalSink(maxSize * 2, TimeSpan.FromMinutes(5));
 
         _coordinator = new EphemeralWorkCoordinator<CacheRequest>(
             ProcessRequestAsync,
@@ -62,8 +62,26 @@ public sealed class SlidingCacheAtom<TKey, TResult> : IAsyncDisposable where TKe
         _cleanupLoop = Task.Run(RunCleanupLoopAsync);
     }
 
+    public async ValueTask DisposeAsync()
+    {
+        _cts.Cancel();
+        try
+        {
+            await _cleanupLoop.ConfigureAwait(false);
+        }
+        catch
+        {
+        }
+
+        _cts.Dispose();
+        _cleanupLock.Dispose();
+        _coordinator.Complete();
+        await _coordinator.DrainAsync().ConfigureAwait(false);
+        await _coordinator.DisposeAsync().ConfigureAwait(false);
+    }
+
     /// <summary>
-    /// Gets or computes a value. Accessing a cached value resets its sliding expiration.
+    ///     Gets or computes a value. Accessing a cached value resets its sliding expiration.
     /// </summary>
     public async Task<TResult> GetOrComputeAsync(TKey key, CancellationToken ct = default)
     {
@@ -86,15 +104,16 @@ public sealed class SlidingCacheAtom<TKey, TResult> : IAsyncDisposable where TKe
         if (ShouldSample())
             EmitSignal($"cache.miss:{key}");
 
-        var request = new CacheRequest(key, new TaskCompletionSource<TResult>(TaskCreationOptions.RunContinuationsAsynchronously));
+        var request = new CacheRequest(key,
+            new TaskCompletionSource<TResult>(TaskCreationOptions.RunContinuationsAsynchronously));
         await _coordinator.EnqueueAsync(request, ct).ConfigureAwait(false);
 
         return await request.Completion.Task.WaitAsync(ct).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// Tries to get a cached value without triggering computation.
-    /// Still resets sliding expiration on hit.
+    ///     Tries to get a cached value without triggering computation.
+    ///     Still resets sliding expiration on hit.
     /// </summary>
     public bool TryGet(TKey key, out TResult? value)
     {
@@ -117,7 +136,7 @@ public sealed class SlidingCacheAtom<TKey, TResult> : IAsyncDisposable where TKe
     }
 
     /// <summary>
-    /// Invalidates a specific cache entry.
+    ///     Invalidates a specific cache entry.
     /// </summary>
     public void Invalidate(TKey key)
     {
@@ -126,7 +145,7 @@ public sealed class SlidingCacheAtom<TKey, TResult> : IAsyncDisposable where TKe
     }
 
     /// <summary>
-    /// Invalidates all cache entries.
+    ///     Invalidates all cache entries.
     /// </summary>
     public void Clear()
     {
@@ -136,7 +155,7 @@ public sealed class SlidingCacheAtom<TKey, TResult> : IAsyncDisposable where TKe
     }
 
     /// <summary>
-    /// Gets cache statistics.
+    ///     Gets cache statistics.
     /// </summary>
     public CacheStats GetStats()
     {
@@ -147,23 +166,28 @@ public sealed class SlidingCacheAtom<TKey, TResult> : IAsyncDisposable where TKe
         var hotCount = entries.Count(e => e.Value.AccessCount >= 5);
 
         return new CacheStats(
-            TotalEntries: entries.Length,
-            ValidEntries: validCount,
-            ExpiredEntries: expiredCount,
-            HotEntries: hotCount,
-            MaxSize: _maxSize);
+            entries.Length,
+            validCount,
+            expiredCount,
+            hotCount,
+            _maxSize);
     }
 
     /// <summary>
-    /// Gets recent cache signals.
+    ///     Gets recent cache signals.
     /// </summary>
-    public IReadOnlyList<SignalEvent> GetSignals() => _signals.Sense();
+    public IReadOnlyList<SignalEvent> GetSignals()
+    {
+        return _signals.Sense();
+    }
 
     /// <summary>
-    /// Gets signals matching a pattern.
+    ///     Gets signals matching a pattern.
     /// </summary>
-    public IReadOnlyList<SignalEvent> GetSignals(string pattern) =>
-        _signals.Sense(s => StringPatternMatcher.Matches(s.Signal, pattern));
+    public IReadOnlyList<SignalEvent> GetSignals(string pattern)
+    {
+        return _signals.Sense(s => StringPatternMatcher.Matches(s.Signal, pattern));
+    }
 
     private async Task ProcessRequestAsync(CacheRequest request, CancellationToken ct)
     {
@@ -227,10 +251,8 @@ public sealed class SlidingCacheAtom<TKey, TResult> : IAsyncDisposable where TKe
                 .ToList();
 
             foreach (var key in expired)
-            {
                 if (_cache.TryRemove(key, out _))
                     EmitSignal($"cache.evict.expired:{key}");
-            }
 
             // Second pass: if still over size, remove coldest entries
             if (_cache.Count > _maxSize)
@@ -243,10 +265,8 @@ public sealed class SlidingCacheAtom<TKey, TResult> : IAsyncDisposable where TKe
                     .ToList();
 
                 foreach (var key in toRemove)
-                {
                     if (_cache.TryRemove(key, out _))
                         EmitSignal($"cache.evict.cold:{key}");
-                }
             }
         }
         finally
@@ -258,7 +278,6 @@ public sealed class SlidingCacheAtom<TKey, TResult> : IAsyncDisposable where TKe
     private async Task RunCleanupLoopAsync()
     {
         while (!_cts.IsCancellationRequested)
-        {
             try
             {
                 await Task.Delay(TimeSpan.FromSeconds(30), _cts.Token).ConfigureAwait(false);
@@ -272,7 +291,6 @@ public sealed class SlidingCacheAtom<TKey, TResult> : IAsyncDisposable where TKe
             {
                 // Swallow to keep loop alive
             }
-        }
     }
 
     private bool ShouldSample()
@@ -281,27 +299,13 @@ public sealed class SlidingCacheAtom<TKey, TResult> : IAsyncDisposable where TKe
         return count % _sampleRate == 0;
     }
 
-    private void EmitSignal(string name) =>
-        _signals.Raise(new SignalEvent(name, EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
-
-    public async ValueTask DisposeAsync()
+    private void EmitSignal(string name)
     {
-        _cts.Cancel();
-        try { await _cleanupLoop.ConfigureAwait(false); } catch { }
-        _cts.Dispose();
-        _cleanupLock.Dispose();
-        _coordinator.Complete();
-        await _coordinator.DrainAsync().ConfigureAwait(false);
-        await _coordinator.DisposeAsync().ConfigureAwait(false);
+        _signals.Raise(new SignalEvent(name, EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
     }
 
     private sealed class CacheEntry
     {
-        public TResult Value { get; }
-        public DateTimeOffset Created { get; }
-        public DateTimeOffset LastAccess { get; set; }
-        public int AccessCount { get; set; }
-
         public CacheEntry(TResult value, DateTimeOffset created)
         {
             Value = value;
@@ -309,6 +313,11 @@ public sealed class SlidingCacheAtom<TKey, TResult> : IAsyncDisposable where TKe
             LastAccess = created;
             AccessCount = 1;
         }
+
+        public TResult Value { get; }
+        public DateTimeOffset Created { get; }
+        public DateTimeOffset LastAccess { get; set; }
+        public int AccessCount { get; set; }
 
         public bool IsExpired(DateTimeOffset now, TimeSpan slidingExpiration, TimeSpan absoluteExpiration)
         {
@@ -328,7 +337,7 @@ public sealed class SlidingCacheAtom<TKey, TResult> : IAsyncDisposable where TKe
 }
 
 /// <summary>
-/// Cache statistics snapshot.
+///     Cache statistics snapshot.
 /// </summary>
 public readonly record struct CacheStats(
     int TotalEntries,

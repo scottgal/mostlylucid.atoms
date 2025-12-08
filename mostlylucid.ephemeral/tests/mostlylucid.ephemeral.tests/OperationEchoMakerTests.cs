@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using Mostlylucid.Ephemeral;
 using Mostlylucid.Ephemeral.Atoms.Echo;
 using Xunit;
 
@@ -25,19 +22,21 @@ public sealed class OperationEchoMakerTests
                 CaptureSignalPattern = "echo.*"
             });
 
-        typedSink.Raise(new SignalEvent<EchoPayload>("echo.capture", 42, "order-1", DateTimeOffset.UtcNow, new EchoPayload("order-1", "ready")));
-        typedSink.Raise(new SignalEvent<EchoPayload>("echo.state", 42, "order-1", DateTimeOffset.UtcNow, new EchoPayload("order-1", "finalizing")));
+        typedSink.Raise(new SignalEvent<EchoPayload>("echo.capture", 42, "order-1", DateTimeOffset.UtcNow,
+            new EchoPayload("order-1", "ready")));
+        typedSink.Raise(new SignalEvent<EchoPayload>("echo.state", 42, "order-1", DateTimeOffset.UtcNow,
+            new EchoPayload("order-1", "finalizing")));
 
         var snapshot = new EphemeralOperationSnapshot(
-            Id: 42,
-            Started: DateTimeOffset.UtcNow.AddSeconds(-5),
-            Completed: DateTimeOffset.UtcNow,
-            Key: "order-1",
-            IsFaulted: false,
-            Error: null,
-            Duration: TimeSpan.FromSeconds(5),
-            Signals: null,
-            IsPinned: false);
+            42,
+            DateTimeOffset.UtcNow.AddSeconds(-5),
+            DateTimeOffset.UtcNow,
+            "order-1",
+            false,
+            null,
+            TimeSpan.FromSeconds(5),
+            null,
+            false);
 
         finalizer.Emit(snapshot);
 
@@ -52,6 +51,9 @@ public sealed class OperationEchoMakerTests
     {
         public event Action<EphemeralOperationSnapshot>? OperationFinalized;
 
-        public void Emit(EphemeralOperationSnapshot snapshot) => OperationFinalized?.Invoke(snapshot);
+        public void Emit(EphemeralOperationSnapshot snapshot)
+        {
+            OperationFinalized?.Invoke(snapshot);
+        }
     }
 }

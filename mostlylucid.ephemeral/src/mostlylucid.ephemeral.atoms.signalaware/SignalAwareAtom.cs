@@ -1,15 +1,13 @@
-using Mostlylucid.Ephemeral;
-
 namespace Mostlylucid.Ephemeral.Atoms.SignalAware;
 
 /// <summary>
-/// Atom that pauses or cancels intake based on ambient signals (patterns supported).
+///     Atom that pauses or cancels intake based on ambient signals (patterns supported).
 /// </summary>
 public sealed class SignalAwareAtom<T> : IAsyncDisposable
 {
-    private readonly EphemeralWorkCoordinator<T> _coordinator;
-    private readonly IReadOnlySet<string>? _cancelOn;
     private readonly HashSet<string> _ambient = new(StringComparer.Ordinal);
+    private readonly IReadOnlySet<string>? _cancelOn;
+    private readonly EphemeralWorkCoordinator<T> _coordinator;
 
     public SignalAwareAtom(
         Func<T, CancellationToken, Task> body,
@@ -34,6 +32,11 @@ public sealed class SignalAwareAtom<T> : IAsyncDisposable
         _cancelOn = cancelOn;
     }
 
+    public ValueTask DisposeAsync()
+    {
+        return _coordinator.DisposeAsync();
+    }
+
     public ValueTask<long> EnqueueAsync(T item, CancellationToken ct = default)
     {
         if (_cancelOn is { Count: > 0 })
@@ -45,7 +48,7 @@ public sealed class SignalAwareAtom<T> : IAsyncDisposable
     }
 
     /// <summary>
-    /// Seed ambient signals without requiring a running operation.
+    ///     Seed ambient signals without requiring a running operation.
     /// </summary>
     public void Raise(string signal)
     {
@@ -59,10 +62,14 @@ public sealed class SignalAwareAtom<T> : IAsyncDisposable
         await _coordinator.DrainAsync(ct).ConfigureAwait(false);
     }
 
-    public IReadOnlyCollection<EphemeralOperationSnapshot> Snapshot() => _coordinator.GetSnapshot();
+    public IReadOnlyCollection<EphemeralOperationSnapshot> Snapshot()
+    {
+        return _coordinator.GetSnapshot();
+    }
 
     public (int Pending, int Active, int Completed, int Failed) Stats()
-        => (_coordinator.PendingCount, _coordinator.ActiveCount, _coordinator.TotalCompleted, _coordinator.TotalFailed);
-
-    public ValueTask DisposeAsync() => _coordinator.DisposeAsync();
+    {
+        return (_coordinator.PendingCount, _coordinator.ActiveCount, _coordinator.TotalCompleted,
+            _coordinator.TotalFailed);
+    }
 }

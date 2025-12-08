@@ -1,17 +1,12 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-using System.Threading;
-using System.Threading.Tasks;
-using Mostlylucid.Ephemeral;
 
 namespace Mostlylucid.Ephemeral.Attributes;
 
-internal delegate Task JobInvoker(object target, CancellationToken cancellationToken, SignalEvent signal, object? payload);
+internal delegate Task JobInvoker(object target, CancellationToken cancellationToken, SignalEvent signal,
+    object? payload);
 
 /// <summary>
-/// Metadata for an attributed job method.
+///     Metadata for an attributed job method.
 /// </summary>
 public sealed class EphemeralJobDescriptor
 {
@@ -19,7 +14,8 @@ public sealed class EphemeralJobDescriptor
     private readonly int? _keySourceParamIndex;
     private readonly string? _keySourcePropertyPath;
 
-    internal EphemeralJobDescriptor(object target, MethodInfo method, EphemeralJobAttribute attribute, EphemeralJobsAttribute? classAttribute)
+    internal EphemeralJobDescriptor(object target, MethodInfo method, EphemeralJobAttribute attribute,
+        EphemeralJobsAttribute? classAttribute)
     {
         Target = target;
         Method = method;
@@ -28,11 +24,15 @@ public sealed class EphemeralJobDescriptor
         (_invoker, _keySourceParamIndex, _keySourcePropertyPath) = BuildInvoker(method);
 
         // Compute effective values from class + method attributes
-        EffectivePriority = attribute.Priority != 0 ? attribute.Priority : (classAttribute?.DefaultPriority ?? 0);
-        EffectiveMaxConcurrency = attribute.MaxConcurrency != 1 ? attribute.MaxConcurrency : (classAttribute?.DefaultMaxConcurrency ?? 1);
+        EffectivePriority = attribute.Priority != 0 ? attribute.Priority : classAttribute?.DefaultPriority ?? 0;
+        EffectiveMaxConcurrency = attribute.MaxConcurrency != 1
+            ? attribute.MaxConcurrency
+            : classAttribute?.DefaultMaxConcurrency ?? 1;
 
         var prefix = classAttribute?.SignalPrefix;
-        EffectiveTriggerSignal = !string.IsNullOrEmpty(prefix) ? $"{prefix}.{attribute.TriggerSignal}" : attribute.TriggerSignal;
+        EffectiveTriggerSignal = !string.IsNullOrEmpty(prefix)
+            ? $"{prefix}.{attribute.TriggerSignal}"
+            : attribute.TriggerSignal;
 
         // Parse lane (format: "name" or "name:concurrency")
         var effectiveLane = attribute.Lane ?? classAttribute?.DefaultLane;
@@ -45,53 +45,55 @@ public sealed class EphemeralJobDescriptor
     public EphemeralJobsAttribute? ClassAttribute { get; }
 
     /// <summary>
-    /// Effective priority (merged from class and method attributes).
+    ///     Effective priority (merged from class and method attributes).
     /// </summary>
     public int EffectivePriority { get; }
 
     /// <summary>
-    /// Effective max concurrency (merged from class and method attributes).
+    ///     Effective max concurrency (merged from class and method attributes).
     /// </summary>
     public int EffectiveMaxConcurrency { get; }
 
     /// <summary>
-    /// Effective trigger signal (with class prefix applied).
+    ///     Effective trigger signal (with class prefix applied).
     /// </summary>
     public string EffectiveTriggerSignal { get; }
 
     /// <summary>
-    /// Timeout as TimeSpan, or null if not set.
+    ///     Timeout as TimeSpan, or null if not set.
     /// </summary>
     public TimeSpan? Timeout => Attribute.TimeoutMs > 0 ? TimeSpan.FromMilliseconds(Attribute.TimeoutMs) : null;
 
     /// <summary>
-    /// Whether the operation should be pinned (never evicted).
+    ///     Whether the operation should be pinned (never evicted).
     /// </summary>
     public bool IsPinned => Attribute.Pin;
 
     /// <summary>
-    /// Time after completion when the operation should be evicted.
+    ///     Time after completion when the operation should be evicted.
     /// </summary>
-    public TimeSpan? ExpireAfter => Attribute.ExpireAfterMs > 0 ? TimeSpan.FromMilliseconds(Attribute.ExpireAfterMs) : null;
+    public TimeSpan? ExpireAfter =>
+        Attribute.ExpireAfterMs > 0 ? TimeSpan.FromMilliseconds(Attribute.ExpireAfterMs) : null;
 
     /// <summary>
-    /// Signals to await before starting the job.
+    ///     Signals to await before starting the job.
     /// </summary>
     public IReadOnlyList<string>? AwaitSignals => Attribute.AwaitSignals;
 
     /// <summary>
-    /// Timeout for awaiting signals.
+    ///     Timeout for awaiting signals.
     /// </summary>
-    public TimeSpan? AwaitTimeout => Attribute.AwaitTimeoutMs > 0 ? TimeSpan.FromMilliseconds(Attribute.AwaitTimeoutMs) : null;
+    public TimeSpan? AwaitTimeout =>
+        Attribute.AwaitTimeoutMs > 0 ? TimeSpan.FromMilliseconds(Attribute.AwaitTimeoutMs) : null;
 
     /// <summary>
-    /// Processing lane for this job. Jobs in the same lane share concurrency control.
+    ///     Processing lane for this job. Jobs in the same lane share concurrency control.
     /// </summary>
     public string Lane { get; }
 
     /// <summary>
-    /// Maximum concurrency for the lane (parsed from Lane attribute).
-    /// 0 means use default (sum of job MaxConcurrency values).
+    ///     Maximum concurrency for the lane (parsed from Lane attribute).
+    ///     0 means use default (sum of job MaxConcurrency values).
     /// </summary>
     public int LaneMaxConcurrency { get; }
 
@@ -111,11 +113,13 @@ public sealed class EphemeralJobDescriptor
             : (lane, 0);
     }
 
-    public bool Matches(SignalEvent signal) =>
-        StringPatternMatcher.Matches(signal.Signal, EffectiveTriggerSignal);
+    public bool Matches(SignalEvent signal)
+    {
+        return StringPatternMatcher.Matches(signal.Signal, EffectiveTriggerSignal);
+    }
 
     /// <summary>
-    /// Extract the operation key from the signal and/or payload.
+    ///     Extract the operation key from the signal and/or payload.
     /// </summary>
     public string? ExtractKey(SignalEvent signal, object? payload)
     {
@@ -143,8 +147,10 @@ public sealed class EphemeralJobDescriptor
         return Attribute.OperationKey;
     }
 
-    public Task InvokeAsync(CancellationToken cancellationToken, SignalEvent signal, object? payload = null) =>
-        _invoker(Target, cancellationToken, signal, payload);
+    public Task InvokeAsync(CancellationToken cancellationToken, SignalEvent signal, object? payload = null)
+    {
+        return _invoker(Target, cancellationToken, signal, payload);
+    }
 
     private static object? GetPropertyValue(object obj, string propertyPath)
     {
@@ -225,7 +231,8 @@ public sealed class EphemeralJobDescriptor
                     continue;
                 }
 
-                throw new InvalidOperationException($"Unsupported parameter '{parameter.Name}' in job '{method.Name}'.");
+                throw new InvalidOperationException(
+                    $"Unsupported parameter '{parameter.Name}' in job '{method.Name}'.");
             }
 
             var result = method.Invoke(target, args.ToArray());

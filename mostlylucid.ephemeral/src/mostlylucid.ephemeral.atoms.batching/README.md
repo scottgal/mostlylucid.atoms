@@ -60,6 +60,7 @@ await atom.DisposeAsync();
 ## Flush Behavior
 
 Flushes when **either** condition is met:
+
 - **Size**: Batch reaches `maxBatchSize`
 - **Time**: `flushInterval` elapses
 
@@ -109,9 +110,9 @@ atom.Enqueue(new Metric("response_time", 42.5));
 
 ## Related Packages
 
-| Package | Description |
-|---------|-------------|
-| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral) | Core library |
+| Package                                                                                         | Description    |
+|-------------------------------------------------------------------------------------------------|----------------|
+| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral)                   | Core library   |
 | [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All in one DLL |
 
 ## License

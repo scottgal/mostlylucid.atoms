@@ -1,6 +1,3 @@
-using System.Threading;
-using System.Threading.Tasks;
-using Mostlylucid.Ephemeral;
 using Mostlylucid.Ephemeral.Attributes;
 using Xunit;
 
@@ -314,87 +311,132 @@ public class AttributeJobTests
     private class PrefixedJobHandler
     {
         [EphemeralJob("order.*")]
-        public Task HandleOrderAsync() => Task.CompletedTask;
+        public Task HandleOrderAsync()
+        {
+            return Task.CompletedTask;
+        }
     }
 
     [EphemeralJobs(DefaultPriority = 5, DefaultMaxConcurrency = 2)]
     private class OverrideJobHandler
     {
         [EphemeralJob("test.*", Priority = 10, MaxConcurrency = 4)]
-        public Task HandleTestAsync() => Task.CompletedTask;
+        public Task HandleTestAsync()
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private class KeyFromSignalHandler
     {
         [EphemeralJob("test.*", KeyFromSignal = true)]
-        public Task HandleAsync() => Task.CompletedTask;
+        public Task HandleAsync()
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private class KeyFromPayloadHandler
     {
         [EphemeralJob("order.*", KeyFromPayload = "OrderId")]
-        public Task HandleAsync() => Task.CompletedTask;
+        public Task HandleAsync()
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private class NestedKeyHandler
     {
         [EphemeralJob("order.*", KeyFromPayload = "Customer.Id")]
-        public Task HandleAsync() => Task.CompletedTask;
+        public Task HandleAsync()
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private class StaticKeyHandler
     {
         [EphemeralJob("test.*", OperationKey = "static-key")]
-        public Task HandleAsync() => Task.CompletedTask;
+        public Task HandleAsync()
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private class TimeoutHandler
     {
         [EphemeralJob("test.*", TimeoutMs = 5000)]
-        public Task HandleAsync() => Task.CompletedTask;
+        public Task HandleAsync()
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private class PinnedHandler
     {
         [EphemeralJob("long.*", Pin = true)]
-        public Task HandleAsync() => Task.CompletedTask;
+        public Task HandleAsync()
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private class ExpireAfterHandler
     {
         [EphemeralJob("short.*", ExpireAfterMs = 1000)]
-        public Task HandleAsync() => Task.CompletedTask;
+        public Task HandleAsync()
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private class AwaitSignalsHandler
     {
         [EphemeralJob("awaiting.*", AwaitSignals = new[] { "prereq.*" }, AwaitTimeoutMs = 500)]
-        public Task HandleAsync() => Task.CompletedTask;
+        public Task HandleAsync()
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private class LaneHandler
     {
         [EphemeralJob("fast.*", Lane = "fast")]
-        public Task HandleFastAsync() => Task.CompletedTask;
+        public Task HandleFastAsync()
+        {
+            return Task.CompletedTask;
+        }
 
         [EphemeralJob("slow.*", Lane = "slow:4")]
-        public Task HandleSlowAsync() => Task.CompletedTask;
+        public Task HandleSlowAsync()
+        {
+            return Task.CompletedTask;
+        }
     }
 
     [EphemeralJobs(DefaultLane = "io")]
     private class ClassLaneHandler
     {
         [EphemeralJob("read.*")]
-        public Task HandleReadAsync() => Task.CompletedTask;
+        public Task HandleReadAsync()
+        {
+            return Task.CompletedTask;
+        }
 
         [EphemeralJob("compute.*", Lane = "cpu:8")]
-        public Task HandleComputeAsync() => Task.CompletedTask;
+        public Task HandleComputeAsync()
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private class SignalEmittingHandler
     {
         [EphemeralJob("work.*", EmitOnStart = new[] { "job.started" }, EmitOnComplete = new[] { "job.completed" })]
-        public Task HandleAsync() => Task.CompletedTask;
+        public Task HandleAsync()
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private class RetryHandler
@@ -413,7 +455,8 @@ public class AttributeJobTests
 
     private class AlwaysFailsHandler
     {
-        [EphemeralJob("doomed.*", MaxRetries = 1, RetryDelayMs = 10, SwallowExceptions = true, EmitOnFailure = new[] { "on.failure" })]
+        [EphemeralJob("doomed.*", MaxRetries = 1, RetryDelayMs = 10, SwallowExceptions = true,
+            EmitOnFailure = new[] { "on.failure" })]
         public Task HandleAsync()
         {
             throw new Exception("Always fails");

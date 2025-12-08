@@ -140,12 +140,12 @@ sink.Raise("scale.down.memory"); // Triggers scale down
 
 ## Related Packages
 
-| Package | Description |
-|---------|-------------|
-| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral) | Core library |
-| [mostlylucid.ephemeral.patterns.adaptiverate](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.adaptiverate) | Adaptive rate limiting |
-| [mostlylucid.ephemeral.patterns.reactivefanout](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.reactivefanout) | Reactive fan-out |
-| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All in one DLL |
+| Package                                                                                                                       | Description            |
+|-------------------------------------------------------------------------------------------------------------------------------|------------------------|
+| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral)                                                 | Core library           |
+| [mostlylucid.ephemeral.patterns.adaptiverate](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.adaptiverate)     | Adaptive rate limiting |
+| [mostlylucid.ephemeral.patterns.reactivefanout](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.reactivefanout) | Reactive fan-out       |
+| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete)                               | All in one DLL         |
 
 ## License
 

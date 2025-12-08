@@ -1,12 +1,48 @@
-using System.Threading;
-using System.Threading.Tasks;
-using Mostlylucid.Ephemeral;
 using Xunit;
 
 namespace Mostlylucid.Ephemeral.Tests;
 
 public class AdvancedCoordinationTests
 {
+    #region Staged Pipeline
+
+    [Fact]
+    public async Task StagedPipeline_ExecutesInOrder()
+    {
+        var sink = new SignalSink();
+        var stages = new List<int>();
+
+        var builder = new StagedPipelineBuilder<int>(sink)
+            .AddStage(0, async (n, ct) =>
+            {
+                lock (stages)
+                {
+                    stages.Add(0);
+                }
+
+                await Task.Delay(10, ct);
+            }, "init")
+            .AddStage(1, async (n, ct) =>
+            {
+                lock (stages)
+                {
+                    stages.Add(1);
+                }
+
+                await Task.Delay(10, ct);
+            }, "process");
+
+        await builder.ExecuteAsync(new[] { 1, 2, 3 });
+
+        Assert.Equal(2, stages.Distinct().Count());
+        Assert.True(sink.Detect("stage.start:init"));
+        Assert.True(sink.Detect("stage.complete:init"));
+        Assert.True(sink.Detect("stage.start:process"));
+        Assert.True(sink.Detect("stage.complete:process"));
+    }
+
+    #endregion
+
     #region Typed Signal Keys
 
     [Fact]
@@ -144,9 +180,12 @@ public class AdvancedCoordinationTests
             async (name, ct) =>
             {
                 await Task.Delay(10, ct);
-                lock (order) order.Add(name);
+                lock (order)
+                {
+                    order.Add(name);
+                }
             },
-            maxConcurrency: 4);
+            4);
 
         coordinator.AddOperation("A", "A");
         coordinator.AddOperation("B", "B", "A");
@@ -166,7 +205,7 @@ public class AdvancedCoordinationTests
     {
         var coordinator = new DependencyCoordinator<string>(
             async (name, ct) => await Task.CompletedTask,
-            maxConcurrency: 2);
+            2);
 
         coordinator.AddOperation("A", "A", "C");
         coordinator.AddOperation("B", "B", "A");
@@ -182,8 +221,8 @@ public class AdvancedCoordinationTests
         var sink = new SignalSink();
         var coordinator = new DependencyCoordinator<string>(
             async (name, ct) => await Task.Delay(10, ct),
-            maxConcurrency: 2,
-            sink: sink);
+            2,
+            sink);
 
         coordinator.AddOperation("test", "test");
         await coordinator.ExecuteAsync();
@@ -202,9 +241,12 @@ public class AdvancedCoordinationTests
             {
                 if (name == "B")
                     throw new Exception("B failed");
-                lock (executed) executed.Add(name);
+                lock (executed)
+                {
+                    executed.Add(name);
+                }
             },
-            maxConcurrency: 2);
+            2);
 
         coordinator.AddOperation("A", "A");
         coordinator.AddOperation("B", "B", "A");
@@ -243,7 +285,7 @@ public class AdvancedCoordinationTests
             },
             new EphemeralOptions { MaxConcurrency = 1, Signals = sink });
 
-        for (int i = 1; i <= 10; i++)
+        for (var i = 1; i <= 10; i++)
             await coordinator.EnqueueAsync(i);
 
         var result = await coordinator.DrainAsync();
@@ -279,37 +321,6 @@ public class AdvancedCoordinationTests
 
         Assert.False(result.Exited);
         Assert.Equal(3, result.PartialResults.Count);
-    }
-
-    #endregion
-
-    #region Staged Pipeline
-
-    [Fact]
-    public async Task StagedPipeline_ExecutesInOrder()
-    {
-        var sink = new SignalSink();
-        var stages = new List<int>();
-
-        var builder = new StagedPipelineBuilder<int>(sink)
-            .AddStage(0, async (n, ct) =>
-            {
-                lock (stages) stages.Add(0);
-                await Task.Delay(10, ct);
-            }, name: "init")
-            .AddStage(1, async (n, ct) =>
-            {
-                lock (stages) stages.Add(1);
-                await Task.Delay(10, ct);
-            }, name: "process");
-
-        await builder.ExecuteAsync(new[] { 1, 2, 3 });
-
-        Assert.Equal(2, stages.Distinct().Count());
-        Assert.True(sink.Detect("stage.start:init"));
-        Assert.True(sink.Detect("stage.complete:init"));
-        Assert.True(sink.Detect("stage.start:process"));
-        Assert.True(sink.Detect("stage.complete:process"));
     }
 
     #endregion

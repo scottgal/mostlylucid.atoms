@@ -1,10 +1,8 @@
-using Mostlylucid.Ephemeral;
-
 namespace Mostlylucid.Ephemeral.Patterns.CircuitBreaker;
 
 /// <summary>
-/// Circuit breaker that uses the ephemeral signal window instead of maintaining its own state.
-/// The circuit breaker has no state of its own - it just reads the ephemeral window.
+///     Circuit breaker that uses the ephemeral signal window instead of maintaining its own state.
+///     The circuit breaker has no state of its own - it just reads the ephemeral window.
 /// </summary>
 public class SignalBasedCircuitBreaker
 {
@@ -23,7 +21,7 @@ public class SignalBasedCircuitBreaker
     }
 
     /// <summary>
-    /// Check if the circuit is open (too many recent failures).
+    ///     Check if the circuit is open (too many recent failures).
     /// </summary>
     public bool IsOpen<T>(EphemeralWorkCoordinator<T> coordinator)
     {
@@ -34,7 +32,7 @@ public class SignalBasedCircuitBreaker
     }
 
     /// <summary>
-    /// Check if the circuit is open using pattern matching.
+    ///     Check if the circuit is open using pattern matching.
     /// </summary>
     public bool IsOpenMatching<T>(EphemeralWorkCoordinator<T> coordinator, string pattern)
     {
@@ -45,7 +43,7 @@ public class SignalBasedCircuitBreaker
     }
 
     /// <summary>
-    /// Get the current failure count in the window.
+    ///     Get the current failure count in the window.
     /// </summary>
     public int GetFailureCount<T>(EphemeralWorkCoordinator<T> coordinator)
     {
@@ -56,7 +54,7 @@ public class SignalBasedCircuitBreaker
     }
 
     /// <summary>
-    /// Get the time until the circuit might close (based on oldest failure aging out).
+    ///     Get the time until the circuit might close (based on oldest failure aging out).
     /// </summary>
     public TimeSpan? GetTimeUntilClose<T>(EphemeralWorkCoordinator<T> coordinator)
     {
@@ -80,15 +78,15 @@ public class SignalBasedCircuitBreaker
 }
 
 /// <summary>
-/// Exception thrown when a circuit breaker is open.
+///     Exception thrown when a circuit breaker is open.
 /// </summary>
 public class CircuitOpenException : Exception
 {
-    public TimeSpan? RetryAfter { get; }
-
     public CircuitOpenException(string message, TimeSpan? retryAfter = null)
         : base(message)
     {
         RetryAfter = retryAfter;
     }
+
+    public TimeSpan? RetryAfter { get; }
 }

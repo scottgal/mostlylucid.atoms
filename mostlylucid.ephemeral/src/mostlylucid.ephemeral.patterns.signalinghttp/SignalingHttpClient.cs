@@ -1,16 +1,13 @@
-using System.Net.Http;
-using Mostlylucid.Ephemeral;
-
 namespace Mostlylucid.Ephemeral.Patterns.SignalingHttp;
 
 /// <summary>
-/// Example helper showing fine-grained signal emission during HTTP calls.
-/// Emits stage markers and progress signals (progress:xx) without blocking the caller.
+///     Example helper showing fine-grained signal emission during HTTP calls.
+///     Emits stage markers and progress signals (progress:xx) without blocking the caller.
 /// </summary>
 public static class SignalingHttpClient
 {
     /// <summary>
-    /// Download a response while emitting rich, low-overhead signals.
+    ///     Download a response while emitting rich, low-overhead signals.
     /// </summary>
     public static async Task<byte[]> DownloadWithSignalsAsync(
         HttpClient client,
@@ -48,15 +45,12 @@ public static class SignalingHttpClient
 
             if (contentLength is > 0)
             {
-                var percent = (int)Math.Min(100, (totalRead * 100) / contentLength.Value);
+                var percent = (int)Math.Min(100, totalRead * 100 / contentLength.Value);
                 emitter.Emit($"progress:{percent}");
             }
         }
 
-        if (contentLength is null)
-        {
-            emitter.Emit("progress:100");
-        }
+        if (contentLength is null) emitter.Emit("progress:100");
 
         emitter.Emit("stage.completed");
 

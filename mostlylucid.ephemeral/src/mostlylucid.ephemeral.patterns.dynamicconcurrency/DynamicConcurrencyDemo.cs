@@ -1,19 +1,17 @@
-using Mostlylucid.Ephemeral;
-
 namespace Mostlylucid.Ephemeral.Patterns.DynamicConcurrency;
 
 /// <summary>
-/// Dynamic concurrency adjustment based on load signals.
+///     Dynamic concurrency adjustment based on load signals.
 /// </summary>
 public sealed class DynamicConcurrencyDemo<T> : IAsyncDisposable
 {
     private readonly EphemeralWorkCoordinator<T> _coordinator;
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _loop;
-    private readonly int _min;
     private readonly int _max;
-    private readonly string _scaleUpPattern;
+    private readonly int _min;
     private readonly string _scaleDownPattern;
+    private readonly string _scaleUpPattern;
 
     public DynamicConcurrencyDemo(
         Func<T, CancellationToken, Task> body,
@@ -42,6 +40,21 @@ public sealed class DynamicConcurrencyDemo<T> : IAsyncDisposable
 
     public int CurrentMaxConcurrency => _coordinator.CurrentMaxConcurrency;
 
+    public async ValueTask DisposeAsync()
+    {
+        _cts.Cancel();
+        try
+        {
+            await _loop.ConfigureAwait(false);
+        }
+        catch
+        {
+        }
+
+        _cts.Dispose();
+        await _coordinator.DisposeAsync();
+    }
+
     private async Task WatchAsync(SignalSink sink)
     {
         while (!_cts.IsCancellationRequested)
@@ -60,27 +73,28 @@ public sealed class DynamicConcurrencyDemo<T> : IAsyncDisposable
                     _coordinator.SetMaxConcurrency(next);
                 }
             }
-            catch { }
+            catch
+            {
+            }
 
-            try { await Task.Delay(200, _cts.Token).ConfigureAwait(false); }
-            catch (OperationCanceledException) { }
+            try
+            {
+                await Task.Delay(200, _cts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
         }
     }
 
     public ValueTask<long> EnqueueAsync(T item, CancellationToken ct = default)
-        => _coordinator.EnqueueWithIdAsync(item, ct);
+    {
+        return _coordinator.EnqueueWithIdAsync(item, ct);
+    }
 
     public async Task DrainAsync(CancellationToken ct = default)
     {
         _coordinator.Complete();
         await _coordinator.DrainAsync(ct).ConfigureAwait(false);
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        _cts.Cancel();
-        try { await _loop.ConfigureAwait(false); } catch { }
-        _cts.Dispose();
-        await _coordinator.DisposeAsync();
     }
 }

@@ -72,6 +72,7 @@ Readers defer on "update.in-progress" signal:
 ```
 
 Signals used:
+
 - `update.in-progress` - Readers defer while this is present
 - `update.done` - Update completed marker
 - `read.waiting` - Reader is waiting for update to complete
@@ -161,7 +162,8 @@ await using var runner = new EphemeralSignalJobRunner(sink, new[] { jobs });
 sink.Raise("config.reload");
 ```
 
-`EphemeralSignalJobRunner` ties the attribute handlers to the signal stream, automatically sequencing readers after updates via `AwaitSignals` and sharing the same `SignalSink` used for manual coordinators.
+`EphemeralSignalJobRunner` ties the attribute handlers to the signal stream, automatically sequencing readers after
+updates via `AwaitSignals` and sharing the same `SignalSink` used for manual coordinators.
 
 ---
 
@@ -220,12 +222,12 @@ new EphemeralOptions
 
 ## Related Packages
 
-| Package | Description |
-|---------|-------------|
-| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral) | Core library |
+| Package                                                                                                                   | Description          |
+|---------------------------------------------------------------------------------------------------------------------------|----------------------|
+| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral)                                             | Core library         |
 | [mostlylucid.ephemeral.patterns.backpressure](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.backpressure) | Backpressure pattern |
-| [mostlylucid.ephemeral.atoms.signalaware](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.signalaware) | Signal-aware atom |
-| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All in one DLL |
+| [mostlylucid.ephemeral.atoms.signalaware](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.signalaware)         | Signal-aware atom    |
+| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete)                           | All in one DLL       |
 
 ## License
 

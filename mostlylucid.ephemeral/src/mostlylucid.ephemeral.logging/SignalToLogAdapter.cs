@@ -3,13 +3,13 @@ using Microsoft.Extensions.Logging;
 namespace Mostlylucid.Ephemeral.Logging;
 
 /// <summary>
-/// Bridges signals back into ILogger. Useful when you want signal-driven workflows to still show up in standard logs.
+///     Bridges signals back into ILogger. Useful when you want signal-driven workflows to still show up in standard logs.
 /// </summary>
 public sealed class SignalToLoggerAdapter : IDisposable
 {
-    private readonly SignalSink _sink;
     private readonly ILogger _logger;
     private readonly SignalToLogOptions _options;
+    private readonly SignalSink _sink;
     private bool _disposed;
 
     public SignalToLoggerAdapter(SignalSink sink, ILogger logger, SignalToLogOptions? options = null)
@@ -21,6 +21,13 @@ public sealed class SignalToLoggerAdapter : IDisposable
         _sink.SignalRaised += OnSignal;
     }
 
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _sink.SignalRaised -= OnSignal;
+    }
+
     private void OnSignal(SignalEvent evt)
     {
         var mapped = _options.Map(evt);
@@ -29,19 +36,12 @@ public sealed class SignalToLoggerAdapter : IDisposable
 
         _logger.Log(mapped.Value.Level, mapped.Value.EventId, mapped.Value.Message);
     }
-
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-        _sink.SignalRaised -= OnSignal;
-    }
 }
 
 public sealed class SignalToLogOptions
 {
     /// <summary>
-    /// Map a signal to a log message. Return null to ignore.
+    ///     Map a signal to a log message. Return null to ignore.
     /// </summary>
     public Func<SignalEvent, LogMessage?> Map { get; set; } = DefaultMap;
 

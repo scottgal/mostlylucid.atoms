@@ -331,15 +331,28 @@ sink.Raise("system.maintenance");
 
 ## Molecules & Atom triggers
 
-Use the `mostlylucid.ephemeral.atoms.molecules` package when you want to treat several atoms as one workflow. `MoleculeBlueprintBuilder` lets you describe each step, wire its signals into downstream steps, and build a blueprint that `MoleculeRunner` listens for (matching on a trigger signal and shared `SignalSink`). The runner raises `MoleculeStarted`, `MoleculeCompleted`, and `MoleculeFailed`, so you can observe what the chef (coordinator) dropped into the soup, and `AtomTrigger` gives you a lightweight watcher that starts additional atoms or molecules whenever a signal pattern fires.
+Use the `mostlylucid.ephemeral.atoms.molecules` package when you want to treat several atoms as one workflow.
+`MoleculeBlueprintBuilder` lets you describe each step, wire its signals into downstream steps, and build a blueprint
+that `MoleculeRunner` listens for (matching on a trigger signal and shared `SignalSink`). The runner raises
+`MoleculeStarted`, `MoleculeCompleted`, and `MoleculeFailed`, so you can observe what the chef (coordinator) dropped
+into the soup, and `AtomTrigger` gives you a lightweight watcher that starts additional atoms or molecules whenever a
+signal pattern fires.
 
 ## Scheduled tasks
 
-`DurableTaskAtom` + `ScheduledTasksAtom` turn cron/JSON schedules into durable work inside your coordinator window. Create `ScheduledTaskDefinition`s (cron expression, signal, optional `key`, `payload`, `description`, `timeZone`, `format`, `runOnStartup`, etc.), point the scheduler at `SignalSink`, and let it enqueue `DurableTask`s that emit the configured signals. Because the work runs inside the same coordinator, it inherits pinning, signal logging, and responsibility semantics along with your ad-hoc work.
+`DurableTaskAtom` + `ScheduledTasksAtom` turn cron/JSON schedules into durable work inside your coordinator window.
+Create `ScheduledTaskDefinition`s (cron expression, signal, optional `key`, `payload`, `description`, `timeZone`,
+`format`, `runOnStartup`, etc.), point the scheduler at `SignalSink`, and let it enqueue `DurableTask`s that emit the
+configured signals. Because the work runs inside the same coordinator, it inherits pinning, signal logging, and
+responsibility semantics along with your ad-hoc work.
 
 ## Responsibility signals & echoes
 
-Coordinators implement `IOperationPinning` and raise `OperationFinalized` when entries leave the window. `ResponsibilitySignalManager` provides `PinUntilQueried` so atoms can declare responsibility (pin) until a downstream ack signal arrives, preventing resources from disappearing while they await consumers. Subscribe to `OperationFinalized` to record “last words” (logs, diagnostics, signals) via `LastWordsNoteAtom`, or let `OperationEchoMaker` capture typed echoes for a configurable window so molecules, monitors, or auditors can still read the final signal wave.
+Coordinators implement `IOperationPinning` and raise `OperationFinalized` when entries leave the window.
+`ResponsibilitySignalManager` provides `PinUntilQueried` so atoms can declare responsibility (pin) until a downstream
+ack signal arrives, preventing resources from disappearing while they await consumers. Subscribe to `OperationFinalized`
+to record “last words” (logs, diagnostics, signals) via `LastWordsNoteAtom`, or let `OperationEchoMaker` capture typed
+echoes for a configurable window so molecules, monitors, or auditors can still read the final signal wave.
 
 ## Dependency Injection
 
@@ -370,16 +383,16 @@ public class MyService(IEphemeralCoordinatorFactory<WorkItem> factory)
 
 ## Related Packages
 
-| Package | Description |
-|---------|-------------|
-| [mostlylucid.ephemeral.atoms.fixedwork](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.fixedwork) | Fixed worker pool with stats |
-| [mostlylucid.ephemeral.atoms.keyedsequential](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.keyedsequential) | Per-key sequential processing |
-| [mostlylucid.ephemeral.atoms.signalaware](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.signalaware) | Pause/cancel on signals |
-| [mostlylucid.ephemeral.atoms.batching](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.batching) | Time/size batching |
-| [mostlylucid.ephemeral.atoms.retry](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.retry) | Exponential backoff retry |
-| [mostlylucid.ephemeral.patterns.circuitbreaker](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.circuitbreaker) | Signal-based circuit breaker |
-| [mostlylucid.ephemeral.patterns.backpressure](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.backpressure) | Signal-driven backpressure |
-| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All packages in one DLL |
+| Package                                                                                                                       | Description                   |
+|-------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
+| [mostlylucid.ephemeral.atoms.fixedwork](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.fixedwork)                 | Fixed worker pool with stats  |
+| [mostlylucid.ephemeral.atoms.keyedsequential](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.keyedsequential)     | Per-key sequential processing |
+| [mostlylucid.ephemeral.atoms.signalaware](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.signalaware)             | Pause/cancel on signals       |
+| [mostlylucid.ephemeral.atoms.batching](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.batching)                   | Time/size batching            |
+| [mostlylucid.ephemeral.atoms.retry](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.retry)                         | Exponential backoff retry     |
+| [mostlylucid.ephemeral.patterns.circuitbreaker](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.circuitbreaker) | Signal-based circuit breaker  |
+| [mostlylucid.ephemeral.patterns.backpressure](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.backpressure)     | Signal-driven backpressure    |
+| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete)                               | All packages in one DLL       |
 
 ## Target Frameworks
 

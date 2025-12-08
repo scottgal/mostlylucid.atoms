@@ -10,27 +10,15 @@ internal interface IConcurrencyGate : IAsyncDisposable
 }
 
 /// <summary>
-/// Lightweight, dynamically adjustable async gate.
+///     Lightweight, dynamically adjustable async gate.
 /// </summary>
 internal sealed class AdjustableConcurrencyGate : IConcurrencyGate
 {
-    private sealed class WaiterEntry
-    {
-        public TaskCompletionSource Tcs { get; }
-        public CancellationTokenRegistration Registration { get; private set; }
-
-        public WaiterEntry(TaskCompletionSource tcs) => Tcs = tcs;
-
-        public void Attach(CancellationTokenRegistration registration) => Registration = registration;
-
-        public void Dispose() => Registration.Dispose();
-    }
-
     private readonly object _lock = new();
     private readonly Queue<WaiterEntry> _waiters = new();
     private int _available;
-    private int _limit;
     private bool _disposed;
+    private int _limit;
 
     public AdjustableConcurrencyGate(int limit)
     {
@@ -45,10 +33,7 @@ internal sealed class AdjustableConcurrencyGate : IConcurrencyGate
         lock (_lock)
         {
             ThrowIfDisposed();
-            if (cancellationToken.IsCancellationRequested)
-            {
-                return ValueTask.FromCanceled(cancellationToken);
-            }
+            if (cancellationToken.IsCancellationRequested) return ValueTask.FromCanceled(cancellationToken);
 
             if (_available > 0)
             {
@@ -64,10 +49,7 @@ internal sealed class AdjustableConcurrencyGate : IConcurrencyGate
                 var registration = cancellationToken.Register(static state =>
                 {
                     var e = (WaiterEntry)state!;
-                    if (e.Tcs.TrySetCanceled())
-                    {
-                        e.Dispose();
-                    }
+                    if (e.Tcs.TrySetCanceled()) e.Dispose();
                 }, entry);
 
                 entry.Attach(registration);
@@ -96,10 +78,7 @@ internal sealed class AdjustableConcurrencyGate : IConcurrencyGate
                 // If TrySetResult failed (already canceled), registration was disposed in callback
             }
 
-            if (_available < _limit)
-            {
-                _available++;
-            }
+            if (_available < _limit) _available++;
         }
     }
 
@@ -114,41 +93,26 @@ internal sealed class AdjustableConcurrencyGate : IConcurrencyGate
             var oldLimit = _limit;
             _limit = newLimit;
 
-            if (_available > _limit)
-            {
-                _available = _limit;
-            }
+            if (_available > _limit) _available = _limit;
 
             if (newLimit > oldLimit)
             {
                 var delta = newLimit - oldLimit;
                 for (var i = 0; i < delta; i++)
-                {
                     if (_waiters.Count > 0)
                     {
                         var entry = _waiters.Dequeue();
                         if (entry.Tcs.TrySetResult())
-                        {
                             entry.Dispose();
-                        }
                         else
-                        {
                             i--; // Retry with next waiter
-                        }
                     }
                     else
                     {
                         _available++;
                     }
-                }
             }
         }
-    }
-
-    private void ThrowIfDisposed()
-    {
-        if (_disposed)
-            throw new ObjectDisposedException(nameof(AdjustableConcurrencyGate));
     }
 
     public ValueTask DisposeAsync()
@@ -164,12 +128,40 @@ internal sealed class AdjustableConcurrencyGate : IConcurrencyGate
                 entry.Dispose();
             }
         }
+
         return ValueTask.CompletedTask;
+    }
+
+    private void ThrowIfDisposed()
+    {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(AdjustableConcurrencyGate));
+    }
+
+    private sealed class WaiterEntry
+    {
+        public WaiterEntry(TaskCompletionSource tcs)
+        {
+            Tcs = tcs;
+        }
+
+        public TaskCompletionSource Tcs { get; }
+        public CancellationTokenRegistration Registration { get; private set; }
+
+        public void Attach(CancellationTokenRegistration registration)
+        {
+            Registration = registration;
+        }
+
+        public void Dispose()
+        {
+            Registration.Dispose();
+        }
     }
 }
 
 /// <summary>
-/// Fixed-concurrency gate backed by SemaphoreSlim (hot-path fast).
+///     Fixed-concurrency gate backed by SemaphoreSlim (hot-path fast).
 /// </summary>
 internal sealed class FixedConcurrencyGate : IConcurrencyGate
 {
@@ -202,17 +194,17 @@ internal sealed class FixedConcurrencyGate : IConcurrencyGate
         throw new InvalidOperationException("Dynamic concurrency not enabled for this coordinator.");
     }
 
-    private void ThrowIfDisposed()
-    {
-        if (_disposed)
-            throw new ObjectDisposedException(nameof(FixedConcurrencyGate));
-    }
-
     public ValueTask DisposeAsync()
     {
         if (_disposed) return ValueTask.CompletedTask;
         _disposed = true;
         _semaphore.Dispose();
         return ValueTask.CompletedTask;
+    }
+
+    private void ThrowIfDisposed()
+    {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(FixedConcurrencyGate));
     }
 }

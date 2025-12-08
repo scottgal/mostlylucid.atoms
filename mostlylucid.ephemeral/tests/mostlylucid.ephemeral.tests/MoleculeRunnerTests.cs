@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using Mostlylucid.Ephemeral.Atoms.Molecules;
 using Xunit;
 
@@ -32,7 +28,7 @@ public sealed class MoleculeRunnerTests
         var tcs = new TaskCompletionSource<bool>();
         runner.MoleculeCompleted += (_, _) => tcs.TrySetResult(true);
 
-        sink.Raise("order.placed", key: "order-1");
+        sink.Raise("order.placed", "order-1");
 
         await tcs.Task.WaitAsync(TimeSpan.FromSeconds(1));
         Assert.Equal(new[] { "payment", "inventory" }, steps);
@@ -63,7 +59,7 @@ public sealed class MoleculeRunnerTests
         var tcs = new TaskCompletionSource<bool>();
         runner.MoleculeCompleted += (_, _) => tcs.TrySetResult(true);
 
-        sink.Raise("order.placed", key: "order-1");
+        sink.Raise("order.placed", "order-1");
         await tcs.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         Assert.Single(steps, "payment");

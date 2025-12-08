@@ -1,10 +1,8 @@
-using Mostlylucid.Ephemeral;
-
 namespace Mostlylucid.Ephemeral.Atoms.FixedWork;
 
 /// <summary>
-/// Minimal "atom" wrapper around EphemeralWorkCoordinator for fixed-concurrency pipelines.
-/// Keeps API small: enqueue, complete, drain, snapshot.
+///     Minimal "atom" wrapper around EphemeralWorkCoordinator for fixed-concurrency pipelines.
+///     Keeps API small: enqueue, complete, drain, snapshot.
 /// </summary>
 public sealed class FixedWorkAtom<T> : IAsyncDisposable
 {
@@ -26,14 +24,21 @@ public sealed class FixedWorkAtom<T> : IAsyncDisposable
         _coordinator = new EphemeralWorkCoordinator<T>(body, options);
     }
 
-    /// <summary>
-    /// Enqueue and get the operation id.
-    /// </summary>
-    public ValueTask<long> EnqueueAsync(T item, CancellationToken ct = default)
-        => _coordinator.EnqueueWithIdAsync(item, ct);
+    public ValueTask DisposeAsync()
+    {
+        return _coordinator.DisposeAsync();
+    }
 
     /// <summary>
-    /// Prevent new work and drain outstanding operations.
+    ///     Enqueue and get the operation id.
+    /// </summary>
+    public ValueTask<long> EnqueueAsync(T item, CancellationToken ct = default)
+    {
+        return _coordinator.EnqueueWithIdAsync(item, ct);
+    }
+
+    /// <summary>
+    ///     Prevent new work and drain outstanding operations.
     /// </summary>
     public async Task DrainAsync(CancellationToken ct = default)
     {
@@ -42,15 +47,19 @@ public sealed class FixedWorkAtom<T> : IAsyncDisposable
     }
 
     /// <summary>
-    /// Snapshot recent operations.
+    ///     Snapshot recent operations.
     /// </summary>
-    public IReadOnlyCollection<EphemeralOperationSnapshot> Snapshot() => _coordinator.GetSnapshot();
+    public IReadOnlyCollection<EphemeralOperationSnapshot> Snapshot()
+    {
+        return _coordinator.GetSnapshot();
+    }
 
     /// <summary>
-    /// Aggregate health stats for dashboards.
+    ///     Aggregate health stats for dashboards.
     /// </summary>
     public (int Pending, int Active, int Completed, int Failed) Stats()
-        => (_coordinator.PendingCount, _coordinator.ActiveCount, _coordinator.TotalCompleted, _coordinator.TotalFailed);
-
-    public ValueTask DisposeAsync() => _coordinator.DisposeAsync();
+    {
+        return (_coordinator.PendingCount, _coordinator.ActiveCount, _coordinator.TotalCompleted,
+            _coordinator.TotalFailed);
+    }
 }

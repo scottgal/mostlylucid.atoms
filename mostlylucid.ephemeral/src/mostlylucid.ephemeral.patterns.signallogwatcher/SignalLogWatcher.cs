@@ -1,21 +1,20 @@
 using System.Collections.Concurrent;
-using Mostlylucid.Ephemeral;
 
 namespace Mostlylucid.Ephemeral.Patterns.SignalLogWatcher;
 
 /// <summary>
-/// Watches a SignalSink for error-like signals (glob patterns) and triggers a callback.
-/// Demonstrates a singleton coordinator that reacts to the moving window.
+///     Watches a SignalSink for error-like signals (glob patterns) and triggers a callback.
+///     Demonstrates a singleton coordinator that reacts to the moving window.
 /// </summary>
 public sealed class SignalLogWatcher : IAsyncDisposable
 {
-    private readonly SignalSink _sink;
-    private readonly string _pattern;
-    private readonly Action<SignalEvent> _onMatch;
-    private readonly TimeSpan _pollInterval;
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _loop;
+    private readonly Action<SignalEvent> _onMatch;
+    private readonly string _pattern;
+    private readonly TimeSpan _pollInterval;
     private readonly ConcurrentDictionary<(long Id, string Signal), byte> _seen = new();
+    private readonly SignalSink _sink;
 
     public SignalLogWatcher(
         SignalSink sink,
@@ -29,6 +28,20 @@ public sealed class SignalLogWatcher : IAsyncDisposable
         _pollInterval = pollInterval ?? TimeSpan.FromMilliseconds(200);
 
         _loop = Task.Run(WatchAsync);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _cts.Cancel();
+        try
+        {
+            await _loop.ConfigureAwait(false);
+        }
+        catch
+        {
+        }
+
+        _cts.Dispose();
     }
 
     private async Task WatchAsync()
@@ -65,14 +78,9 @@ public sealed class SignalLogWatcher : IAsyncDisposable
             {
                 await Task.Delay(_pollInterval, _cts.Token).ConfigureAwait(false);
             }
-            catch (OperationCanceledException) { }
+            catch (OperationCanceledException)
+            {
+            }
         }
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        _cts.Cancel();
-        try { await _loop.ConfigureAwait(false); } catch { }
-        _cts.Dispose();
     }
 }

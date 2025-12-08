@@ -11,7 +11,11 @@ public class EphemeralWorkCoordinatorTests
         await using var coordinator = new EphemeralWorkCoordinator<int>(
             async (item, ct) =>
             {
-                lock (processed) processed.Add(item);
+                lock (processed)
+                {
+                    processed.Add(item);
+                }
+
                 await Task.Delay(10, ct);
             },
             new EphemeralOptions { MaxConcurrency = 2 });
@@ -44,8 +48,12 @@ public class EphemeralWorkCoordinatorTests
                     running++;
                     if (running > maxRunning) maxRunning = running;
                 }
+
                 await Task.Delay(50, ct);
-                lock (lockObj) running--;
+                lock (lockObj)
+                {
+                    running--;
+                }
             },
             new EphemeralOptions { MaxConcurrency = 2 });
 
@@ -102,7 +110,11 @@ public class EphemeralWorkCoordinatorTests
         await using var coordinator = new EphemeralWorkCoordinator<int>(
             async (item, ct) =>
             {
-                lock (processed) processed.Add(item);
+                lock (processed)
+                {
+                    processed.Add(item);
+                }
+
                 await Task.Delay(10, ct);
             },
             new EphemeralOptions { MaxConcurrency = 1 });

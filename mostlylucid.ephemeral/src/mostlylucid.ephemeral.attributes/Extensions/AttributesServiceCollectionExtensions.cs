@@ -1,20 +1,16 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Mostlylucid.Ephemeral;
 
 namespace Mostlylucid.Ephemeral.Attributes;
 
 /// <summary>
-/// Registers attribute-driven job runners in the DI container.
+///     Registers attribute-driven job runners in the DI container.
 /// </summary>
 public static class AttributesServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds an <see cref="EphemeralSignalJobRunner"/> that instantiates the provided attribute job types once.
+    ///     Adds an <see cref="EphemeralSignalJobRunner" /> that instantiates the provided attribute job types once.
     /// </summary>
     public static IServiceCollection AddEphemeralSignalJobRunner(
         this IServiceCollection services,
@@ -48,7 +44,7 @@ public static class AttributesServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds an <see cref="EphemeralSignalJobRunner"/> for the supplied job types using a default signal sink.
+    ///     Adds an <see cref="EphemeralSignalJobRunner" /> for the supplied job types using a default signal sink.
     /// </summary>
     public static IServiceCollection AddEphemeralSignalJobRunner<TJob>(
         this IServiceCollection services,
@@ -60,7 +56,7 @@ public static class AttributesServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds an <see cref="EphemeralScopedJobRunner"/> that resolves job types per invocation.
+    ///     Adds an <see cref="EphemeralScopedJobRunner" /> that resolves job types per invocation.
     /// </summary>
     public static IServiceCollection AddEphemeralScopedJobRunner(
         this IServiceCollection services,
@@ -86,7 +82,7 @@ public static class AttributesServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds an <see cref="EphemeralScopedJobRunner"/> for the supplied job type.
+    ///     Adds an <see cref="EphemeralScopedJobRunner" /> for the supplied job type.
     /// </summary>
     public static IServiceCollection AddEphemeralScopedJobRunner<TJob>(
         this IServiceCollection services,
@@ -140,21 +136,19 @@ public static class AttributesServiceCollectionExtensions
     private static IEnumerable<Type> ScanAssembliesForJobTypes(IEnumerable<Assembly> assemblies)
     {
         foreach (var assembly in assemblies)
+        foreach (var type in assembly.GetTypes())
         {
-            foreach (var type in assembly.GetTypes())
+            if (type.GetCustomAttribute<EphemeralJobsAttribute>() != null)
             {
-                if (type.GetCustomAttribute<EphemeralJobsAttribute>() != null)
-                {
-                    yield return type;
-                    continue;
-                }
-
-                var hasJobMethods = type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                    .Any(m => m.GetCustomAttribute<EphemeralJobAttribute>() != null);
-
-                if (hasJobMethods)
-                    yield return type;
+                yield return type;
+                continue;
             }
+
+            var hasJobMethods = type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .Any(m => m.GetCustomAttribute<EphemeralJobAttribute>() != null);
+
+            if (hasJobMethods)
+                yield return type;
         }
     }
 }

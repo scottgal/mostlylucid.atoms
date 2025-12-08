@@ -2,7 +2,8 @@
 
 [![NuGet](https://img.shields.io/nuget/v/mostlylucid.ephemeral.atoms.slidingcache.svg)](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.slidingcache)
 
-Caches work results with sliding expiration - accessing a result resets its TTL. Results that haven't been accessed expire and are recomputed on next request.
+Caches work results with sliding expiration - accessing a result resets its TTL. Results that haven't been accessed
+expire and are recomputed on next request.
 
 ```bash
 dotnet add package mostlylucid.ephemeral.atoms.slidingcache
@@ -123,19 +124,19 @@ When cache exceeds `maxSize`:
 
 ## Signals Emitted
 
-| Signal | Description |
-|--------|-------------|
-| `cache.hit:{key}` | Cache hit, returned cached value |
-| `cache.miss:{key}` | Cache miss, computing value |
-| `cache.peek:{key}` | TryGet hit without computation |
-| `cache.hit.dedup:{key}` | Hit during deduplication check |
-| `cache.compute.start:{key}` | Starting factory computation |
-| `cache.compute.done:{key}` | Factory computation complete |
-| `cache.invalidate:{key}` | Manual invalidation |
-| `cache.clear:{count}` | All entries cleared |
-| `cache.evict.expired:{key}` | Evicted due to expiration |
-| `cache.evict.cold:{key}` | Evicted due to size limit (cold entry) |
-| `cache.error:{key}:{type}` | Factory threw exception |
+| Signal                      | Description                            |
+|-----------------------------|----------------------------------------|
+| `cache.hit:{key}`           | Cache hit, returned cached value       |
+| `cache.miss:{key}`          | Cache miss, computing value            |
+| `cache.peek:{key}`          | TryGet hit without computation         |
+| `cache.hit.dedup:{key}`     | Hit during deduplication check         |
+| `cache.compute.start:{key}` | Starting factory computation           |
+| `cache.compute.done:{key}`  | Factory computation complete           |
+| `cache.invalidate:{key}`    | Manual invalidation                    |
+| `cache.clear:{count}`       | All entries cleared                    |
+| `cache.evict.expired:{key}` | Evicted due to expiration              |
+| `cache.evict.cold:{key}`    | Evicted due to size limit (cold entry) |
+| `cache.error:{key}:{type}`  | Factory threw exception                |
 
 ---
 
@@ -208,23 +209,24 @@ var allErrors = sink.Sense(s => s.Signal.StartsWith("cache.error"));
 
 ## Related Packages
 
-| Package | Description |
-|---------|-------------|
-| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral) | Core library |
+| Package                                                                                               | Description        |
+|-------------------------------------------------------------------------------------------------------|--------------------|
+| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral)                         | Core library       |
 | [mostlylucid.ephemeral.atoms.retry](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.retry) | Retry with backoff |
-| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All in one DLL |
+| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete)       | All in one DLL     |
 
 ### Cache Strategy Comparison
 
 Use the right cache for the job:
 
-| Cache | Expiration Model | Specialization | Notes |
-|-------|------------------|----------------|-------|
-| `SlidingCacheAtom` | Sliding on every hit + absolute max lifetime | Dedupes concurrent computes; emits signals | Best for async work results where every access should refresh TTL. |
+| Cache                                          | Expiration Model                                  | Specialization                                    | Notes                                                                 |
+|------------------------------------------------|---------------------------------------------------|---------------------------------------------------|-----------------------------------------------------------------------|
+| `SlidingCacheAtom`                             | Sliding on every hit + absolute max lifetime      | Dedupes concurrent computes; emits signals        | Best for async work results where every access should refresh TTL.    |
 | `EphemeralLruCache` (default in sqlite helper) | Sliding on every hit; hot keys extend TTL further | Hot detection (`cache.hot`) and LRU-style cleanup | Lives in core; used by `SqliteSingleWriter` for self-focusing caches. |
-| `MemoryCache` in `SqliteSingleWriter` | Sliding only (via `MemoryCacheEntryOptions`) | None | (Replaced by `EphemeralLruCache` as the default.) |
+| `MemoryCache` in `SqliteSingleWriter`          | Sliding only (via `MemoryCacheEntryOptions`)      | None                                              | (Replaced by `EphemeralLruCache` as the default.)                     |
 
-> Tip: Default SQLite helper uses `EphemeralLruCache` for hot-key bias; reach for `SlidingCacheAtom` when you need async factories with sliding expiration and dedupe.
+> Tip: Default SQLite helper uses `EphemeralLruCache` for hot-key bias; reach for `SlidingCacheAtom` when you need async
+> factories with sliding expiration and dedupe.
 
 ## License
 

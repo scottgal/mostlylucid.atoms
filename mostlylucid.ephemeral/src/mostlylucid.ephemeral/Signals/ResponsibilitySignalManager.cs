@@ -1,25 +1,23 @@
-using System;
 using System.Collections.Concurrent;
-using System.Linq;
-using Mostlylucid.Ephemeral.Signals;
 
 namespace Mostlylucid.Ephemeral.Signals;
 
 /// <summary>
-/// Helps atoms pin their operations until a downstream consumer acknowledges them via signals.
+///     Helps atoms pin their operations until a downstream consumer acknowledges them via signals.
 /// </summary>
-    public sealed class ResponsibilitySignalManager : IDisposable
+public sealed class ResponsibilitySignalManager : IDisposable
 {
-    private readonly SignalSink _signals;
-    private readonly IOperationPinning _pinning;
-    private readonly TimeSpan? _maxPinDuration;
     private readonly Func<DateTimeOffset> _clock;
+    private readonly TimeSpan? _maxPinDuration;
+    private readonly IOperationPinning _pinning;
     private readonly ConcurrentDictionary<long, ResponsibilityRegistration> _registrations = new();
+    private readonly SignalSink _signals;
 
     /// <summary>
-    /// Creates a manager for a coordinator and shared signal sink.
+    ///     Creates a manager for a coordinator and shared signal sink.
     /// </summary>
-    public ResponsibilitySignalManager(IOperationPinning pinning, SignalSink signals, TimeSpan? maxPinDuration = null, Func<DateTimeOffset>? clock = null)
+    public ResponsibilitySignalManager(IOperationPinning pinning, SignalSink signals, TimeSpan? maxPinDuration = null,
+        Func<DateTimeOffset>? clock = null)
     {
         _pinning = pinning ?? throw new ArgumentNullException(nameof(pinning));
         _signals = signals ?? throw new ArgumentNullException(nameof(signals));
@@ -29,18 +27,27 @@ namespace Mostlylucid.Ephemeral.Signals;
     }
 
     /// <summary>
-    /// Number of pending responsibility registrations.
+    ///     Number of pending responsibility registrations.
     /// </summary>
     public int PendingCount => _registrations.Count;
 
-    /// <summary>
-    /// Pin an operation and release it when the specified ack signal is raised with the optional key.
-    /// </summary>
-    public bool PinUntilQueried(long operationId, string ackSignalPattern)
-        => PinUntilQueried(operationId, ackSignalPattern, operationId.ToString());
+    public void Dispose()
+    {
+        _signals.SignalRaised -= OnSignalRaised;
+        foreach (var registration in _registrations.Values) _pinning.Unpin(registration.OperationId);
+        _registrations.Clear();
+    }
 
     /// <summary>
-    /// Pin an operation and release it when the specified ack signal is raised with the provided key.
+    ///     Pin an operation and release it when the specified ack signal is raised with the optional key.
+    /// </summary>
+    public bool PinUntilQueried(long operationId, string ackSignalPattern)
+    {
+        return PinUntilQueried(operationId, ackSignalPattern, operationId.ToString());
+    }
+
+    /// <summary>
+    ///     Pin an operation and release it when the specified ack signal is raised with the provided key.
     /// </summary>
     public bool PinUntilQueried(long operationId, string ackSignalPattern, string ackKey, string? description = null)
     {
@@ -70,18 +77,17 @@ namespace Mostlylucid.Ephemeral.Signals;
             if (registration.AckKey is not null && registration.AckKey != evt.Key)
                 continue;
 
-            if (_registrations.TryRemove(registration.OperationId, out _))
-            {
-                _pinning.Unpin(registration.OperationId);
-            }
+            if (_registrations.TryRemove(registration.OperationId, out _)) _pinning.Unpin(registration.OperationId);
         }
     }
 
     /// <summary>
-    /// Force complete a responsibility so the operation can be evicted.
+    ///     Force complete a responsibility so the operation can be evicted.
     /// </summary>
     public bool CompleteResponsibility(long operationId)
-        => _registrations.TryRemove(operationId, out _) && _pinning.Unpin(operationId);
+    {
+        return _registrations.TryRemove(operationId, out _) && _pinning.Unpin(operationId);
+    }
 
     private void CleanupExpired(DateTimeOffset now)
     {
@@ -98,25 +104,8 @@ namespace Mostlylucid.Ephemeral.Signals;
         }
     }
 
-    public void Dispose()
-    {
-        _signals.SignalRaised -= OnSignalRaised;
-        foreach (var registration in _registrations.Values)
-        {
-            _pinning.Unpin(registration.OperationId);
-        }
-        _registrations.Clear();
-    }
-
-    private sealed record ResponsibilityRegistration(long OperationId, string AckPattern, string? AckKey, DateTimeOffset PinnedAt, string? Description);
-
     /// <summary>
-    /// Snapshot of an outstanding responsibility registration.
-    /// </summary>
-    public sealed record ResponsibilitySnapshot(long OperationId, string AckPattern, string? AckKey, string? Description, DateTimeOffset PinnedAt);
-
-    /// <summary>
-    /// Gets all currently pinned responsibilities.
+    ///     Gets all currently pinned responsibilities.
     /// </summary>
     public IReadOnlyCollection<ResponsibilitySnapshot> GetActiveResponsibilities()
     {
@@ -124,4 +113,21 @@ namespace Mostlylucid.Ephemeral.Signals;
             .Select(r => new ResponsibilitySnapshot(r.OperationId, r.AckPattern, r.AckKey, r.Description, r.PinnedAt))
             .ToArray();
     }
+
+    private sealed record ResponsibilityRegistration(
+        long OperationId,
+        string AckPattern,
+        string? AckKey,
+        DateTimeOffset PinnedAt,
+        string? Description);
+
+    /// <summary>
+    ///     Snapshot of an outstanding responsibility registration.
+    /// </summary>
+    public sealed record ResponsibilitySnapshot(
+        long OperationId,
+        string AckPattern,
+        string? AckKey,
+        string? Description,
+        DateTimeOffset PinnedAt);
 }

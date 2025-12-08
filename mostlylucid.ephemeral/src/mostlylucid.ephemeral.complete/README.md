@@ -8,7 +8,8 @@
 dotnet add package mostlylucid.ephemeral.complete
 ```
 
-This package compiles all core, atom, and pattern code into one assembly. For individual packages, see the links in each section below.
+This package compiles all core, atom, and pattern code into one assembly. For individual packages, see the links in each
+section below.
 
 ---
 
@@ -19,31 +20,31 @@ This package compiles all core, atom, and pattern code into one assembly. For in
 - [Configuration](#configuration-ephemeraloptions)
 - [Signals](#signals)
 - [Atoms](#atoms-building-blocks)
-  - [FixedWorkAtom](#fixedworkatom)
-  - [KeyedSequentialAtom](#keyedsequentialatom)
-  - [SignalAwareAtom](#signalawareatom)
-  - [BatchingAtom](#batchingatom)
-  - [RetryAtom](#retryatom)
-  - [MoleculeRunner & AtomTrigger](#moleculerunner--atomtrigger)
-  - [SlidingCacheAtom](#slidingcacheatom)
-  - [EphemeralLruCache](#ephemerallrucache)
-  - [Echo Maker](#echo-maker)
+    - [FixedWorkAtom](#fixedworkatom)
+    - [KeyedSequentialAtom](#keyedsequentialatom)
+    - [SignalAwareAtom](#signalawareatom)
+    - [BatchingAtom](#batchingatom)
+    - [RetryAtom](#retryatom)
+    - [MoleculeRunner & AtomTrigger](#moleculerunner--atomtrigger)
+    - [SlidingCacheAtom](#slidingcacheatom)
+    - [EphemeralLruCache](#ephemerallrucache)
+    - [Echo Maker](#echo-maker)
 - [Patterns](#patterns-ready-to-use)
-  - [SignalBasedCircuitBreaker](#signalbasedcircuitbreaker)
-  - [SignalDrivenBackpressure](#signaldrivenbackpressure)
-  - [ControlledFanOut](#controlledfanout)
-  - [AdaptiveRateService](#adaptiverateservice)
-  - [DynamicConcurrencyDemo](#dynamicconcurrencydemo)
-  - [KeyedPriorityFanOut](#keyedpriorityfanout)
-  - [ReactiveFanOutPipeline](#reactivefanoutpipeline)
-  - [SignalAnomalyDetector](#signalanomalydetector)
-  - [SignalCoordinatedReads](#signalcoordinatedreads)
-  - [SignalingHttpClient](#signalinghttpclient)
-  - [SignalLogWatcher](#signallogwatcher)
-  - [TelemetrySignalHandler](#telemetrysignalhandler)
-  - [LongWindowDemo](#longwindowdemo)
-  - [SignalReactionShowcase](#signalreactionshowcase)
-  - [PersistentSignalWindow](#persistentsignalwindow)
+    - [SignalBasedCircuitBreaker](#signalbasedcircuitbreaker)
+    - [SignalDrivenBackpressure](#signaldrivenbackpressure)
+    - [ControlledFanOut](#controlledfanout)
+    - [AdaptiveRateService](#adaptiverateservice)
+    - [DynamicConcurrencyDemo](#dynamicconcurrencydemo)
+    - [KeyedPriorityFanOut](#keyedpriorityfanout)
+    - [ReactiveFanOutPipeline](#reactivefanoutpipeline)
+    - [SignalAnomalyDetector](#signalanomalydetector)
+    - [SignalCoordinatedReads](#signalcoordinatedreads)
+    - [SignalingHttpClient](#signalinghttpclient)
+    - [SignalLogWatcher](#signallogwatcher)
+    - [TelemetrySignalHandler](#telemetrysignalhandler)
+    - [LongWindowDemo](#longwindowdemo)
+    - [SignalReactionShowcase](#signalreactionshowcase)
+    - [PersistentSignalWindow](#persistentsignalwindow)
 - [Dependency Injection](#dependency-injection)
 
 ---
@@ -68,14 +69,21 @@ await items.EphemeralForEachAsync(
 
 ### Attribute-driven jobs
 
-`mostlylucid.ephemeral.complete` bundles `mostlylucid.ephemeral.attributes`, so attribute pipelines are part of the core surface. Treat the runner as a first-class signal consumer: decorated methods join the same caching, logging, and pinning stories, and each attribute can declare `Priority`, job-level `MaxConcurrency`, `Lane`, `Key` sources, signal emissions, pin/expire overrides, and retries.
+`mostlylucid.ephemeral.complete` bundles `mostlylucid.ephemeral.attributes`, so attribute pipelines are part of the core
+surface. Treat the runner as a first-class signal consumer: decorated methods join the same caching, logging, and
+pinning stories, and each attribute can declare `Priority`, job-level `MaxConcurrency`, `Lane`, `Key` sources, signal
+emissions, pin/expire overrides, and retries.
 
 Key attribute knobs:
 
-- **Ordering & lanes**: Use `Priority`, `MaxConcurrency`, and `Lane` to keep work in deterministic order while hot paths stay separate.
-- **Keying & tagging**: `OperationKey`, `KeyFromSignal`, `KeyFromPayload`, and `[KeySource]` help you group work with meaningful keys for logging, fair scheduling, and diagnostics.
-- **Pinning & retries**: `Pin`, `ExpireAfterMs`, `AwaitSignals`, `MaxRetries`, and `RetryDelayMs` let handlers extend their visibility, gate execution until dependencies arrive, and heal with retries while emitting failure signals.
-- **Signal choreography**: Emit `EmitOnStart`, `EmitOnComplete`, and `EmitOnFailure` to signal downstream stages, log watchers, or other coordinators without manual wiring.
+- **Ordering & lanes**: Use `Priority`, `MaxConcurrency`, and `Lane` to keep work in deterministic order while hot paths
+  stay separate.
+- **Keying & tagging**: `OperationKey`, `KeyFromSignal`, `KeyFromPayload`, and `[KeySource]` help you group work with
+  meaningful keys for logging, fair scheduling, and diagnostics.
+- **Pinning & retries**: `Pin`, `ExpireAfterMs`, `AwaitSignals`, `MaxRetries`, and `RetryDelayMs` let handlers extend
+  their visibility, gate execution until dependencies arrive, and heal with retries while emitting failure signals.
+- **Signal choreography**: Emit `EmitOnStart`, `EmitOnComplete`, and `EmitOnFailure` to signal downstream stages, log
+  watchers, or other coordinators without manual wiring.
 
 ```csharp
 var sink = new SignalSink();
@@ -118,31 +126,44 @@ public sealed class LogWatcherJobs
 }
 ```
 
-This runner now sits at startup and reacts whenever `log.error.*` or any emitted signal hits the sink. Attribute handlers can also read keys from signals/payloads, pin work until downstream acks, emit completion/failure signals, and slot into lanes for ordering. For DI-first setups use `services.AddEphemeralSignalJobRunner<T>()` (or the scoped variant) so the runner and sink are managed by the container.
+This runner now sits at startup and reacts whenever `log.error.*` or any emitted signal hits the sink. Attribute
+handlers can also read keys from signals/payloads, pin work until downstream acks, emit completion/failure signals, and
+slot into lanes for ordering. For DI-first setups use `services.AddEphemeralSignalJobRunner<T>()` (or the scoped
+variant) so the runner and sink are managed by the container.
 
 [EphemeralJobs(SignalPrefix = "stage", DefaultLane = "pipeline")]
 public sealed class StageJobs
 {
-    [EphemeralJob("ingest", EmitOnComplete = new[] { "stage.ingest.done" })]
-    public Task IngestAsync(SignalEvent evt) => Console.Out.WriteLineAsync(evt.Signal);
+[EphemeralJob("ingest", EmitOnComplete = new[] { "stage.ingest.done" })]
+public Task IngestAsync(SignalEvent evt) => Console.Out.WriteLineAsync(evt.Signal);
 
     [EphemeralJob("finalize")]
     public Task FinalizeAsync(SignalEvent evt) => Console.Out.WriteLineAsync("final stage");
+
 }
 
 var stageSink = new SignalSink();
 await using var stageRunner = new EphemeralSignalJobRunner(stageSink, new[] { new StageJobs() });
 stageSink.Raise("stage.ingest");
 
-Pin-heavy jobs can rely on `ResponsibilitySignalManager.PinUntilQueried` (default ack pattern `responsibility.ack.*`) to keep their operations visible until a downstream reader fetches the payload, while `OperationEchoMaker`/`OperationEchoAtom` persist the final signal stream so auditors or molecules can still “taste” the last state even after the atom dies.
+Pin-heavy jobs can rely on `ResponsibilitySignalManager.PinUntilQueried` (default ack pattern `responsibility.ack.*`) to
+keep their operations visible until a downstream reader fetches the payload, while `OperationEchoMaker`/
+`OperationEchoAtom` persist the final signal stream so auditors or molecules can still “taste” the last state even after
+the atom dies.
 
 ### Scheduled tasks
 
-`mostlylucid.ephemeral.complete` also contains `mostlylucid.ephemeral.atoms.scheduledtasks`. Define cron or JSON schedules via `ScheduledTaskDefinition` (cron, signal, optional `key`, `payload`, `description`, `timeZone`, `format`, `runOnStartup`, etc.), and let `ScheduledTasksAtom` enqueue durable work through `DurableTaskAtom`. Each scheduled job raises the configured signal inside a coordinator window, so it inherits pinning, logging, and responsibility semantics while your molecules or attribute pipelines respond to the emitted signal wave.
+`mostlylucid.ephemeral.complete` also contains `mostlylucid.ephemeral.atoms.scheduledtasks`. Define cron or JSON
+schedules via `ScheduledTaskDefinition` (cron, signal, optional `key`, `payload`, `description`, `timeZone`, `format`,
+`runOnStartup`, etc.), and let `ScheduledTasksAtom` enqueue durable work through `DurableTaskAtom`. Each scheduled job
+raises the configured signal inside a coordinator window, so it inherits pinning, logging, and responsibility semantics
+while your molecules or attribute pipelines respond to the emitted signal wave.
 
 ### Logging & Signals
 
-`mostlylucid.ephemeral.logging` mirrors Microsoft.Extensions.Logging into signals and vice versa. Start by attaching `SignalLoggerProvider` to your logger factory so log events raise `log.*` signals, and hook `SignalToLoggerAdapter` if you want signals to flow back into the standard log pipeline.
+`mostlylucid.ephemeral.logging` mirrors Microsoft.Extensions.Logging into signals and vice versa. Start by attaching
+`SignalLoggerProvider` to your logger factory so log events raise `log.*` signals, and hook `SignalToLoggerAdapter` if
+you want signals to flow back into the standard log pipeline.
 
 ```csharp
 var sink = new SignalSink();
@@ -183,7 +204,8 @@ public sealed class LogWatcherJobs
 }
 ```
 
-Use `SignalToLoggerAdapter` to mirror the resulting signals back into standard logs so your monitoring stack sees both sides of the bridge.
+Use `SignalToLoggerAdapter` to mirror the resulting signals back into standard logs so your monitoring stack sees both
+sides of the bridge.
 
 ---
 
@@ -321,7 +343,10 @@ sink.Raise("system.busy");  // Both see it
 
 ## Responsibility Signals & Finalization
 
-Need to keep results visible just long enough for downstream consumers? `ResponsibilitySignalManager` lets you pin an operation until an ack signal arrives (default pattern `responsibility.ack.*` with key=`operationId`). Provide an optional `description` so the operation can describe its responsibility, and set `maxPinDuration` to gracefully self-clear if the consumer never shows up.
+Need to keep results visible just long enough for downstream consumers? `ResponsibilitySignalManager` lets you pin an
+operation until an ack signal arrives (default pattern `responsibility.ack.*` with key=`operationId`). Provide an
+optional `description` so the operation can describe its responsibility, and set `maxPinDuration` to gracefully
+self-clear if the consumer never shows up.
 
 ```csharp
 var manager = new ResponsibilitySignalManager(coordinator, sink, maxPinDuration: TimeSpan.FromMinutes(5));
@@ -349,9 +374,11 @@ coordinator.OperationFinalized += snapshot =>
 };
 ```
 
-`LastWordsNote` stays tiny (operation id, key, signal, timestamp), so you can record whatever minimal state you care about before the operation is collected.
+`LastWordsNote` stays tiny (operation id, key, signal, timestamp), so you can record whatever minimal state you care
+about before the operation is collected.
 
-The coordinator also keeps a short-lived echo of the final signals (enabled via `EnableOperationEcho`) that you can inspect with `GetEchoes()` when you need to replay the trimmed signal wave without keeping the full operation around.
+The coordinator also keeps a short-lived echo of the final signals (enabled via `EnableOperationEcho`) that you can
+inspect with `GetEchoes()` when you need to replay the trimmed signal wave without keeping the full operation around.
 
 ```csharp
 var recentErrors = coordinator.GetEchoes(pattern: "error.*")
@@ -362,9 +389,12 @@ if (recentErrors.Any())
     logger.LogWarning("Trimmed errors: {Count}", recentErrors.Count);
 ```
 
-`OperationEchoRetention` and `OperationEchoCapacity` let you balance how many echoes you keep and how long they linger, so you can replay the “last words” just long enough to surface diagnostics.
+`OperationEchoRetention` and `OperationEchoCapacity` let you balance how many echoes you keep and how long they linger,
+so you can replay the “last words” just long enough to surface diagnostics.
 
-The manager automatically unpins when the ack fires, but you can call `CompleteResponsibility(operationId)` to end the responsibility early (e.g., on retries). Operations still raise `OperationFinalized` when the window trims them, so subscribe if you want to emit a final signal, log diagnostics, or run “last words” cleanup.
+The manager automatically unpins when the ack fires, but you can call `CompleteResponsibility(operationId)` to end the
+responsibility early (e.g., on retries). Operations still raise `OperationFinalized` when the window trims them, so
+subscribe if you want to emit a final signal, log diagnostics, or run “last words” cleanup.
 
 ---
 
@@ -372,7 +402,8 @@ The manager automatically unpins when the ack fires, but you can call `CompleteR
 
 ### FixedWorkAtom
 
-> **Package:** [mostlylucid.ephemeral.atoms.fixedwork](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.fixedwork)
+> **Package:
+** [mostlylucid.ephemeral.atoms.fixedwork](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.fixedwork)
 
 Fixed worker pool with stats. Minimal API wrapper around EphemeralWorkCoordinator.
 
@@ -401,7 +432,8 @@ await atom.DrainAsync();
 
 ### KeyedSequentialAtom
 
-> **Package:** [mostlylucid.ephemeral.atoms.keyedsequential](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.keyedsequential)
+> **Package:
+** [mostlylucid.ephemeral.atoms.keyedsequential](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.keyedsequential)
 
 Per-key sequential processing with optional fair scheduling.
 
@@ -427,7 +459,8 @@ await atom.DrainAsync();
 
 ### SignalAwareAtom
 
-> **Package:** [mostlylucid.ephemeral.atoms.signalaware](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.signalaware)
+> **Package:
+** [mostlylucid.ephemeral.atoms.signalaware](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.signalaware)
 
 Pause or cancel intake based on ambient signals.
 
@@ -459,7 +492,8 @@ await atom.DrainAsync();
 
 ### BatchingAtom
 
-> **Package:** [mostlylucid.ephemeral.atoms.batching](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.batching)
+> **Package:
+** [mostlylucid.ephemeral.atoms.batching](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.batching)
 
 Collect items into batches by size or time interval.
 
@@ -511,9 +545,13 @@ await atom.DrainAsync();
 
 ### MoleculeRunner & AtomTrigger
 
-> **Package:** [mostlylucid.ephemeral.atoms.molecules](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.molecules)
+> **Package:
+** [mostlylucid.ephemeral.atoms.molecules](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.molecules)
 
-Blueprints composed with `MoleculeBlueprintBuilder` let you define the atoms (payment, inventory, shipping, notification) that should run when a signal such as `order.placed` arrives. `MoleculeRunner` listens for the trigger pattern, creates a shared `MoleculeContext`, and executes each step while you subscribe to start/completion events. Use `AtomTrigger` when one atom's signal should start another coordinator or molecule.
+Blueprints composed with `MoleculeBlueprintBuilder` let you define the atoms (payment, inventory, shipping,
+notification) that should run when a signal such as `order.placed` arrives. `MoleculeRunner` listens for the trigger
+pattern, creates a shared `MoleculeContext`, and executes each step while you subscribe to start/completion events. Use
+`AtomTrigger` when one atom's signal should start another coordinator or molecule.
 
 ```csharp
 var sink = new SignalSink();
@@ -535,13 +573,15 @@ using var trigger = new AtomTrigger(sink, "order.payment.complete", async (signa
 sink.Raise("order.placed", key: "order-42");
 ```
 
-Molecule steps can raise additional signals (`ctx.Raise("order.shipping.start")`) so the rest of the system picks up the baton.
+Molecule steps can raise additional signals (`ctx.Raise("order.shipping.start")`) so the rest of the system picks up the
+baton.
 
 ---
 
 ### SlidingCacheAtom
 
-> **Package:** [mostlylucid.ephemeral.atoms.slidingcache](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.slidingcache)
+> **Package:
+** [mostlylucid.ephemeral.atoms.slidingcache](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.slidingcache)
 
 Cache with sliding expiration - accessing a result resets its TTL.
 
@@ -571,7 +611,8 @@ Console.WriteLine($"Entries: {stats.TotalEntries}, Hot: {stats.HotEntries}");
 
 ### EphemeralLruCache
 
-> **Package:** core (`mostlylucid.ephemeral`) — self-optimizing cache with sliding TTL on every hit and extended TTL for hot keys.
+> **Package:** core (`mostlylucid.ephemeral`) — self-optimizing cache with sliding TTL on every hit and extended TTL for
+> hot keys.
 
 ```csharp
 using Mostlylucid.Ephemeral;
@@ -596,13 +637,17 @@ var stats = cache.GetStats();              // hot/expired counts, size
 var signals = cache.GetSignals("cache.*"); // cache.hot/evict/miss/hit
 ```
 
-> Tip: `MemoryCache` can be configured for sliding expiration, but it never emits the hot/cold signals or extends TTL for hot keys. `EphemeralLruCache` is the self-optimizing default in the core package (and in `SqliteSingleWriter`) whenever you want the cache to focus on the active working set.
+> Tip: `MemoryCache` can be configured for sliding expiration, but it never emits the hot/cold signals or extends TTL
+> for hot keys. `EphemeralLruCache` is the self-optimizing default in the core package (and in `SqliteSingleWriter`)
+> whenever you want the cache to focus on the active working set.
 
 ### Echo Maker
 
 > **Package:** [mostlylucid.ephemeral.atoms.echo](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.echo)
 
-Capture the typed “last words” that an operation emits before it is trimmed. The atom keeps a bounded window of signal payloads (matching `ActivationSignalPattern` / `CaptureSignalPattern`) and when `OperationFinalized` fires it produces `OperationEchoEntry<TPayload>` records you can persist via `OperationEchoAtom<TPayload>`.
+Capture the typed “last words” that an operation emits before it is trimmed. The atom keeps a bounded window of signal
+payloads (matching `ActivationSignalPattern` / `CaptureSignalPattern`) and when `OperationFinalized` fires it produces
+`OperationEchoEntry<TPayload>` records you can persist via `OperationEchoAtom<TPayload>`.
 
 ```csharp
 var sink = new SignalSink();
@@ -623,7 +668,8 @@ using var maker = coordinator.EnableOperationEchoing(
 typedSink.Raise("echo.capture", new EchoPayload("order-1", "archived"), key: "order-1");
 ```
 
-Attribute jobs just raise the typed signal with whatever state they deem critical, and the maker keeps the working set bounded while you persist the echo.
+Attribute jobs just raise the typed signal with whatever state they deem critical, and the maker keeps the working set
+bounded while you persist the echo.
 
 ---
 
@@ -631,7 +677,8 @@ Attribute jobs just raise the typed signal with whatever state they deem critica
 
 ### SignalBasedCircuitBreaker
 
-> **Package:** [mostlylucid.ephemeral.patterns.circuitbreaker](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.circuitbreaker)
+> **Package:
+** [mostlylucid.ephemeral.patterns.circuitbreaker](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.circuitbreaker)
 
 Stateless circuit breaker using signal history window.
 
@@ -662,7 +709,8 @@ int failures = breaker.GetFailureCount(coordinator);
 
 ### SignalDrivenBackpressure
 
-> **Package:** [mostlylucid.ephemeral.patterns.backpressure](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.backpressure)
+> **Package:
+** [mostlylucid.ephemeral.patterns.backpressure](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.backpressure)
 
 Queue depth management with automatic deferral on backpressure signals.
 
@@ -690,7 +738,8 @@ sink.Retract("backpressure.downstream"); // Work resumes
 
 ### ControlledFanOut
 
-> **Package:** [mostlylucid.ephemeral.patterns.controlledfanout](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.controlledfanout)
+> **Package:
+** [mostlylucid.ephemeral.patterns.controlledfanout](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.controlledfanout)
 
 Global + per-key gating for controlled parallelism.
 
@@ -715,7 +764,8 @@ await fanout.DrainAsync();
 
 ### AdaptiveRateService
 
-> **Package:** [mostlylucid.ephemeral.patterns.adaptiverate](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.adaptiverate)
+> **Package:
+** [mostlylucid.ephemeral.patterns.adaptiverate](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.adaptiverate)
 
 Signal-driven rate limiting with automatic backoff.
 
@@ -740,7 +790,8 @@ Console.WriteLine($"Pending: {service.PendingCount}, Active: {service.ActiveCoun
 
 ### DynamicConcurrencyDemo
 
-> **Package:** [mostlylucid.ephemeral.patterns.dynamicconcurrency](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.dynamicconcurrency)
+> **Package:
+** [mostlylucid.ephemeral.patterns.dynamicconcurrency](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.dynamicconcurrency)
 
 Runtime concurrency scaling based on load signals.
 
@@ -772,7 +823,8 @@ await demo.DrainAsync();
 
 ### KeyedPriorityFanOut
 
-> **Package:** [mostlylucid.ephemeral.patterns.keyedpriorityfanout](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.keyedpriorityfanout)
+> **Package:
+** [mostlylucid.ephemeral.patterns.keyedpriorityfanout](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.keyedpriorityfanout)
 
 Priority lanes with per-key ordering preserved.
 
@@ -803,7 +855,8 @@ await fanout.DrainAsync();
 
 ### ReactiveFanOutPipeline
 
-> **Package:** [mostlylucid.ephemeral.patterns.reactivefanout](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.reactivefanout)
+> **Package:
+** [mostlylucid.ephemeral.patterns.reactivefanout](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.reactivefanout)
 
 Two-stage pipeline with automatic backpressure.
 
@@ -832,7 +885,8 @@ await pipeline.DrainAsync();
 
 ### SignalAnomalyDetector
 
-> **Package:** [mostlylucid.ephemeral.patterns.anomalydetector](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.anomalydetector)
+> **Package:
+** [mostlylucid.ephemeral.patterns.anomalydetector](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.anomalydetector)
 
 Moving-window anomaly detection.
 
@@ -863,7 +917,8 @@ Console.WriteLine($"Errors in window: {errorCount}");
 
 ### SignalCoordinatedReads
 
-> **Package:** [mostlylucid.ephemeral.patterns.signalcoordinatedreads](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.signalcoordinatedreads)
+> **Package:
+** [mostlylucid.ephemeral.patterns.signalcoordinatedreads](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.signalcoordinatedreads)
 
 Quiesce reads during updates without hard locks.
 
@@ -898,7 +953,8 @@ sink.Raise("update.done");         // Readers resume
 
 ### SignalingHttpClient
 
-> **Package:** [mostlylucid.ephemeral.patterns.signalinghttp](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.signalinghttp)
+> **Package:
+** [mostlylucid.ephemeral.patterns.signalinghttp](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.signalinghttp)
 
 HTTP client with progress signals.
 
@@ -930,7 +986,8 @@ byte[] data = await SignalingHttpClient.DownloadWithSignalsAsync(
 
 ### SignalLogWatcher
 
-> **Package:** [mostlylucid.ephemeral.patterns.signallogwatcher](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.signallogwatcher)
+> **Package:
+** [mostlylucid.ephemeral.patterns.signallogwatcher](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.signallogwatcher)
 
 Watch signal window for patterns and trigger callbacks.
 
@@ -959,7 +1016,8 @@ sink.Raise("info.started");      // -> ignored (doesn't match pattern)
 
 ### TelemetrySignalHandler
 
-> **Package:** [mostlylucid.ephemeral.patterns.telemetry](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.telemetry)
+> **Package:
+** [mostlylucid.ephemeral.patterns.telemetry](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.telemetry)
 
 OpenTelemetry/Application Insights integration.
 
@@ -994,7 +1052,8 @@ var events = telemetry.GetEvents();
 
 ### LongWindowDemo
 
-> **Package:** [mostlylucid.ephemeral.patterns.longwindowdemo](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.longwindowdemo)
+> **Package:
+** [mostlylucid.ephemeral.patterns.longwindowdemo](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.longwindowdemo)
 
 Demonstrates large window configuration for audit trails.
 
@@ -1013,7 +1072,8 @@ var options = new EphemeralOptions
 
 ### SignalReactionShowcase
 
-> **Package:** [mostlylucid.ephemeral.patterns.signalreactionshowcase](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.signalreactionshowcase)
+> **Package:
+** [mostlylucid.ephemeral.patterns.signalreactionshowcase](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.signalreactionshowcase)
 
 Demonstrates signal dispatch patterns and callbacks.
 
@@ -1028,7 +1088,8 @@ using Mostlylucid.Ephemeral.Patterns.SignalReactionShowcase;
 
 ### PersistentSignalWindow
 
-> **Package:** [mostlylucid.ephemeral.patterns.persistentwindow](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.persistentwindow)
+> **Package:
+** [mostlylucid.ephemeral.patterns.persistentwindow](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.persistentwindow)
 
 Signal window with SQLite persistence - survives process restarts.
 
@@ -1082,7 +1143,9 @@ public class MyService(IEphemeralCoordinatorFactory<WorkItem> factory)
 }
 ```
 
-Modern DI roots may prefer the shorter helpers such as `services.AddCoordinator<T>(...)`, `services.AddScopedCoordinator<T>(...)`, or `services.AddKeyedCoordinator<T, TKey>(...)` since they read like normal `AddX` registrations; they simply delegate to the Ephemeral-specific helpers under the hood.
+Modern DI roots may prefer the shorter helpers such as `services.AddCoordinator<T>(...)`,
+`services.AddScopedCoordinator<T>(...)`, or `services.AddKeyedCoordinator<T, TKey>(...)` since they read like normal
+`AddX` registrations; they simply delegate to the Ephemeral-specific helpers under the hood.
 
 ---
 

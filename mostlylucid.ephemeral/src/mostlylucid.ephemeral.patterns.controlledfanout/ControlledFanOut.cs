@@ -1,10 +1,8 @@
-using Mostlylucid.Ephemeral;
-
 namespace Mostlylucid.Ephemeral.Patterns.ControlledFanOut;
 
 /// <summary>
-/// Demonstrates controlled fan-out: a global gate bounds total fan-out while per-key ordering is preserved.
-/// Useful to prevent runaway task spawning when many keys spike simultaneously.
+///     Demonstrates controlled fan-out: a global gate bounds total fan-out while per-key ordering is preserved.
+///     Useful to prevent runaway task spawning when many keys spike simultaneously.
 /// </summary>
 public sealed class ControlledFanOut<TKey, T> : IAsyncDisposable where TKey : notnull
 {
@@ -28,14 +26,19 @@ public sealed class ControlledFanOut<TKey, T> : IAsyncDisposable where TKey : no
             });
     }
 
-    public ValueTask EnqueueAsync(T item, CancellationToken ct = default) =>
-        _coordinator.EnqueueAsync(item, ct);
+    public ValueTask DisposeAsync()
+    {
+        return _coordinator.DisposeAsync();
+    }
+
+    public ValueTask EnqueueAsync(T item, CancellationToken ct = default)
+    {
+        return _coordinator.EnqueueAsync(item, ct);
+    }
 
     public async Task DrainAsync(CancellationToken ct = default)
     {
         _coordinator.Complete();
         await _coordinator.DrainAsync(ct).ConfigureAwait(false);
     }
-
-    public ValueTask DisposeAsync() => _coordinator.DisposeAsync();
 }

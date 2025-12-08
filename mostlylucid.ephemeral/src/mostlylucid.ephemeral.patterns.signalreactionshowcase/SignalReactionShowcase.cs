@@ -1,24 +1,21 @@
-using Mostlylucid.Ephemeral;
-
 namespace Mostlylucid.Ephemeral.Patterns.SignalReactionShowcase;
 
 /// <summary>
-/// Demonstrates raising signals inside work items, reacting immediately (OnSignal), and polling the sink for patterns.
+///     Demonstrates raising signals inside work items, reacting immediately (OnSignal), and polling the sink for patterns.
 /// </summary>
 public static class SignalReactionShowcase
 {
-    public sealed record Result(int DispatchedHits, int PolledHits, IReadOnlyList<string> Signals);
-
     public static async Task<Result> RunAsync(int itemCount = 8, CancellationToken ct = default)
     {
         if (itemCount <= 0) throw new ArgumentOutOfRangeException(nameof(itemCount));
 
         // Global sink we can poll later; bounded so it cannot balloon.
-        var sink = new SignalSink(maxCapacity: itemCount * 4, maxAge: TimeSpan.FromSeconds(10));
+        var sink = new SignalSink(itemCount * 4, TimeSpan.FromSeconds(10));
         var dispatchedHits = 0;
 
         // Async fan-out so signal handling stays off the hot path.
-        await using var dispatcher = new SignalDispatcher(new EphemeralOptions { MaxTrackedOperations = itemCount * 4, MaxConcurrency = 4 });
+        await using var dispatcher = new SignalDispatcher(new EphemeralOptions
+            { MaxTrackedOperations = itemCount * 4, MaxConcurrency = 4 });
         dispatcher.Register("stage.done:*", evt =>
         {
             Interlocked.Increment(ref dispatchedHits);
@@ -29,14 +26,16 @@ public static class SignalReactionShowcase
             async (item, token) =>
             {
                 // Emit immediately when work starts; this is synchronous but tiny.
-                var start = new SignalEvent($"stage.start:{item}", EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow);
+                var start = new SignalEvent($"stage.start:{item}", EphemeralIdGenerator.NextId(), null,
+                    DateTimeOffset.UtcNow);
                 sink.Raise(start);
                 dispatcher.Dispatch(start);
 
                 await Task.Delay(5, token).ConfigureAwait(false);
 
                 // Emit completion and fan it out; downstream stays async.
-                var done = new SignalEvent($"stage.done:{item}", EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow);
+                var done = new SignalEvent($"stage.done:{item}", EphemeralIdGenerator.NextId(), null,
+                    DateTimeOffset.UtcNow);
                 sink.Raise(done);
                 dispatcher.Dispatch(done);
             },
@@ -57,4 +56,6 @@ public static class SignalReactionShowcase
 
         return new Result(dispatchedHits, polledHits, signals);
     }
+
+    public sealed record Result(int DispatchedHits, int PolledHits, IReadOnlyList<string> Signals);
 }

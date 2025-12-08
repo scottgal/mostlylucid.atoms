@@ -45,14 +45,14 @@ Task<byte[]> SignalingHttpClient.DownloadWithSignalsAsync(
 
 ## Signals Emitted
 
-| Signal | Description |
-|--------|-------------|
-| `stage.starting` | Request starting |
-| `stage.request` | Request sent |
-| `stage.headers` | Headers received |
-| `stage.reading` | Reading body |
-| `stage.completed` | Download complete |
-| `progress:N` | Progress percentage (0-100) |
+| Signal            | Description                 |
+|-------------------|-----------------------------|
+| `stage.starting`  | Request starting            |
+| `stage.request`   | Request sent                |
+| `stage.headers`   | Headers received            |
+| `stage.reading`   | Reading body                |
+| `stage.completed` | Download complete           |
+| `progress:N`      | Progress percentage (0-100) |
 
 ---
 
@@ -155,11 +155,11 @@ Console.WriteLine($"Completed: {completed.Count} downloads");
 
 ## Related Packages
 
-| Package | Description |
-|---------|-------------|
-| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral) | Core library |
+| Package                                                                                                             | Description           |
+|---------------------------------------------------------------------------------------------------------------------|-----------------------|
+| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral)                                       | Core library          |
 | [mostlylucid.ephemeral.patterns.telemetry](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.telemetry) | Telemetry integration |
-| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All in one DLL |
+| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete)                     | All in one DLL        |
 
 ## License
 

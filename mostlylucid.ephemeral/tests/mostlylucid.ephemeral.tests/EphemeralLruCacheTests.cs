@@ -1,4 +1,3 @@
-using Mostlylucid.Ephemeral;
 using Xunit;
 
 namespace Mostlylucid.Ephemeral.Tests;
@@ -19,15 +18,27 @@ public class EphemeralLruCacheTests
 
         try
         {
-            var first = cache.GetOrAdd("k", _ => { computeCount++; return 1; });
+            var first = cache.GetOrAdd("k", _ =>
+            {
+                computeCount++;
+                return 1;
+            });
             Assert.Equal(1, first);
 
             await Task.Delay(60);
-            var second = cache.GetOrAdd("k", _ => { computeCount++; return 2; });
+            var second = cache.GetOrAdd("k", _ =>
+            {
+                computeCount++;
+                return 2;
+            });
             Assert.Equal(1, second);
 
             await Task.Delay(60); // past original TTL, should survive due to sliding refresh
-            var third = cache.GetOrAdd("k", _ => { computeCount++; return 3; });
+            var third = cache.GetOrAdd("k", _ =>
+            {
+                computeCount++;
+                return 3;
+            });
             Assert.Equal(1, third);
 
             Assert.Equal(1, computeCount);
@@ -52,14 +63,26 @@ public class EphemeralLruCacheTests
 
         try
         {
-            var first = cache.GetOrAdd("hot", _ => { computeCount++; return 10; });
+            var first = cache.GetOrAdd("hot", _ =>
+            {
+                computeCount++;
+                return 10;
+            });
             Assert.Equal(10, first);
 
-            var second = cache.GetOrAdd("hot", _ => { computeCount++; return 20; });
+            var second = cache.GetOrAdd("hot", _ =>
+            {
+                computeCount++;
+                return 20;
+            });
             Assert.Equal(10, second);
 
             await Task.Delay(200); // beyond default TTL but within hot extension
-            var third = cache.GetOrAdd("hot", _ => { computeCount++; return 30; });
+            var third = cache.GetOrAdd("hot", _ =>
+            {
+                computeCount++;
+                return 30;
+            });
             Assert.Equal(10, third);
 
             Assert.Equal(1, computeCount);

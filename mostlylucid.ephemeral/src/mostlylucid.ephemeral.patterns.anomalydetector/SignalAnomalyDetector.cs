@@ -1,16 +1,14 @@
-using Mostlylucid.Ephemeral;
-
 namespace Mostlylucid.Ephemeral.Patterns.AnomalyDetector;
 
 /// <summary>
-/// Scans a SignalSink with a moving time window and flags anomalies based on pattern + threshold.
+///     Scans a SignalSink with a moving time window and flags anomalies based on pattern + threshold.
 /// </summary>
 public sealed class SignalAnomalyDetector
 {
-    private readonly SignalSink _sink;
-    private readonly TimeSpan _window;
-    private readonly int _threshold;
     private readonly string _pattern;
+    private readonly SignalSink _sink;
+    private readonly int _threshold;
+    private readonly TimeSpan _window;
 
     public SignalAnomalyDetector(
         SignalSink sink,
@@ -27,7 +25,7 @@ public sealed class SignalAnomalyDetector
     }
 
     /// <summary>
-    /// Checks the current window for anomaly (count of matches >= threshold).
+    ///     Checks the current window for anomaly (count of matches >= threshold).
     /// </summary>
     public bool IsAnomalous()
     {
@@ -35,18 +33,17 @@ public sealed class SignalAnomalyDetector
         var recent = _sink.Sense(s => s.Timestamp >= cutoff);
         var matches = 0;
         foreach (var evt in recent)
-        {
             if (StringPatternMatcher.Matches(evt.Signal, _pattern))
             {
                 matches++;
                 if (matches >= _threshold) return true;
             }
-        }
+
         return false;
     }
 
     /// <summary>
-    /// Get the current count of matching signals in the window.
+    ///     Get the current count of matching signals in the window.
     /// </summary>
     public int GetMatchCount()
     {

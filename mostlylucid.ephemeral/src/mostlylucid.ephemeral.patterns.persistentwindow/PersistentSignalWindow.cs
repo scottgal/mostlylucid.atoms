@@ -3,28 +3,27 @@ using Microsoft.Data.Sqlite;
 namespace Mostlylucid.Ephemeral.Patterns.PersistentWindow;
 
 /// <summary>
-/// A signal window that periodically persists to SQLite and can restore on restart.
-/// Demonstrates combining Ephemeral coordination with SQLite single-writer pattern.
+///     A signal window that periodically persists to SQLite and can restore on restart.
+///     Demonstrates combining Ephemeral coordination with SQLite single-writer pattern.
 /// </summary>
 public sealed class PersistentSignalWindow : IAsyncDisposable
 {
     private readonly string _connectionString;
-    private readonly SignalSink _sink;
-    private readonly EphemeralWorkCoordinator<PersistCommand> _writeCoordinator;
-    private readonly TimeSpan _flushInterval;
-    private readonly int _maxSignalsPerFlush;
     private readonly CancellationTokenSource _cts = new();
-    private readonly Task _flushLoop;
-    private readonly SemaphoreSlim _writeLock = new(1, 1);
-    private SqliteConnection? _writeConnection;
-    private bool _initialized;
     private readonly HashSet<long> _flushedIds = new();
+    private readonly TimeSpan _flushInterval;
+    private readonly Task _flushLoop;
+    private readonly int _maxSignalsPerFlush;
+    private readonly int _sampleRate;
+    private readonly EphemeralWorkCoordinator<PersistCommand> _writeCoordinator;
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
+    private bool _initialized;
     private long _lastFlushedId; // For stats/backward compat
     private int _signalCount;
-    private readonly int _sampleRate;
+    private SqliteConnection? _writeConnection;
 
     /// <summary>
-    /// Creates a persistent signal window.
+    ///     Creates a persistent signal window.
     /// </summary>
     /// <param name="connectionString">SQLite connection string</param>
     /// <param name="flushInterval">How often to flush to disk (default: 30 seconds)</param>
@@ -45,9 +44,9 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
         _maxSignalsPerFlush = maxSignalsPerFlush;
         _sampleRate = Math.Max(1, sampleRate);
 
-        _sink = new SignalSink(
-            maxCapacity: maxWindowSize,
-            maxAge: windowMaxAge ?? TimeSpan.FromMinutes(10));
+        Sink = new SignalSink(
+            maxWindowSize,
+            windowMaxAge ?? TimeSpan.FromMinutes(10));
 
         // Single-writer for SQLite
         _writeCoordinator = new EphemeralWorkCoordinator<PersistCommand>(
@@ -56,54 +55,93 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
             {
                 MaxConcurrency = 1,
                 MaxTrackedOperations = 100,
-                Signals = _sink
+                Signals = Sink
             });
 
         _flushLoop = Task.Run(FlushLoopAsync);
     }
 
     /// <summary>
-    /// Raises a signal to the window.
+    ///     Gets the underlying signal sink for advanced usage.
+    /// </summary>
+    public SignalSink Sink { get; }
+
+    public async ValueTask DisposeAsync()
+    {
+        _cts.Cancel();
+        try
+        {
+            await _flushLoop.ConfigureAwait(false);
+        }
+        catch
+        {
+        }
+
+        _cts.Dispose();
+
+        // Final flush
+        try
+        {
+            await FlushAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+        catch
+        {
+        }
+
+        _writeCoordinator.Complete();
+        await _writeCoordinator.DrainAsync().ConfigureAwait(false);
+        await _writeCoordinator.DisposeAsync().ConfigureAwait(false);
+
+        if (_writeConnection != null)
+            await _writeConnection.DisposeAsync().ConfigureAwait(false);
+
+        _writeLock.Dispose();
+    }
+
+    /// <summary>
+    ///     Raises a signal to the window.
     /// </summary>
     public void Raise(string signal, string? key = null)
     {
         var evt = new SignalEvent(signal, EphemeralIdGenerator.NextId(), key, DateTimeOffset.UtcNow);
-        _sink.Raise(evt);
+        Sink.Raise(evt);
 
         if (ShouldSample())
-            _sink.Raise(new SignalEvent("window.raise", evt.OperationId, null, DateTimeOffset.UtcNow));
+            Sink.Raise(new SignalEvent("window.raise", evt.OperationId, null, DateTimeOffset.UtcNow));
 
         Interlocked.Increment(ref _signalCount);
     }
 
     /// <summary>
-    /// Raises a signal event to the window.
+    ///     Raises a signal event to the window.
     /// </summary>
     public void Raise(SignalEvent evt)
     {
-        _sink.Raise(evt);
+        Sink.Raise(evt);
         Interlocked.Increment(ref _signalCount);
     }
 
     /// <summary>
-    /// Queries signals matching a pattern.
+    ///     Queries signals matching a pattern.
     /// </summary>
     public IReadOnlyList<SignalEvent> Sense(string? pattern = null)
     {
         if (string.IsNullOrEmpty(pattern))
-            return _sink.Sense();
+            return Sink.Sense();
 
-        return _sink.Sense(s => StringPatternMatcher.Matches(s.Signal, pattern));
+        return Sink.Sense(s => StringPatternMatcher.Matches(s.Signal, pattern));
     }
 
     /// <summary>
-    /// Queries signals with a predicate.
+    ///     Queries signals with a predicate.
     /// </summary>
-    public IReadOnlyList<SignalEvent> Sense(Func<SignalEvent, bool> predicate) =>
-        _sink.Sense(predicate);
+    public IReadOnlyList<SignalEvent> Sense(Func<SignalEvent, bool> predicate)
+    {
+        return Sink.Sense(predicate);
+    }
 
     /// <summary>
-    /// Forces an immediate flush to SQLite.
+    ///     Forces an immediate flush to SQLite.
     /// </summary>
     public async Task FlushAsync(CancellationToken ct = default)
     {
@@ -113,8 +151,8 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
     }
 
     /// <summary>
-    /// Loads signals from SQLite into the window.
-    /// Call this on startup to restore previous state.
+    ///     Loads signals from SQLite into the window.
+    ///     Call this on startup to restore previous state.
     /// </summary>
     public async Task LoadFromDiskAsync(TimeSpan? maxAge = null, CancellationToken ct = default)
     {
@@ -124,26 +162,20 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
     }
 
     /// <summary>
-    /// Gets window statistics.
+    ///     Gets window statistics.
     /// </summary>
     public WindowStats GetStats()
     {
-        var signals = _sink.Sense();
+        var signals = Sink.Sense();
         return new WindowStats(
-            InMemoryCount: signals.Count,
-            TotalRaised: _signalCount,
-            LastFlushedId: _lastFlushedId);
+            signals.Count,
+            _signalCount,
+            _lastFlushedId);
     }
-
-    /// <summary>
-    /// Gets the underlying signal sink for advanced usage.
-    /// </summary>
-    public SignalSink Sink => _sink;
 
     private async Task FlushLoopAsync()
     {
         while (!_cts.IsCancellationRequested)
-        {
             try
             {
                 await Task.Delay(_flushInterval, _cts.Token).ConfigureAwait(false);
@@ -156,13 +188,12 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
             catch (Exception ex)
             {
                 // Emit error signal so callers can observe and react
-                _sink.Raise(new SignalEvent(
+                Sink.Raise(new SignalEvent(
                     $"window.flush.loop.error:{ex.GetType().Name}",
                     EphemeralIdGenerator.NextId(),
                     null,
                     DateTimeOffset.UtcNow));
             }
-        }
     }
 
     private async Task ExecuteCommandAsync(PersistCommand command, CancellationToken ct)
@@ -203,32 +234,32 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
 
         await using var cmd = _writeConnection.CreateCommand();
         cmd.CommandText = """
-            PRAGMA journal_mode=WAL;
-            PRAGMA busy_timeout=10000;
+                          PRAGMA journal_mode=WAL;
+                          PRAGMA busy_timeout=10000;
 
-            CREATE TABLE IF NOT EXISTS signals (
-                id INTEGER PRIMARY KEY,
-                operation_id INTEGER NOT NULL,
-                signal TEXT NOT NULL,
-                key TEXT,
-                timestamp TEXT NOT NULL,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            );
+                          CREATE TABLE IF NOT EXISTS signals (
+                              id INTEGER PRIMARY KEY,
+                              operation_id INTEGER NOT NULL,
+                              signal TEXT NOT NULL,
+                              key TEXT,
+                              timestamp TEXT NOT NULL,
+                              created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                          );
 
-            CREATE INDEX IF NOT EXISTS idx_signals_timestamp ON signals(timestamp);
-            CREATE INDEX IF NOT EXISTS idx_signals_signal ON signals(signal);
-            """;
+                          CREATE INDEX IF NOT EXISTS idx_signals_timestamp ON signals(timestamp);
+                          CREATE INDEX IF NOT EXISTS idx_signals_signal ON signals(signal);
+                          """;
         await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
 
         _initialized = true;
 
-        _sink.Raise(new SignalEvent("window.initialized", EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
+        Sink.Raise(new SignalEvent("window.initialized", EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
     }
 
     private async Task FlushInternalAsync(CancellationToken ct)
     {
         // Use HashSet to track flushed IDs since EphemeralIdGenerator uses hash-based IDs (not sequential)
-        var signals = _sink.Sense()
+        var signals = Sink.Sense()
             .Where(s => !_flushedIds.Contains(s.OperationId))
             .OrderBy(s => s.Timestamp) // Order by timestamp since IDs aren't sequential
             .Take(_maxSignalsPerFlush)
@@ -236,14 +267,16 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
 
         if (signals.Count == 0) return;
 
-        _sink.Raise(new SignalEvent($"window.flush.start:{signals.Count}", EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
+        Sink.Raise(new SignalEvent($"window.flush.start:{signals.Count}", EphemeralIdGenerator.NextId(), null,
+            DateTimeOffset.UtcNow));
 
         await using var tx = await _writeConnection!.BeginTransactionAsync(ct).ConfigureAwait(false);
         try
         {
             await using var cmd = _writeConnection.CreateCommand();
             cmd.Transaction = (SqliteTransaction)tx;
-            cmd.CommandText = "INSERT INTO signals (operation_id, signal, key, timestamp) VALUES (@op, @sig, @key, @ts)";
+            cmd.CommandText =
+                "INSERT INTO signals (operation_id, signal, key, timestamp) VALUES (@op, @sig, @key, @ts)";
 
             var opParam = cmd.Parameters.Add("@op", SqliteType.Integer);
             var sigParam = cmd.Parameters.Add("@sig", SqliteType.Text);
@@ -264,12 +297,14 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
 
             _lastFlushedId = signals[^1].OperationId;
 
-            _sink.Raise(new SignalEvent($"window.flush.done:{signals.Count}", EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
+            Sink.Raise(new SignalEvent($"window.flush.done:{signals.Count}", EphemeralIdGenerator.NextId(), null,
+                DateTimeOffset.UtcNow));
         }
         catch
         {
             await tx.RollbackAsync(ct).ConfigureAwait(false);
-            _sink.Raise(new SignalEvent("window.flush.error", EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
+            Sink.Raise(
+                new SignalEvent("window.flush.error", EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
             throw;
         }
     }
@@ -281,7 +316,8 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
             : DateTimeOffset.MinValue;
 
         await using var cmd = _writeConnection!.CreateCommand();
-        cmd.CommandText = "SELECT operation_id, signal, key, timestamp FROM signals WHERE timestamp >= @cutoff ORDER BY timestamp";
+        cmd.CommandText =
+            "SELECT operation_id, signal, key, timestamp FROM signals WHERE timestamp >= @cutoff ORDER BY timestamp";
         cmd.Parameters.AddWithValue("@cutoff", cutoff.ToString("O"));
 
         var loaded = 0;
@@ -294,7 +330,7 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
             var timestamp = DateTimeOffset.Parse(reader.GetString(3));
 
             var evt = new SignalEvent(signal, opId, source, timestamp);
-            _sink.Raise(evt);
+            Sink.Raise(evt);
 
             // Track as already flushed so we don't flush again
             _flushedIds.Add(opId);
@@ -303,7 +339,8 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
             loaded++;
         }
 
-        _sink.Raise(new SignalEvent($"window.load.done:{loaded}", EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
+        Sink.Raise(new SignalEvent($"window.load.done:{loaded}", EphemeralIdGenerator.NextId(), null,
+            DateTimeOffset.UtcNow));
     }
 
     private bool ShouldSample()
@@ -311,30 +348,11 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
         return _signalCount % _sampleRate == 0;
     }
 
-    public async ValueTask DisposeAsync()
+    private enum PersistCommandType
     {
-        _cts.Cancel();
-        try { await _flushLoop.ConfigureAwait(false); } catch { }
-        _cts.Dispose();
-
-        // Final flush
-        try
-        {
-            await FlushAsync(CancellationToken.None).ConfigureAwait(false);
-        }
-        catch { }
-
-        _writeCoordinator.Complete();
-        await _writeCoordinator.DrainAsync().ConfigureAwait(false);
-        await _writeCoordinator.DisposeAsync().ConfigureAwait(false);
-
-        if (_writeConnection != null)
-            await _writeConnection.DisposeAsync().ConfigureAwait(false);
-
-        _writeLock.Dispose();
+        Flush,
+        Load
     }
-
-    private enum PersistCommandType { Flush, Load }
 
     private readonly record struct PersistCommand(
         PersistCommandType Type,
@@ -343,7 +361,7 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
 }
 
 /// <summary>
-/// Window statistics.
+///     Window statistics.
 /// </summary>
 public readonly record struct WindowStats(
     int InMemoryCount,

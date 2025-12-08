@@ -98,6 +98,7 @@ public class OrderHandler
 ## File Structure
 
 Files are stored as:
+
 ```
 ./data/orders/
 ├── order-123.json
@@ -106,6 +107,7 @@ Files are stored as:
 ```
 
 Each file contains the JSON-serialized value:
+
 ```json
 {
   "id": "order-123",
@@ -137,6 +139,7 @@ Console.WriteLine(storage.StoragePath); // ./data/orders
 ## Thread Safety
 
 All operations are coordinated through an internal `EphemeralWorkCoordinator`, ensuring:
+
 - Sequential writes by default (configurable via `MaxConcurrency`)
 - Atomic file writes (write to temp, then move)
 - Signal emission after successful operations

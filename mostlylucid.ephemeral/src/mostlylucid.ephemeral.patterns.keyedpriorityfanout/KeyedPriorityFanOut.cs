@@ -1,27 +1,25 @@
-using Mostlylucid.Ephemeral;
-
 namespace Mostlylucid.Ephemeral.Patterns.KeyedPriorityFanOut;
 
 /// <summary>
-/// Pending counts for priority and normal lanes.
+///     Pending counts for priority and normal lanes.
 /// </summary>
 public readonly record struct LaneCounts(int Priority, int Normal);
 
 /// <summary>
-/// Keyed fan-out with multiple priority lanes built on PriorityKeyedWorkCoordinator.
-/// Priority items drain before normal ones; per-key ordering is preserved inside the coordinator.
+///     Keyed fan-out with multiple priority lanes built on PriorityKeyedWorkCoordinator.
+///     Priority items drain before normal ones; per-key ordering is preserved inside the coordinator.
 /// </summary>
 /// <example>
-/// <code>
+///     <code>
 /// var fan = new KeyedPriorityFanOut&lt;UserId, UserCommand&gt;(
 ///     keySelector: cmd => cmd.UserId,
 ///     body: HandleCommandAsync,
 ///     maxConcurrency: 32,
 ///     perKeyConcurrency: 1);
-///
+/// 
 /// await fan.EnqueueAsync(cmd);             // normal lane
 /// await fan.EnqueuePriorityAsync(cmd);     // jumps the queue for that key
-///
+/// 
 /// var counts = fan.PendingCounts;          // (Priority: 0, Normal: 5)
 /// </code>
 /// </example>
@@ -43,9 +41,9 @@ public sealed class KeyedPriorityFanOut<TKey, T> : IAsyncDisposable where TKey :
         {
             new PriorityLane(
                 "priority",
-                MaxDepth: maxPriorityDepth,
-                CancelOnSignals: cancelPriorityOn,
-                DeferOnSignals: deferPriorityOn),
+                maxPriorityDepth,
+                cancelPriorityOn,
+                deferPriorityOn),
             new PriorityLane("normal")
         };
 
@@ -53,8 +51,8 @@ public sealed class KeyedPriorityFanOut<TKey, T> : IAsyncDisposable where TKey :
             new PriorityKeyedWorkCoordinatorOptions<T, TKey>(
                 keySelector,
                 body,
-                Lanes: lanes,
-                EphemeralOptions: new EphemeralOptions
+                lanes,
+                new EphemeralOptions
                 {
                     MaxConcurrency = maxConcurrency,
                     MaxConcurrencyPerKey = Math.Max(1, perKeyConcurrency),
@@ -64,22 +62,7 @@ public sealed class KeyedPriorityFanOut<TKey, T> : IAsyncDisposable where TKey :
     }
 
     /// <summary>
-    /// Enqueue an item into the normal lane.
-    /// </summary>
-    public ValueTask EnqueueAsync(T item, CancellationToken ct = default)
-        => _priorityCoordinator.EnqueueAsync(item, "normal", ct).AsVoid();
-
-    /// <summary>
-    /// Enqueue an item into the priority lane. Returns false if the priority lane is saturated
-    /// (based on MaxDepth, CancelOnSignals, or DeferOnSignals rules).
-    /// </summary>
-    public ValueTask<bool> EnqueuePriorityAsync(T item, CancellationToken ct = default)
-        => _priorityCoordinator.EnqueueAsync(item, "priority", ct);
-
-    public Task DrainAsync(CancellationToken ct = default) => _priorityCoordinator.DrainAsync(ct);
-
-    /// <summary>
-    /// Gets pending counts for priority and normal lanes.
+    ///     Gets pending counts for priority and normal lanes.
     /// </summary>
     public LaneCounts PendingCounts
     {
@@ -89,15 +72,38 @@ public sealed class KeyedPriorityFanOut<TKey, T> : IAsyncDisposable where TKey :
             var priority = 0;
             var normal = 0;
             foreach (var (lane, count) in lanes)
-            {
                 if (lane == "priority") priority = count;
                 else if (lane == "normal") normal = count;
-            }
             return new LaneCounts(priority, normal);
         }
     }
 
-    public ValueTask DisposeAsync() => _priorityCoordinator.DisposeAsync();
+    public ValueTask DisposeAsync()
+    {
+        return _priorityCoordinator.DisposeAsync();
+    }
+
+    /// <summary>
+    ///     Enqueue an item into the normal lane.
+    /// </summary>
+    public ValueTask EnqueueAsync(T item, CancellationToken ct = default)
+    {
+        return _priorityCoordinator.EnqueueAsync(item, "normal", ct).AsVoid();
+    }
+
+    /// <summary>
+    ///     Enqueue an item into the priority lane. Returns false if the priority lane is saturated
+    ///     (based on MaxDepth, CancelOnSignals, or DeferOnSignals rules).
+    /// </summary>
+    public ValueTask<bool> EnqueuePriorityAsync(T item, CancellationToken ct = default)
+    {
+        return _priorityCoordinator.EnqueueAsync(item, "priority", ct);
+    }
+
+    public Task DrainAsync(CancellationToken ct = default)
+    {
+        return _priorityCoordinator.DrainAsync(ct);
+    }
 }
 
 file static class ValueTaskExtensions

@@ -155,12 +155,12 @@ sink.Raise("backpressure.downstream");
 
 ## Related Packages
 
-| Package | Description |
-|---------|-------------|
-| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral) | Core library |
-| [mostlylucid.ephemeral.patterns.controlledfanout](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.controlledfanout) | Controlled fan-out |
-| [mostlylucid.ephemeral.atoms.keyedsequential](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.keyedsequential) | Keyed sequential atom |
-| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All in one DLL |
+| Package                                                                                                                           | Description           |
+|-----------------------------------------------------------------------------------------------------------------------------------|-----------------------|
+| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral)                                                     | Core library          |
+| [mostlylucid.ephemeral.patterns.controlledfanout](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.controlledfanout) | Controlled fan-out    |
+| [mostlylucid.ephemeral.atoms.keyedsequential](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.keyedsequential)         | Keyed sequential atom |
+| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete)                                   | All in one DLL        |
 
 ## License
 

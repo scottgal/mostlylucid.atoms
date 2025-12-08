@@ -1,5 +1,3 @@
-using System.Threading.Tasks;
-using Mostlylucid.Ephemeral;
 using Mostlylucid.Ephemeral.Patterns.PersistentWindow;
 using Xunit;
 
@@ -14,7 +12,10 @@ public class PersistentSignalWindowTests : IAsyncLifetime
         _dbPath = Path.Combine(Path.GetTempPath(), $"test_signals_{Guid.NewGuid():N}.db");
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public Task InitializeAsync()
+    {
+        return Task.CompletedTask;
+    }
 
     public Task DisposeAsync()
     {
@@ -32,6 +33,7 @@ public class PersistentSignalWindowTests : IAsyncLifetime
         {
             // Ignore cleanup errors
         }
+
         return Task.CompletedTask;
     }
 
@@ -40,9 +42,9 @@ public class PersistentSignalWindowTests : IAsyncLifetime
     {
         await using var window = new PersistentSignalWindow($"Data Source={_dbPath}", TimeSpan.FromSeconds(30));
 
-        window.Raise("order.created", key: "order-1");
-        window.Raise("order.shipped", key: "order-1");
-        window.Raise("payment.completed", key: "pay-1");
+        window.Raise("order.created", "order-1");
+        window.Raise("order.shipped", "order-1");
+        window.Raise("payment.completed", "pay-1");
 
         var orderSignals = window.Sense("order.*");
         Assert.Equal(2, orderSignals.Count);
@@ -109,7 +111,7 @@ public class PersistentSignalWindowTests : IAsyncLifetime
 
         // Second window - load with very short max age
         await using var window2 = new PersistentSignalWindow($"Data Source={_dbPath}", TimeSpan.FromSeconds(30));
-        await window2.LoadFromDiskAsync(maxAge: TimeSpan.FromMilliseconds(1));
+        await window2.LoadFromDiskAsync(TimeSpan.FromMilliseconds(1));
 
         // Signal should be too old
         var signals = window2.Sense("old.*");
@@ -142,10 +144,7 @@ public class PersistentSignalWindowTests : IAsyncLifetime
         await using var window = new PersistentSignalWindow($"Data Source={_dbPath}", TimeSpan.FromMilliseconds(200));
 
         // Raise many signals
-        for (var i = 0; i < 100; i++)
-        {
-            window.Raise($"volume.test.{i % 10}", key: $"key-{i}");
-        }
+        for (var i = 0; i < 100; i++) window.Raise($"volume.test.{i % 10}", $"key-{i}");
 
         // Wait for flush
         await Task.Delay(500);
@@ -215,7 +214,8 @@ public class PersistentSignalWindowTests : IAsyncLifetime
     [Fact]
     public async Task Window_ManualFlush()
     {
-        await using var window = new PersistentSignalWindow($"Data Source={_dbPath}", TimeSpan.FromHours(1)); // Long interval
+        await using var
+            window = new PersistentSignalWindow($"Data Source={_dbPath}", TimeSpan.FromHours(1)); // Long interval
 
         window.Raise("manual.flush.test");
 

@@ -1,13 +1,10 @@
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Reflection;
-using Mostlylucid.Ephemeral;
 
 namespace Mostlylucid.Ephemeral.Atoms.Data;
 
 /// <summary>
-/// Attribute to declare that a job class requires a specific data storage.
+///     Attribute to declare that a job class requires a specific data storage.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = true)]
 public sealed class RequiresStorageAttribute : Attribute
@@ -18,18 +15,18 @@ public sealed class RequiresStorageAttribute : Attribute
     }
 
     /// <summary>
-    /// Name of the storage (matches DataStorageConfig.DatabaseName).
+    ///     Name of the storage (matches DataStorageConfig.DatabaseName).
     /// </summary>
     public string StorageName { get; }
 
     /// <summary>
-    /// Storage type hint (file, sqlite, postgres). If null, uses default.
+    ///     Storage type hint (file, sqlite, postgres). If null, uses default.
     /// </summary>
     public string? StorageType { get; set; }
 }
 
 /// <summary>
-/// Registration for a storage atom factory.
+///     Registration for a storage atom factory.
 /// </summary>
 public sealed class StorageRegistration
 {
@@ -40,15 +37,15 @@ public sealed class StorageRegistration
 }
 
 /// <summary>
-/// Provides scoped access to storage atoms for jobs.
-/// Dynamically creates and caches storage instances based on job requirements.
+///     Provides scoped access to storage atoms for jobs.
+///     Dynamically creates and caches storage instances based on job requirements.
 /// </summary>
 public sealed class DataStorageScope : IAsyncDisposable
 {
+    private readonly string _defaultStorageType;
+    private readonly Dictionary<string, StorageRegistration> _registrations = new();
     private readonly SignalSink _signals;
     private readonly ConcurrentDictionary<string, object> _storages = new();
-    private readonly Dictionary<string, StorageRegistration> _registrations = new();
-    private readonly string _defaultStorageType;
 
     public DataStorageScope(SignalSink signals, string defaultStorageType = "file")
     {
@@ -56,8 +53,19 @@ public sealed class DataStorageScope : IAsyncDisposable
         _defaultStorageType = defaultStorageType;
     }
 
+    public async ValueTask DisposeAsync()
+    {
+        foreach (var storage in _storages.Values)
+            if (storage is IAsyncDisposable asyncDisposable)
+                await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+            else if (storage is IDisposable disposable)
+                disposable.Dispose();
+
+        _storages.Clear();
+    }
+
     /// <summary>
-    /// Registers a storage factory for a specific name and type.
+    ///     Registers a storage factory for a specific name and type.
     /// </summary>
     public DataStorageScope Register(StorageRegistration registration)
     {
@@ -67,7 +75,7 @@ public sealed class DataStorageScope : IAsyncDisposable
     }
 
     /// <summary>
-    /// Registers a storage factory using fluent syntax.
+    ///     Registers a storage factory using fluent syntax.
     /// </summary>
     public DataStorageScope Register(
         string name,
@@ -85,7 +93,7 @@ public sealed class DataStorageScope : IAsyncDisposable
     }
 
     /// <summary>
-    /// Gets or creates a storage atom for the given name.
+    ///     Gets or creates a storage atom for the given name.
     /// </summary>
     public TStorage GetStorage<TStorage>(string name, string? storageType = null)
         where TStorage : class
@@ -100,7 +108,7 @@ public sealed class DataStorageScope : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            _signals.Raise(typeof(TStorage).Name + ".storage.error:" +ex.HResult);
+            _signals.Raise(typeof(TStorage).Name + ".storage.error:" + ex.HResult);
             throw;
         }
 
@@ -112,7 +120,7 @@ public sealed class DataStorageScope : IAsyncDisposable
     }
 
     /// <summary>
-    /// Gets required storages for a job type based on RequiresStorageAttribute.
+    ///     Gets required storages for a job type based on RequiresStorageAttribute.
     /// </summary>
     public IReadOnlyList<object> GetRequiredStorages(Type jobType)
     {
@@ -127,20 +135,18 @@ public sealed class DataStorageScope : IAsyncDisposable
 
         // Check method-level attributes
         foreach (var method in jobType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+        foreach (var attr in method.GetCustomAttributes<RequiresStorageAttribute>())
         {
-            foreach (var attr in method.GetCustomAttributes<RequiresStorageAttribute>())
-            {
-                var storage = GetStorageByAttribute(attr);
-                if (!storages.Contains(storage))
-                    storages.Add(storage);
-            }
+            var storage = GetStorageByAttribute(attr);
+            if (!storages.Contains(storage))
+                storages.Add(storage);
         }
 
         return storages;
     }
 
     /// <summary>
-    /// Creates a job instance with storage dependencies injected.
+    ///     Creates a job instance with storage dependencies injected.
     /// </summary>
     public object? CreateJobInstance(Type jobType, IServiceProvider? serviceProvider = null)
     {
@@ -270,32 +276,15 @@ public sealed class DataStorageScope : IAsyncDisposable
         var key = $"{name}:{storageType}";
 
         if (!_registrations.TryGetValue(key, out var registration))
-        {
             // Try name-only match
             registration = _registrations.Values.FirstOrDefault(r => r.Name == name);
-        }
 
         if (registration == null)
-        {
             throw new InvalidOperationException(
                 $"No storage registered for '{name}' with type '{storageType}'. " +
                 $"Register it using DataStorageScope.Register().");
-        }
 
         var config = registration.Config ?? new DataStorageConfig { DatabaseName = name };
         return registration.Factory(_signals, config);
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        foreach (var storage in _storages.Values)
-        {
-            if (storage is IAsyncDisposable asyncDisposable)
-                await asyncDisposable.DisposeAsync().ConfigureAwait(false);
-            else if (storage is IDisposable disposable)
-                disposable.Dispose();
-        }
-
-        _storages.Clear();
     }
 }

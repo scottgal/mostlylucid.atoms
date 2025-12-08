@@ -16,8 +16,8 @@ public class SlidingCacheAtomTests
                 computeCount++;
                 return Task.FromResult(42);
             },
-            slidingExpiration: TimeSpan.FromMilliseconds(300),
-            absoluteExpiration: TimeSpan.FromSeconds(5));
+            TimeSpan.FromMilliseconds(300),
+            TimeSpan.FromSeconds(5));
 
         var first = await cache.GetOrComputeAsync("key");
         Assert.Equal(42, first);
@@ -44,8 +44,8 @@ public class SlidingCacheAtomTests
                 computeCount++;
                 return Task.FromResult(computeCount);
             },
-            slidingExpiration: TimeSpan.FromSeconds(5),
-            absoluteExpiration: TimeSpan.FromMilliseconds(150));
+            TimeSpan.FromSeconds(5),
+            TimeSpan.FromMilliseconds(150));
 
         var first = await cache.GetOrComputeAsync("key");
         Assert.Equal(1, first);
@@ -68,9 +68,9 @@ public class SlidingCacheAtomTests
                 computeCount++;
                 return Task.FromResult(computeCount);
             },
-            slidingExpiration: TimeSpan.FromMilliseconds(60),
-            absoluteExpiration: TimeSpan.FromMilliseconds(60),
-            maxSize: 1);
+            TimeSpan.FromMilliseconds(60),
+            TimeSpan.FromMilliseconds(60),
+            1);
 
         var first = await cache.GetOrComputeAsync("old");
         Assert.Equal(1, first);

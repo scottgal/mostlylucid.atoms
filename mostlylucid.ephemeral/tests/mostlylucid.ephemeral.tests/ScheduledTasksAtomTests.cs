@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Cronos;
 using Mostlylucid.Ephemeral.Atoms.ScheduledTasks;
 using Xunit;
@@ -23,16 +19,16 @@ public sealed class ScheduledTasksAtomTests
 
         var now = DateTimeOffset.UtcNow;
         var definition = new ScheduledTaskDefinition(
-            name: "heartbeat",
-            cronExpressionText: "*/1 * * * *",
-            cronExpression: CronExpression.Parse("*/1 * * * *", CronFormat.Standard),
-            signal: "schedule.tick",
-            key: "heartbeat",
-            payload: default,
-            description: "heartbeat job",
-            timeZone: null,
-            cronFormat: CronFormat.Standard,
-            runOnStartup: true);
+            "heartbeat",
+            "*/1 * * * *",
+            CronExpression.Parse("*/1 * * * *", CronFormat.Standard),
+            "schedule.tick",
+            "heartbeat",
+            default,
+            "heartbeat job",
+            null,
+            CronFormat.Standard,
+            true);
 
         var options = new ScheduledTasksOptions
         {

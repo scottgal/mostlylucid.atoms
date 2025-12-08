@@ -1,9 +1,7 @@
-using Mostlylucid.Ephemeral;
-
 namespace Mostlylucid.Ephemeral.Atoms.KeyedSequential;
 
 /// <summary>
-/// Per-key sequential atom. Ensures ordering per key while allowing global parallelism.
+///     Per-key sequential atom. Ensures ordering per key while allowing global parallelism.
 /// </summary>
 public sealed class KeyedSequentialAtom<T, TKey> : IAsyncDisposable where TKey : notnull
 {
@@ -29,6 +27,11 @@ public sealed class KeyedSequentialAtom<T, TKey> : IAsyncDisposable where TKey :
         _coordinator = new EphemeralKeyedWorkCoordinator<T, TKey>(keySelector, body, options);
     }
 
+    public ValueTask DisposeAsync()
+    {
+        return _coordinator.DisposeAsync();
+    }
+
     public async ValueTask<long> EnqueueAsync(T item, CancellationToken ct = default)
     {
         await _coordinator.EnqueueAsync(item, ct).ConfigureAwait(false);
@@ -41,10 +44,14 @@ public sealed class KeyedSequentialAtom<T, TKey> : IAsyncDisposable where TKey :
         await _coordinator.DrainAsync(ct).ConfigureAwait(false);
     }
 
-    public IReadOnlyCollection<EphemeralOperationSnapshot> Snapshot() => _coordinator.GetSnapshot();
+    public IReadOnlyCollection<EphemeralOperationSnapshot> Snapshot()
+    {
+        return _coordinator.GetSnapshot();
+    }
 
     public (int Pending, int Active, int Completed, int Failed) Stats()
-        => (_coordinator.PendingCount, _coordinator.ActiveCount, _coordinator.TotalCompleted, _coordinator.TotalFailed);
-
-    public ValueTask DisposeAsync() => _coordinator.DisposeAsync();
+    {
+        return (_coordinator.PendingCount, _coordinator.ActiveCount, _coordinator.TotalCompleted,
+            _coordinator.TotalFailed);
+    }
 }

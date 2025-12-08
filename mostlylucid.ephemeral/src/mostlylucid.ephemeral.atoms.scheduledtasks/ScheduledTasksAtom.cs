@@ -1,27 +1,27 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-
 namespace Mostlylucid.Ephemeral.Atoms.ScheduledTasks;
 
 /// <summary>
-/// Streams configured cron schedules into durable tasks.
+///     Streams configured cron schedules into durable tasks.
 /// </summary>
 public sealed class ScheduledTasksAtom : IAsyncDisposable
 {
-    private readonly DurableTaskAtom _durableAtom;
-    private readonly List<ScheduledTaskState> _states;
     private readonly Func<DateTimeOffset> _clock;
-    private readonly TimeSpan _pollInterval;
     private readonly CancellationTokenSource _cts = new();
+    private readonly DurableTaskAtom _durableAtom;
     private readonly Task? _loop;
+    private readonly TimeSpan _pollInterval;
+    private readonly List<ScheduledTaskState> _states;
 
     /// <summary>
-    /// Creates a scheduler that enqueues durable tasks whenever a cron definition matches.
+    ///     Stops the background loop (if running) and cancels future work.
     /// </summary>
-    public ScheduledTasksAtom(DurableTaskAtom durableAtom, IEnumerable<ScheduledTaskDefinition> definitions, ScheduledTasksOptions? options = null)
+    private bool _disposed;
+
+    /// <summary>
+    ///     Creates a scheduler that enqueues durable tasks whenever a cron definition matches.
+    /// </summary>
+    public ScheduledTasksAtom(DurableTaskAtom durableAtom, IEnumerable<ScheduledTaskDefinition> definitions,
+        ScheduledTasksOptions? options = null)
     {
         _durableAtom = durableAtom ?? throw new ArgumentNullException(nameof(durableAtom));
         if (definitions is null) throw new ArgumentNullException(nameof(definitions));
@@ -40,9 +40,28 @@ public sealed class ScheduledTasksAtom : IAsyncDisposable
             _loop = Task.Run(() => PollLoopAsync(_cts.Token));
     }
 
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+        _cts.Cancel();
+        if (_loop is not null)
+            try
+            {
+                await _loop.ConfigureAwait(false);
+            }
+            catch
+            {
+            }
+
+        _cts.Dispose();
+    }
+
     /// <summary>
-    /// Triggers any due tasks based on the current clock instant.
-    /// Useful in tests or when AutoStart = false.
+    ///     Triggers any due tasks based on the current clock instant.
+    ///     Useful in tests or when AutoStart = false.
     /// </summary>
     public Task TriggerAsync(CancellationToken cancellationToken = default)
     {
@@ -67,7 +86,6 @@ public sealed class ScheduledTasksAtom : IAsyncDisposable
     private async Task TriggerDueTasksAsync(DateTimeOffset now, CancellationToken cancellationToken)
     {
         foreach (var state in _states)
-        {
             while (true)
             {
                 var next = state.NextRun;
@@ -77,10 +95,10 @@ public sealed class ScheduledTasksAtom : IAsyncDisposable
                 await EnqueueAsync(state.Definition, next.Value, cancellationToken).ConfigureAwait(false);
                 state.ScheduleNext();
             }
-        }
     }
 
-    private ValueTask EnqueueAsync(ScheduledTaskDefinition definition, DateTimeOffset scheduledAt, CancellationToken cancellationToken)
+    private ValueTask EnqueueAsync(ScheduledTaskDefinition definition, DateTimeOffset scheduledAt,
+        CancellationToken cancellationToken)
     {
         var task = new DurableTask(
             definition.Name,
@@ -93,31 +111,8 @@ public sealed class ScheduledTasksAtom : IAsyncDisposable
         return _durableAtom.EnqueueAsync(task, cancellationToken);
     }
 
-    /// <summary>
-    /// Stops the background loop (if running) and cancels future work.
-    /// </summary>
-    private bool _disposed;
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_disposed)
-            return;
-
-        _disposed = true;
-        _cts.Cancel();
-        if (_loop is not null)
-        {
-            try { await _loop.ConfigureAwait(false); } catch { }
-        }
-
-        _cts.Dispose();
-    }
-
     private sealed class ScheduledTaskState
     {
-        public ScheduledTaskDefinition Definition { get; }
-        public DateTimeOffset? NextRun { get; private set; }
-
         private readonly Func<DateTimeOffset> _clock;
 
         public ScheduledTaskState(ScheduledTaskDefinition definition, Func<DateTimeOffset> clock)
@@ -132,18 +127,19 @@ public sealed class ScheduledTasksAtom : IAsyncDisposable
             }
             else
             {
-                NextRun = definition.GetNextOccurrence(now, inclusive: true);
+                NextRun = definition.GetNextOccurrence(now, true);
                 if (NextRun is not null && NextRun <= now)
-                {
-                    NextRun = definition.GetNextOccurrence(now.AddTicks(1), inclusive: false);
-                }
+                    NextRun = definition.GetNextOccurrence(now.AddTicks(1), false);
             }
         }
+
+        public ScheduledTaskDefinition Definition { get; }
+        public DateTimeOffset? NextRun { get; private set; }
 
         public void ScheduleNext()
         {
             var reference = NextRun ?? _clock();
-            NextRun = Definition.GetNextOccurrence(reference, inclusive: false);
+            NextRun = Definition.GetNextOccurrence(reference, false);
         }
     }
 }

@@ -104,6 +104,7 @@ Stage 1 (Validation/Transform)     Stage 2 (Slow I/O)
 ```
 
 Signals emitted:
+
 - `stage2.backpressure` - When stage 2 pending exceeds threshold
 - `stage2.failed` - When stage 2 work fails
 
@@ -167,12 +168,12 @@ Task.Run(async () =>
 
 ## Related Packages
 
-| Package | Description |
-|---------|-------------|
-| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral) | Core library |
-| [mostlylucid.ephemeral.patterns.backpressure](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.backpressure) | Simple backpressure |
+| Package                                                                                                                               | Description         |
+|---------------------------------------------------------------------------------------------------------------------------------------|---------------------|
+| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral)                                                         | Core library        |
+| [mostlylucid.ephemeral.patterns.backpressure](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.backpressure)             | Simple backpressure |
 | [mostlylucid.ephemeral.patterns.dynamicconcurrency](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.dynamicconcurrency) | Dynamic concurrency |
-| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All in one DLL |
+| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete)                                       | All in one DLL      |
 
 ## License
 

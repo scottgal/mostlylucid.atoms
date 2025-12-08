@@ -1,44 +1,24 @@
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Mostlylucid.Ephemeral;
 
 namespace Mostlylucid.Ephemeral.Atoms.Molecules;
 
 /// <summary>
-/// Listens for trigger signals and instantiates molecule blueprints.
+///     Listens for trigger signals and instantiates molecule blueprints.
 /// </summary>
 public sealed class MoleculeRunner : IAsyncDisposable
 {
-    private readonly SignalSink _signals;
     private readonly IReadOnlyList<MoleculeBlueprint> _blueprints;
-    private readonly IServiceProvider _services;
     private readonly CancellationTokenSource _cts = new();
     private readonly ConcurrentBag<Task> _running = new();
+    private readonly IServiceProvider _services;
+    private readonly SignalSink _signals;
     private bool _disposed;
 
     /// <summary>
-    /// Raised when a molecule begins execution.
+    ///     Builds a runner.
     /// </summary>
-    public event Action<MoleculeBlueprint, MoleculeContext>? MoleculeStarted;
-
-    /// <summary>
-    /// Raised when a molecule completes.
-    /// </summary>
-    public event Action<MoleculeBlueprint, MoleculeContext>? MoleculeCompleted;
-
-    /// <summary>
-    /// Raised when a molecule throws.
-    /// </summary>
-    public event Action<MoleculeBlueprint, MoleculeContext, Exception>? MoleculeFailed;
-
-    /// <summary>
-    /// Builds a runner.
-    /// </summary>
-    public MoleculeRunner(SignalSink signals, IEnumerable<MoleculeBlueprint> blueprints, IServiceProvider? services = null)
+    public MoleculeRunner(SignalSink signals, IEnumerable<MoleculeBlueprint> blueprints,
+        IServiceProvider? services = null)
     {
         _signals = signals ?? throw new ArgumentNullException(nameof(signals));
         if (blueprints is null) throw new ArgumentNullException(nameof(blueprints));
@@ -48,6 +28,44 @@ public sealed class MoleculeRunner : IAsyncDisposable
         _services = services ?? NullServiceProvider.Instance;
         _signals.SignalRaised += OnSignal;
     }
+
+    /// <summary>
+    ///     Cancel pending molecules and wait for running ones to complete.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _signals.SignalRaised -= OnSignal;
+        _cts.Cancel();
+        try
+        {
+            await Task.WhenAll(_running.ToArray()).ConfigureAwait(false);
+        }
+        catch
+        {
+            /* ignore */
+        }
+        finally
+        {
+            _cts.Dispose();
+        }
+    }
+
+    /// <summary>
+    ///     Raised when a molecule begins execution.
+    /// </summary>
+    public event Action<MoleculeBlueprint, MoleculeContext>? MoleculeStarted;
+
+    /// <summary>
+    ///     Raised when a molecule completes.
+    /// </summary>
+    public event Action<MoleculeBlueprint, MoleculeContext>? MoleculeCompleted;
+
+    /// <summary>
+    ///     Raised when a molecule throws.
+    /// </summary>
+    public event Action<MoleculeBlueprint, MoleculeContext, Exception>? MoleculeFailed;
 
     private void OnSignal(SignalEvent signal)
     {
@@ -72,6 +90,7 @@ public sealed class MoleculeRunner : IAsyncDisposable
                 context.CancellationToken.ThrowIfCancellationRequested();
                 await step(context, context.CancellationToken).ConfigureAwait(false);
             }
+
             MoleculeCompleted?.Invoke(blueprint, context);
         }
         catch (Exception ex)
@@ -80,30 +99,17 @@ public sealed class MoleculeRunner : IAsyncDisposable
         }
     }
 
-    /// <summary>
-    /// Cancel pending molecules and wait for running ones to complete.
-    /// </summary>
-    public async ValueTask DisposeAsync()
-    {
-        if (_disposed) return;
-        _disposed = true;
-        _signals.SignalRaised -= OnSignal;
-        _cts.Cancel();
-        try
-        {
-            await Task.WhenAll(_running.ToArray()).ConfigureAwait(false);
-        }
-        catch { /* ignore */ }
-        finally
-        {
-            _cts.Dispose();
-        }
-    }
-
     private sealed class NullServiceProvider : IServiceProvider
     {
         public static readonly NullServiceProvider Instance = new();
-        private NullServiceProvider() { }
-        public object? GetService(Type serviceType) => null;
+
+        private NullServiceProvider()
+        {
+        }
+
+        public object? GetService(Type serviceType)
+        {
+            return null;
+        }
     }
 }

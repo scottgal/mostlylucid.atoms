@@ -42,5 +42,4 @@ public class StringPatternMatcherTests
         Assert.True(StringPatternMatcher.MatchesAny("warning.low", patterns));
         Assert.False(StringPatternMatcher.MatchesAny("info.message", patterns));
     }
-
 }

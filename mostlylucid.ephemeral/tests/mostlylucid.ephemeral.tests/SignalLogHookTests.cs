@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Mostlylucid.Ephemeral;
 using Mostlylucid.Ephemeral.Logging;
 using Xunit;
 
@@ -7,21 +6,6 @@ namespace Mostlylucid.Ephemeral.Tests;
 
 public class SignalLogHookTests
 {
-    private sealed class CapturingLogger : ILogger
-    {
-        public readonly List<(LogLevel Level, EventId Id, string Message)> Entries = new();
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => DummyScope.Instance;
-        public bool IsEnabled(LogLevel logLevel) => true;
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-            => Entries.Add((logLevel, eventId, formatter(state, exception)));
-    }
-
-    private sealed class DummyScope : IDisposable
-    {
-        public static readonly DummyScope Instance = new();
-        public void Dispose() { }
-    }
-
     [Fact]
     public void Logs_Map_To_Signals()
     {
@@ -71,5 +55,35 @@ public class SignalLogHookTests
         Assert.Equal(LogLevel.Error, entry.Level);
         Assert.Contains("error.db.timeout", entry.Message);
         Assert.Equal("order-42", entry.Id.Name);
+    }
+
+    private sealed class CapturingLogger : ILogger
+    {
+        public readonly List<(LogLevel Level, EventId Id, string Message)> Entries = new();
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+        {
+            return DummyScope.Instance;
+        }
+
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            return true;
+        }
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Entries.Add((logLevel, eventId, formatter(state, exception)));
+        }
+    }
+
+    private sealed class DummyScope : IDisposable
+    {
+        public static readonly DummyScope Instance = new();
+
+        public void Dispose()
+        {
+        }
     }
 }

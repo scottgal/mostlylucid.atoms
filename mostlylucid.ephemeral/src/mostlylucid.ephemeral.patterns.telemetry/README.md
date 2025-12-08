@@ -83,6 +83,7 @@ Signal arrives ─> OnSignal() ─> [Queue] ─> AsyncProcessor ─> ITelemetryC
 ```
 
 Signal routing:
+
 - `error.*` signals → `TrackExceptionAsync`
 - `perf.*` signals → `TrackMetricAsync`
 - All other signals → `TrackEventAsync`
@@ -185,12 +186,12 @@ Task.Run(async () =>
 
 ## Related Packages
 
-| Package | Description |
-|---------|-------------|
-| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral) | Core library |
+| Package                                                                                                                           | Description        |
+|-----------------------------------------------------------------------------------------------------------------------------------|--------------------|
+| [mostlylucid.ephemeral](https://www.nuget.org/packages/mostlylucid.ephemeral)                                                     | Core library       |
 | [mostlylucid.ephemeral.patterns.signallogwatcher](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.signallogwatcher) | Signal log watcher |
-| [mostlylucid.ephemeral.patterns.signalinghttp](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.signalinghttp) | HTTP with signals |
-| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete) | All in one DLL |
+| [mostlylucid.ephemeral.patterns.signalinghttp](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.signalinghttp)       | HTTP with signals  |
+| [mostlylucid.ephemeral.complete](https://www.nuget.org/packages/mostlylucid.ephemeral.complete)                                   | All in one DLL     |
 
 ## License
 

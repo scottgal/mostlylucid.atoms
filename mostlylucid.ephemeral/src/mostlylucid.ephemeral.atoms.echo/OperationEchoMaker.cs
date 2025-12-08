@@ -1,31 +1,23 @@
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using Mostlylucid.Ephemeral;
 
 namespace Mostlylucid.Ephemeral.Atoms.Echo;
 
 /// <summary>
-/// Watches typed signals and the coordinator finalization event to build compact operation echoes.
+///     Watches typed signals and the coordinator finalization event to build compact operation echoes.
 /// </summary>
 public sealed class OperationEchoMaker<TPayload> : IDisposable
 {
-    private readonly TypedSignalSink<TPayload> _typedSink;
-    private readonly IOperationFinalization _finalizer;
-    private readonly OperationEchoMakerOptions<TPayload> _options;
     private readonly Func<string, bool>? _activationMatcher;
     private readonly Func<string, bool>? _captureMatcher;
     private readonly Func<SignalEvent<TPayload>, bool> _capturePredicate;
     private readonly ConcurrentDictionary<long, CaptureEntry> _captures = new();
+    private readonly IOperationFinalization _finalizer;
+    private readonly Action<OperationEchoEntry<TPayload>>? _onEcho;
+    private readonly OperationEchoMakerOptions<TPayload> _options;
     private readonly ConcurrentQueue<long> _order = new();
     private readonly object _trimLock = new();
-    private readonly Action<OperationEchoEntry<TPayload>>? _onEcho;
+    private readonly TypedSignalSink<TPayload> _typedSink;
     private bool _disposed;
-
-    /// <summary>
-    /// Raised when an operation echo is emitted.
-    /// </summary>
-    public event Action<OperationEchoEntry<TPayload>>? EchoCreated;
 
     public OperationEchoMaker(
         TypedSignalSink<TPayload> typedSink,
@@ -45,6 +37,21 @@ public sealed class OperationEchoMaker<TPayload> : IDisposable
         _finalizer.OperationFinalized += OnFinalized;
     }
 
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _typedSink.TypedSignalRaised -= OnSignal;
+        _finalizer.OperationFinalized -= OnFinalized;
+        _disposed = true;
+    }
+
+    /// <summary>
+    ///     Raised when an operation echo is emitted.
+    /// </summary>
+    public event Action<OperationEchoEntry<TPayload>>? EchoCreated;
+
     private static Func<string, bool>? BuildMatcher(string? pattern)
     {
         if (string.IsNullOrWhiteSpace(pattern))
@@ -61,10 +68,7 @@ public sealed class OperationEchoMaker<TPayload> : IDisposable
         entry.LastUpdated = signal.Timestamp;
 
         var isActivation = _activationMatcher?.Invoke(signal.Signal) == true;
-        if (isActivation)
-        {
-            entry.Activated = true;
-        }
+        if (isActivation) entry.Activated = true;
 
         if (_options.RequiresActivation && !entry.Activated)
             return;
@@ -111,7 +115,10 @@ public sealed class OperationEchoMaker<TPayload> : IDisposable
         TrimCapturedState();
     }
 
-    private void EnqueueOrder(long operationId) => _order.Enqueue(operationId);
+    private void EnqueueOrder(long operationId)
+    {
+        _order.Enqueue(operationId);
+    }
 
     private void TrimCapturedState()
     {
@@ -145,16 +152,6 @@ public sealed class OperationEchoMaker<TPayload> : IDisposable
         }
     }
 
-    public void Dispose()
-    {
-        if (_disposed)
-            return;
-
-        _typedSink.TypedSignalRaised -= OnSignal;
-        _finalizer.OperationFinalized -= OnFinalized;
-        _disposed = true;
-    }
-
     private sealed class CaptureEntry
     {
         public CaptureEntry(DateTimeOffset timestamp)
@@ -167,6 +164,8 @@ public sealed class OperationEchoMaker<TPayload> : IDisposable
         public DateTimeOffset LastUpdated { get; set; }
 
         public bool IsExpired(DateTimeOffset now, TimeSpan maxAge)
-            => maxAge > TimeSpan.Zero && now - LastUpdated > maxAge;
+        {
+            return maxAge > TimeSpan.Zero && now - LastUpdated > maxAge;
+        }
     }
 }

@@ -1,27 +1,25 @@
-using Mostlylucid.Ephemeral;
-
 namespace Mostlylucid.Ephemeral.Patterns.ReactiveFanOut;
 
 /// <summary>
-/// Reactive fan-out: stage 1 spreads work, but dynamically throttles when stage 2 signals trouble.
-/// Stage 2 emits backpressure/failure signals; stage 1 listens and shrinks concurrency until things recover.
+///     Reactive fan-out: stage 1 spreads work, but dynamically throttles when stage 2 signals trouble.
+///     Stage 2 emits backpressure/failure signals; stage 1 listens and shrinks concurrency until things recover.
 /// </summary>
 public sealed class ReactiveFanOutPipeline<T> : IAsyncDisposable
 {
     private const string BackpressureSignal = "stage2.backpressure";
     private const string FailureSignal = "stage2.failed";
     private const int SampleEvery = 4;
+    private readonly int _adjustCooldownMs;
+    private readonly int _backpressureThreshold;
+    private readonly int _maxStage1Concurrency;
+    private readonly int _minStage1Concurrency;
+    private readonly Func<T, CancellationToken, Task> _preStageWork;
+    private readonly int _reliefThreshold;
+    private readonly SignalSink _sink;
 
     private readonly EphemeralWorkCoordinator<T> _stage1;
     private readonly EphemeralWorkCoordinator<T> _stage2;
-    private readonly Func<T, CancellationToken, Task> _preStageWork;
     private readonly Func<T, CancellationToken, Task> _stage2Work;
-    private readonly SignalSink _sink;
-    private readonly int _maxStage1Concurrency;
-    private readonly int _minStage1Concurrency;
-    private readonly int _backpressureThreshold;
-    private readonly int _reliefThreshold;
-    private readonly int _adjustCooldownMs;
     private int _enqueueCount;
     private long _lastAdjustTicks;
     private long _lastBackpressureRaiseTicks;
@@ -38,7 +36,8 @@ public sealed class ReactiveFanOutPipeline<T> : IAsyncDisposable
         SignalSink? sink = null)
     {
         if (stage1MaxConcurrency <= 0) throw new ArgumentOutOfRangeException(nameof(stage1MaxConcurrency));
-        if (stage1MinConcurrency <= 0 || stage1MinConcurrency > stage1MaxConcurrency) throw new ArgumentOutOfRangeException(nameof(stage1MinConcurrency));
+        if (stage1MinConcurrency <= 0 || stage1MinConcurrency > stage1MaxConcurrency)
+            throw new ArgumentOutOfRangeException(nameof(stage1MinConcurrency));
         if (stage2MaxConcurrency <= 0) throw new ArgumentOutOfRangeException(nameof(stage2MaxConcurrency));
         if (backpressureThreshold <= 0) throw new ArgumentOutOfRangeException(nameof(backpressureThreshold));
         if (reliefThreshold < 0) throw new ArgumentOutOfRangeException(nameof(reliefThreshold));
@@ -63,7 +62,8 @@ public sealed class ReactiveFanOutPipeline<T> : IAsyncDisposable
                 }
                 catch
                 {
-                    _sink.Raise(new SignalEvent(FailureSignal, EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
+                    _sink.Raise(new SignalEvent(FailureSignal, EphemeralIdGenerator.NextId(), null,
+                        DateTimeOffset.UtcNow));
                     throw;
                 }
             },
@@ -93,6 +93,11 @@ public sealed class ReactiveFanOutPipeline<T> : IAsyncDisposable
     public int Stage1CurrentMaxConcurrency => _stage1.CurrentMaxConcurrency;
     public int Stage2Pending => _stage2.PendingCount;
 
+    public ValueTask DisposeAsync()
+    {
+        return new ValueTask(Task.WhenAll(_stage1.DisposeAsync().AsTask(), _stage2.DisposeAsync().AsTask()));
+    }
+
     public ValueTask EnqueueAsync(T item, CancellationToken ct = default)
     {
         var count = Interlocked.Increment(ref _enqueueCount);
@@ -116,13 +121,11 @@ public sealed class ReactiveFanOutPipeline<T> : IAsyncDisposable
             var cutoff = now - TimeSpan.FromMilliseconds(_adjustCooldownMs);
             var signals = _sink.Sense();
             foreach (var s in signals)
-            {
                 if ((s.Signal == BackpressureSignal || s.Signal == FailureSignal) && s.Timestamp >= cutoff)
                 {
                     recentBackpressure = true;
                     break;
                 }
-            }
         }
 
         if (recentBackpressure)
@@ -132,7 +135,8 @@ public sealed class ReactiveFanOutPipeline<T> : IAsyncDisposable
 
             if (pending >= _backpressureThreshold && nowTicks - _lastBackpressureRaiseTicks >= 50)
             {
-                _sink.Raise(new SignalEvent(BackpressureSignal, EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
+                _sink.Raise(new SignalEvent(BackpressureSignal, EphemeralIdGenerator.NextId(), null,
+                    DateTimeOffset.UtcNow));
                 _lastBackpressureRaiseTicks = nowTicks;
             }
 
@@ -156,18 +160,17 @@ public sealed class ReactiveFanOutPipeline<T> : IAsyncDisposable
         await _stage1.DrainAsync(ct).ConfigureAwait(false);
         await _stage2.DrainAsync(ct).ConfigureAwait(false);
     }
-
-    public ValueTask DisposeAsync()
-    {
-        return new ValueTask(Task.WhenAll(_stage1.DisposeAsync().AsTask(), _stage2.DisposeAsync().AsTask()));
-    }
 }
 
 /// <summary>
-/// Internal ID generator access for signal creation.
+///     Internal ID generator access for signal creation.
 /// </summary>
 internal static class EphemeralIdGenerator
 {
     private static long _counter;
-    public static long NextId() => Interlocked.Increment(ref _counter);
+
+    public static long NextId()
+    {
+        return Interlocked.Increment(ref _counter);
+    }
 }

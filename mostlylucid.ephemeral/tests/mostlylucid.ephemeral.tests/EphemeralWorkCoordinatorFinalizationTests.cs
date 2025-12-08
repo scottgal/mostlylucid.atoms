@@ -1,6 +1,3 @@
-using System;
-using System.Threading.Tasks;
-using Mostlylucid.Ephemeral;
 using Xunit;
 
 namespace Mostlylucid.Ephemeral.Tests;
@@ -20,10 +17,7 @@ public class EphemeralWorkCoordinatorFinalizationTests
             options);
 
         var tcs = new TaskCompletionSource<EphemeralOperationSnapshot>();
-        coordinator.OperationFinalized += snapshot =>
-        {
-            tcs.TrySetResult(snapshot);
-        };
+        coordinator.OperationFinalized += snapshot => { tcs.TrySetResult(snapshot); };
 
         var firstId = await coordinator.EnqueueWithIdAsync(1);
         await coordinator.EnqueueAsync(2);

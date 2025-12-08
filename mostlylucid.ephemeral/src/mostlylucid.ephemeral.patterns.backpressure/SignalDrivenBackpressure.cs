@@ -1,9 +1,7 @@
-using Mostlylucid.Ephemeral;
-
 namespace Mostlylucid.Ephemeral.Patterns.Backpressure;
 
 /// <summary>
-/// Signal-driven backpressure: when "backpressure.*" is present, the queue defers starts.
+///     Signal-driven backpressure: when "backpressure.*" is present, the queue defers starts.
 /// </summary>
 public static class SignalDrivenBackpressure
 {

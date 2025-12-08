@@ -1,11 +1,9 @@
 using System.Collections.Concurrent;
-using System.Linq;
-using System.Threading;
 
 namespace Mostlylucid.Ephemeral;
 
 /// <summary>
-/// Definition of a stage/wave that triggers when a matching signal is seen.
+///     Definition of a stage/wave that triggers when a matching signal is seen.
 /// </summary>
 public sealed record SignalStage(
     string Name,
@@ -16,15 +14,15 @@ public sealed record SignalStage(
     IReadOnlyCollection<string>? EmitOnFailure = null);
 
 /// <summary>
-/// Executes staged work triggered by signals (wave execution). Honors early-exit signals.
+///     Executes staged work triggered by signals (wave execution). Honors early-exit signals.
 /// </summary>
 public sealed class SignalWaveExecutor : IAsyncDisposable
 {
-    private readonly SignalSink _sink;
-    private readonly IReadOnlyList<SignalStage> _stages;
     private readonly EphemeralWorkCoordinator<SignalStageInvocation> _coordinator;
     private readonly CancellationTokenSource _cts = new();
     private readonly IReadOnlyCollection<string> _earlyExitPatterns;
+    private readonly SignalSink _sink;
+    private readonly IReadOnlyList<SignalStage> _stages;
     private bool _started;
 
     public SignalWaveExecutor(
@@ -41,8 +39,18 @@ public sealed class SignalWaveExecutor : IAsyncDisposable
             new EphemeralOptions { MaxConcurrency = maxConcurrentStages, Signals = sink });
     }
 
+    public async ValueTask DisposeAsync()
+    {
+        _sink.SignalRaised -= OnSignal;
+        _cts.Cancel();
+        _coordinator.Complete();
+        await _coordinator.DrainAsync().ConfigureAwait(false);
+        await _coordinator.DisposeAsync().ConfigureAwait(false);
+        _cts.Dispose();
+    }
+
     /// <summary>
-    /// Begin listening for trigger signals.
+    ///     Begin listening for trigger signals.
     /// </summary>
     public void Start()
     {
@@ -83,32 +91,31 @@ public sealed class SignalWaveExecutor : IAsyncDisposable
         try
         {
             if (stage.EmitOnStart != null)
-            {
                 foreach (var signal in stage.EmitOnStart)
-                    _sink.Raise(new SignalEvent(signal, invocation.Trigger.OperationId, invocation.Trigger.Key, DateTimeOffset.UtcNow, propagation));
-            }
+                    _sink.Raise(new SignalEvent(signal, invocation.Trigger.OperationId, invocation.Trigger.Key,
+                        DateTimeOffset.UtcNow, propagation));
 
             await stage.Work(token).ConfigureAwait(false);
 
             if (stage.EmitOnComplete != null)
-            {
                 foreach (var signal in stage.EmitOnComplete)
-                    _sink.Raise(new SignalEvent(signal, invocation.Trigger.OperationId, invocation.Trigger.Key, DateTimeOffset.UtcNow, propagation));
-            }
+                    _sink.Raise(new SignalEvent(signal, invocation.Trigger.OperationId, invocation.Trigger.Key,
+                        DateTimeOffset.UtcNow, propagation));
         }
         catch (OperationCanceledException)
         {
-            _sink.Raise(new SignalEvent($"stage.cancel:{stage.Name}", invocation.Trigger.OperationId, invocation.Trigger.Key, DateTimeOffset.UtcNow, propagation));
+            _sink.Raise(new SignalEvent($"stage.cancel:{stage.Name}", invocation.Trigger.OperationId,
+                invocation.Trigger.Key, DateTimeOffset.UtcNow, propagation));
         }
         catch (Exception ex)
         {
             if (stage.EmitOnFailure != null)
-            {
                 foreach (var signal in stage.EmitOnFailure)
-                    _sink.Raise(new SignalEvent(signal, invocation.Trigger.OperationId, invocation.Trigger.Key, DateTimeOffset.UtcNow, propagation));
-            }
+                    _sink.Raise(new SignalEvent(signal, invocation.Trigger.OperationId, invocation.Trigger.Key,
+                        DateTimeOffset.UtcNow, propagation));
 
-            _sink.Raise(new SignalEvent($"stage.fail:{stage.Name}:{ex.GetType().Name}", invocation.Trigger.OperationId, invocation.Trigger.Key, DateTimeOffset.UtcNow, propagation));
+            _sink.Raise(new SignalEvent($"stage.fail:{stage.Name}:{ex.GetType().Name}", invocation.Trigger.OperationId,
+                invocation.Trigger.Key, DateTimeOffset.UtcNow, propagation));
         }
         finally
         {
@@ -116,21 +123,11 @@ public sealed class SignalWaveExecutor : IAsyncDisposable
         }
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        _sink.SignalRaised -= OnSignal;
-        _cts.Cancel();
-        _coordinator.Complete();
-        await _coordinator.DrainAsync().ConfigureAwait(false);
-        await _coordinator.DisposeAsync().ConfigureAwait(false);
-        _cts.Dispose();
-    }
-
     private sealed record SignalStageInvocation(SignalStage Stage, SignalEvent Trigger);
 }
 
 /// <summary>
-/// Quorum helper: wait for N-of-M signals (pattern-based) with optional cancel/timeout.
+///     Quorum helper: wait for N-of-M signals (pattern-based) with optional cancel/timeout.
 /// </summary>
 public static class SignalConsensus
 {
@@ -155,7 +152,7 @@ public static class SignalConsensus
 
             if (cancelPatterns.Any(p => StringPatternMatcher.Matches(evt.Signal, p)))
             {
-                tcs.TrySetResult(new QuorumResult(false, seen.Count, CancelSignal: evt.Signal, TimedOut: false));
+                tcs.TrySetResult(new QuorumResult(false, seen.Count, evt.Signal, false));
                 return;
             }
 
@@ -163,9 +160,7 @@ public static class SignalConsensus
                 return;
 
             if (seen.Add(evt.OperationId) && seen.Count >= required)
-            {
                 tcs.TrySetResult(new QuorumResult(true, seen.Count, null, false));
-            }
         }
 
         sink.SignalRaised += Handler;
@@ -175,7 +170,7 @@ public static class SignalConsensus
 
         using var registration = timeoutCts.Token.Register(() =>
         {
-            tcs.TrySetResult(new QuorumResult(false, seen.Count, null, TimedOut: true));
+            tcs.TrySetResult(new QuorumResult(false, seen.Count, null, true));
         });
 
         try
@@ -192,7 +187,7 @@ public static class SignalConsensus
 public readonly record struct QuorumResult(bool Reached, int Count, string? CancelSignal, bool TimedOut);
 
 /// <summary>
-/// Emit tiny progress signals (sampled) for UI/monitoring.
+///     Emit tiny progress signals (sampled) for UI/monitoring.
 /// </summary>
 public static class ProgressSignals
 {
@@ -205,22 +200,21 @@ public static class ProgressSignals
 
         var count = Counters.AddOrUpdate(key, 1, (_, existing) => existing + 1);
         if (current >= total || count % sampleRate == 0)
-        {
-            sink.Raise(new SignalEvent($"progress:{key}:{current}/{total}", EphemeralIdGenerator.NextId(), key, DateTimeOffset.UtcNow));
-        }
+            sink.Raise(new SignalEvent($"progress:{key}:{current}/{total}", EphemeralIdGenerator.NextId(), key,
+                DateTimeOffset.UtcNow));
     }
 }
 
 /// <summary>
-/// Time-decaying reputation window (LRU + exponential decay).
+///     Time-decaying reputation window (LRU + exponential decay).
 /// </summary>
 public sealed class DecayingReputationWindow<TKey> where TKey : notnull
 {
-    private readonly ConcurrentDictionary<TKey, ReputationEntry> _scores = new();
-    private readonly SignalSink? _signals;
     private readonly Func<DateTimeOffset> _clock;
     private readonly double _lambda;
     private readonly int _maxSize;
+    private readonly ConcurrentDictionary<TKey, ReputationEntry> _scores = new();
+    private readonly SignalSink? _signals;
 
     public DecayingReputationWindow(
         TimeSpan halfLife,
@@ -246,7 +240,8 @@ public sealed class DecayingReputationWindow<TKey> where TKey : notnull
         if (_scores.Count > _maxSize)
             TrimOldest();
 
-        _signals?.Raise(new SignalEvent($"reputation.update:{key}:{entry.Score:F2}", EphemeralIdGenerator.NextId(), key?.ToString(), now));
+        _signals?.Raise(new SignalEvent($"reputation.update:{key}:{entry.Score:F2}", EphemeralIdGenerator.NextId(),
+            key?.ToString(), now));
         return entry.Score;
     }
 
@@ -261,7 +256,8 @@ public sealed class DecayingReputationWindow<TKey> where TKey : notnull
     public void Invalidate(TKey key)
     {
         _scores.TryRemove(key, out _);
-        _signals?.Raise(new SignalEvent($"reputation.invalidate:{key}", EphemeralIdGenerator.NextId(), key?.ToString(), _clock()));
+        _signals?.Raise(new SignalEvent($"reputation.invalidate:{key}", EphemeralIdGenerator.NextId(), key?.ToString(),
+            _clock()));
     }
 
     private void TrimOldest()

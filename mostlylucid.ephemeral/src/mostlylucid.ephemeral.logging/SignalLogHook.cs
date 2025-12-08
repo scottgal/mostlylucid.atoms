@@ -4,16 +4,16 @@ using Microsoft.Extensions.Logging;
 namespace Mostlylucid.Ephemeral.Logging;
 
 /// <summary>
-/// Hooks ILogger messages into SignalSink as typed signals.
+///     Hooks ILogger messages into SignalSink as typed signals.
 /// </summary>
 public sealed class SignalLoggerProvider : ILoggerProvider, ISupportExternalScope
 {
-    private readonly TypedSignalSink<SignalLogPayload> _typedSink;
     private readonly SignalLogHookOptions _options;
+    private readonly TypedSignalSink<SignalLogPayload> _typedSink;
     private IExternalScopeProvider? _scopeProvider;
 
     /// <summary>
-    /// Create a provider with an existing typed sink (preferred when you want payloads).
+    ///     Create a provider with an existing typed sink (preferred when you want payloads).
     /// </summary>
     public SignalLoggerProvider(TypedSignalSink<SignalLogPayload> sink, SignalLogHookOptions? options = null)
     {
@@ -22,31 +22,38 @@ public sealed class SignalLoggerProvider : ILoggerProvider, ISupportExternalScop
     }
 
     /// <summary>
-    /// Convenience overload that wraps an untyped sink so payloads are still captured.
+    ///     Convenience overload that wraps an untyped sink so payloads are still captured.
     /// </summary>
     public SignalLoggerProvider(SignalSink sink, SignalLogHookOptions? options = null)
         : this(new TypedSignalSink<SignalLogPayload>(sink), options)
     {
     }
 
-    public ILogger CreateLogger(string categoryName) =>
-        new SignalLogger(categoryName, _typedSink, _options, () => _scopeProvider);
+    public ILogger CreateLogger(string categoryName)
+    {
+        return new SignalLogger(categoryName, _typedSink, _options, () => _scopeProvider);
+    }
 
-    public void Dispose() { }
+    public void Dispose()
+    {
+    }
 
-    public void SetScopeProvider(IExternalScopeProvider scopeProvider) =>
+    public void SetScopeProvider(IExternalScopeProvider scopeProvider)
+    {
         _scopeProvider = scopeProvider;
+    }
 }
 
 public sealed class SignalLogger : ILogger
 {
     private readonly string _category;
-    private readonly TypedSignalSink<SignalLogPayload> _typedSink;
-    private readonly SignalSink _sink;
     private readonly SignalLogHookOptions _options;
     private readonly Func<IExternalScopeProvider?> _scopeProviderFactory;
+    private readonly SignalSink _sink;
+    private readonly TypedSignalSink<SignalLogPayload> _typedSink;
 
-    public SignalLogger(string category, TypedSignalSink<SignalLogPayload> sink, SignalLogHookOptions options, Func<IExternalScopeProvider?> scopeProviderFactory)
+    public SignalLogger(string category, TypedSignalSink<SignalLogPayload> sink, SignalLogHookOptions options,
+        Func<IExternalScopeProvider?> scopeProviderFactory)
     {
         _category = category;
         _typedSink = sink;
@@ -55,10 +62,15 @@ public sealed class SignalLogger : ILogger
         _scopeProviderFactory = scopeProviderFactory;
     }
 
-    public IDisposable? BeginScope<TState>(TState state) where TState : notnull =>
-        _scopeProviderFactory()?.Push(state) ?? NullScope.Instance;
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+    {
+        return _scopeProviderFactory()?.Push(state) ?? NullScope.Instance;
+    }
 
-    public bool IsEnabled(LogLevel logLevel) => logLevel >= _options.MinimumLevel;
+    public bool IsEnabled(LogLevel logLevel)
+    {
+        return logLevel >= _options.MinimumLevel;
+    }
 
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
         Func<TState, Exception?, string> formatter)
@@ -81,13 +93,13 @@ public sealed class SignalLogger : ILogger
         }, state);
 
         var ctx = new SignalLogContext(
-            Category: _category,
-            Level: logLevel,
-            EventId: eventId,
-            Message: message,
-            Exception: exception,
-            State: state,
-            ScopeProperties: scopeProps);
+            _category,
+            logLevel,
+            eventId,
+            message,
+            exception,
+            state,
+            scopeProps);
 
         var signal = _options.MapSignal(ctx);
         if (signal is null)
@@ -95,23 +107,20 @@ public sealed class SignalLogger : ILogger
 
         var payload = _options.MapPayload?.Invoke(ctx);
         if (payload is null)
-        {
-            _sink.Raise(new SignalEvent(signal, EphemeralIdGenerator.NextId(), ctx.EventId.Name ?? ctx.EventId.Id.ToString(), DateTimeOffset.UtcNow));
-        }
+            _sink.Raise(new SignalEvent(signal, EphemeralIdGenerator.NextId(),
+                ctx.EventId.Name ?? ctx.EventId.Id.ToString(), DateTimeOffset.UtcNow));
         else
-        {
             _typedSink.Raise(new SignalEvent<SignalLogPayload>(
                 signal,
                 EphemeralIdGenerator.NextId(),
                 ctx.EventId.Name ?? ctx.EventId.Id.ToString(),
                 DateTimeOffset.UtcNow,
                 payload.Value));
-        }
     }
 }
 
 /// <summary>
-/// Options to map logs to signals.
+///     Options to map logs to signals.
 /// </summary>
 public sealed class SignalLogHookOptions
 {
@@ -131,7 +140,9 @@ public sealed class SignalLogHookOptions
         var category = Slugify(ctx.Category);
         var rawEvent = !string.IsNullOrWhiteSpace(ctx.EventId.Name)
             ? ctx.EventId.Name!
-            : ctx.EventId.Id != 0 ? ctx.EventId.Id.ToString() : "none";
+            : ctx.EventId.Id != 0
+                ? ctx.EventId.Id.ToString()
+                : "none";
         var eventPart = Slugify(rawEvent);
         var exPart = ctx.Exception is null ? string.Empty : $":{Slugify(ctx.Exception.GetType().Name)}";
         return $"log.{level}.{category}.{eventPart}{exPart}";
@@ -141,30 +152,23 @@ public sealed class SignalLogHookOptions
     {
         var ex = ctx.Exception;
         return new SignalLogPayload(
-            Message: ctx.Message,
-            EventId: ctx.EventId,
-            Category: ctx.Category,
-            Level: ctx.Level,
-            ExceptionType: ex?.GetType().FullName,
-            ExceptionMessage: ex?.Message,
-            ExceptionHResult: ex?.HResult,
-            ScopeProperties: ctx.ScopeProperties);
+            ctx.Message,
+            ctx.EventId,
+            ctx.Category,
+            ctx.Level,
+            ex?.GetType().FullName,
+            ex?.Message,
+            ex?.HResult,
+            ctx.ScopeProperties);
     }
 
     private static string Slugify(string value)
     {
         var builder = new StringBuilder(value.Length);
         foreach (var ch in value)
-        {
             if (char.IsLetterOrDigit(ch))
-            {
                 builder.Append(char.ToLowerInvariant(ch));
-            }
-            else if (builder.Length == 0 || builder[^1] != '-')
-            {
-                builder.Append('-');
-            }
-        }
+            else if (builder.Length == 0 || builder[^1] != '-') builder.Append('-');
 
         // trim trailing delimiter if needed
         while (builder.Length > 0 && builder[^1] == '-')
@@ -196,6 +200,12 @@ public readonly record struct SignalLogPayload(
 internal sealed class NullScope : IDisposable
 {
     public static readonly NullScope Instance = new();
-    private NullScope() { }
-    public void Dispose() { }
+
+    private NullScope()
+    {
+    }
+
+    public void Dispose()
+    {
+    }
 }

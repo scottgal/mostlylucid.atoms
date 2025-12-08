@@ -1,10 +1,8 @@
-using Mostlylucid.Ephemeral;
-
 namespace Mostlylucid.Ephemeral.Patterns.Telemetry;
 
 /// <summary>
-/// Async signal handler for telemetry integration.
-/// Uses AsyncSignalProcessor for non-blocking I/O-bound signal processing.
+///     Async signal handler for telemetry integration.
+///     Uses AsyncSignalProcessor for non-blocking I/O-bound signal processing.
 /// </summary>
 public class TelemetrySignalHandler : IAsyncDisposable
 {
@@ -16,11 +14,23 @@ public class TelemetrySignalHandler : IAsyncDisposable
         _telemetry = telemetry;
         _processor = new AsyncSignalProcessor(
             HandleSignalAsync,
-            maxConcurrency: 8,
-            maxQueueSize: 5000);
+            8,
+            5000);
     }
 
-    public bool OnSignal(SignalEvent signal) => _processor.Enqueue(signal);
+    public int QueuedCount => _processor.QueuedCount;
+    public long ProcessedCount => _processor.ProcessedCount;
+    public long DroppedCount => _processor.DroppedCount;
+
+    public async ValueTask DisposeAsync()
+    {
+        await _processor.DisposeAsync();
+    }
+
+    public bool OnSignal(SignalEvent signal)
+    {
+        return _processor.Enqueue(signal);
+    }
 
     private async Task HandleSignalAsync(SignalEvent signal, CancellationToken ct)
     {
@@ -39,12 +49,6 @@ public class TelemetrySignalHandler : IAsyncDisposable
         else if (signal.StartsWith("perf"))
             await _telemetry.TrackMetricAsync(signal.Signal, 1, ct);
     }
-
-    public int QueuedCount => _processor.QueuedCount;
-    public long ProcessedCount => _processor.ProcessedCount;
-    public long DroppedCount => _processor.DroppedCount;
-
-    public async ValueTask DisposeAsync() => await _processor.DisposeAsync();
 }
 
 public interface ITelemetryClient
@@ -61,27 +65,49 @@ public class InMemoryTelemetryClient : ITelemetryClient
 
     public Task TrackEventAsync(string eventName, Dictionary<string, string> properties, CancellationToken ct)
     {
-        lock (_lock) { _events.Add(new TelemetryEvent(eventName, TelemetryEventType.Event, properties)); }
+        lock (_lock)
+        {
+            _events.Add(new TelemetryEvent(eventName, TelemetryEventType.Event, properties));
+        }
+
         return Task.CompletedTask;
     }
 
     public Task TrackExceptionAsync(string exceptionType, Dictionary<string, string> properties, CancellationToken ct)
     {
-        lock (_lock) { _events.Add(new TelemetryEvent(exceptionType, TelemetryEventType.Exception, properties)); }
+        lock (_lock)
+        {
+            _events.Add(new TelemetryEvent(exceptionType, TelemetryEventType.Exception, properties));
+        }
+
         return Task.CompletedTask;
     }
 
     public Task TrackMetricAsync(string metricName, double value, CancellationToken ct)
     {
-        lock (_lock) { _events.Add(new TelemetryEvent(metricName, TelemetryEventType.Metric, new Dictionary<string, string> { ["value"] = value.ToString() })); }
+        lock (_lock)
+        {
+            _events.Add(new TelemetryEvent(metricName, TelemetryEventType.Metric,
+                new Dictionary<string, string> { ["value"] = value.ToString() }));
+        }
+
         return Task.CompletedTask;
     }
 
     public IReadOnlyList<TelemetryEvent> GetEvents()
     {
-        lock (_lock) { return _events.ToList(); }
+        lock (_lock)
+        {
+            return _events.ToList();
+        }
     }
 }
 
 public record TelemetryEvent(string Name, TelemetryEventType Type, Dictionary<string, string> Properties);
-public enum TelemetryEventType { Event, Exception, Metric }
+
+public enum TelemetryEventType
+{
+    Event,
+    Exception,
+    Metric
+}

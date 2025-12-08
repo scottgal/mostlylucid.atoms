@@ -4,16 +4,16 @@ using System.Runtime.CompilerServices;
 namespace Mostlylucid.Ephemeral;
 
 /// <summary>
-/// Static extension methods for one-shot ephemeral parallel processing.
-/// For long-lived coordinators, use EphemeralWorkCoordinator instead.
+///     Static extension methods for one-shot ephemeral parallel processing.
+///     For long-lived coordinators, use EphemeralWorkCoordinator instead.
 /// </summary>
 public static class ParallelEphemeral
 {
     /// <summary>
-    /// Ephemeral parallel foreach:
-    /// - Bounded concurrency
-    /// - Keeps a small rolling window of recent operations
-    /// - No payloads stored, only metadata
+    ///     Ephemeral parallel foreach:
+    ///     - Bounded concurrency
+    ///     - Keeps a small rolling window of recent operations
+    ///     - No payloads stored, only metadata
     /// </summary>
     public static async Task EphemeralForEachAsync<T>(
         this IEnumerable<T> source,
@@ -32,7 +32,8 @@ public static class ParallelEphemeral
             cancellationToken.ThrowIfCancellationRequested();
             await concurrency.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-            var op = new EphemeralOperation(options.Signals, options.OnSignal, options.OnSignalRetracted, options.SignalConstraints);
+            var op = new EphemeralOperation(options.Signals, options.OnSignal, options.OnSignalRetracted,
+                options.SignalConstraints);
             EnqueueEphemeral(op, recent, options);
 
             var task = ExecuteAsync(item, body, op, recent, options, cancellationToken, concurrency);
@@ -44,9 +45,9 @@ public static class ParallelEphemeral
     }
 
     /// <summary>
-    /// Keyed version:
-    /// - Overall concurrency bounded by MaxConcurrency
-    /// - Per-key concurrency bounded by MaxConcurrencyPerKey (default 1 = sequential pipelines per key)
+    ///     Keyed version:
+    ///     - Overall concurrency bounded by MaxConcurrency
+    ///     - Per-key concurrency bounded by MaxConcurrencyPerKey (default 1 = sequential pipelines per key)
     /// </summary>
     public static async Task EphemeralForEachAsync<T, TKey>(
         this IEnumerable<T> source,
@@ -77,7 +78,8 @@ public static class ParallelEphemeral
                 await globalConcurrency.WaitAsync(cancellationToken).ConfigureAwait(false);
                 await keyGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-                var op = new EphemeralOperation(options.Signals, options.OnSignal, options.OnSignalRetracted, options.SignalConstraints) { Key = key?.ToString() };
+                var op = new EphemeralOperation(options.Signals, options.OnSignal, options.OnSignalRetracted,
+                    options.SignalConstraints) { Key = key?.ToString() };
                 EnqueueEphemeral(op, recent, options);
 
                 var task = ExecuteAsync(item, body, op, recent, options, cancellationToken, keyGate, globalConcurrency);
@@ -89,10 +91,7 @@ public static class ParallelEphemeral
         finally
         {
             // Cleanup per-key gates - always dispose even on exception
-            foreach (var gate in perKeyLocks.Values)
-            {
-                gate.Dispose();
-            }
+            foreach (var gate in perKeyLocks.Values) gate.Dispose();
         }
     }
 
@@ -151,10 +150,8 @@ public static class ParallelEphemeral
 
             while (head is not null && head.Started < cutoff &&
                    recent.TryDequeue(out _))
-            {
                 if (!recent.TryPeek(out head))
                     break;
-            }
         }
     }
 
@@ -170,9 +167,6 @@ public static class ParallelEphemeral
             .Select(x => x.ToSnapshot())
             .ToArray();
 
-        if (snapshot.Length > 0)
-        {
-            sampler(snapshot);
-        }
+        if (snapshot.Length > 0) sampler(snapshot);
     }
 }

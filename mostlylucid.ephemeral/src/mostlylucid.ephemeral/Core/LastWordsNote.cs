@@ -1,7 +1,7 @@
 namespace Mostlylucid.Ephemeral;
 
 /// <summary>
-/// Minimal state captured when an operation is finalized.
+///     Minimal state captured when an operation is finalized.
 /// </summary>
 public sealed record LastWordsNote(
     long OperationId,

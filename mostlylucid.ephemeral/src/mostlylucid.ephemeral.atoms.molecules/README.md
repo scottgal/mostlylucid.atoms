@@ -4,7 +4,11 @@ Reusable Molecule blueprints and atom-trigger helpers for coordinating multi-ato
 
 ## Molecules
 
-A molecule is a blueprint: signal → orchestrated atoms. Use `MoleculeBlueprintBuilder` to describe the atoms (steps) you want to run, then feed the blueprint into `MoleculeRunner`. The runner listens for signals matching your trigger pattern, creates a `MoleculeContext`, and executes each step in order while sharing the same `SignalSink` and service provider. Once created you can still call `blueprint.AddAtom(...)` or `blueprint.RemoveAtoms(...)` to tweak the workflow before the next trigger, enabling dynamic post-composition.
+A molecule is a blueprint: signal → orchestrated atoms. Use `MoleculeBlueprintBuilder` to describe the atoms (steps) you
+want to run, then feed the blueprint into `MoleculeRunner`. The runner listens for signals matching your trigger
+pattern, creates a `MoleculeContext`, and executes each step in order while sharing the same `SignalSink` and service
+provider. Once created you can still call `blueprint.AddAtom(...)` or `blueprint.RemoveAtoms(...)` to tweak the workflow
+before the next trigger, enabling dynamic post-composition.
 
 ```csharp
 var sink = new SignalSink();
@@ -28,7 +32,8 @@ You get events (`MoleculeStarted`, `MoleculeCompleted`, `MoleculeFailed`) to obs
 
 ## Atoms that trigger atoms
 
-`AtomTrigger` listens for a pattern and invokes your callback with the signal. The callback can enqueue work on another coordinator, start new atoms, or raise more signals.
+`AtomTrigger` listens for a pattern and invokes your callback with the signal. The callback can enqueue work on another
+coordinator, start new atoms, or raise more signals.
 
 ```csharp
 using var trigger = new AtomTrigger(sink, "order.payment.complete", async (signal, ct) =>

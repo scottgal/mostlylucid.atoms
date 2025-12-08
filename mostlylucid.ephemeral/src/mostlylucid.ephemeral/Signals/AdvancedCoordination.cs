@@ -5,58 +5,77 @@ namespace Mostlylucid.Ephemeral;
 #region Typed Signal Keys
 
 /// <summary>
-/// Compile-time safe signal key. Use static readonly instances to avoid magic strings.
+///     Compile-time safe signal key. Use static readonly instances to avoid magic strings.
 /// </summary>
 /// <example>
-/// public static class Signals
-/// {
+///     public static class Signals
+///     {
 ///     public static readonly SignalKey&lt;double&gt; BotScore = new("bot.score");
 ///     public static readonly SignalKey&lt;string&gt; UserAgent = new("user.agent");
-/// }
+///     }
 /// </example>
 public readonly record struct SignalKey<TPayload>(string Name)
 {
-    public static implicit operator string(SignalKey<TPayload> key) => key.Name;
-    public override string ToString() => Name;
+    public static implicit operator string(SignalKey<TPayload> key)
+    {
+        return key.Name;
+    }
+
+    public override string ToString()
+    {
+        return Name;
+    }
 }
 
 /// <summary>
-/// Non-generic signal key for untyped signals.
+///     Non-generic signal key for untyped signals.
 /// </summary>
 public readonly record struct SignalKey(string Name)
 {
-    public static implicit operator string(SignalKey key) => key.Name;
-    public override string ToString() => Name;
+    public static implicit operator string(SignalKey key)
+    {
+        return key.Name;
+    }
+
+    public override string ToString()
+    {
+        return Name;
+    }
 
     /// <summary>
-    /// Create a typed key from this key.
+    ///     Create a typed key from this key.
     /// </summary>
-    public SignalKey<TPayload> WithPayload<TPayload>() => new(Name);
+    public SignalKey<TPayload> WithPayload<TPayload>()
+    {
+        return new SignalKey<TPayload>(Name);
+    }
 }
 
 /// <summary>
-/// Extension methods for typed signal keys.
+///     Extension methods for typed signal keys.
 /// </summary>
 public static class SignalKeyExtensions
 {
     /// <summary>
-    /// Raise a typed signal using a SignalKey.
+    ///     Raise a typed signal using a SignalKey.
     /// </summary>
-    public static void Raise<TPayload>(this TypedSignalSink<TPayload> sink, SignalKey<TPayload> key, TPayload payload, string? opKey = null)
+    public static void Raise<TPayload>(this TypedSignalSink<TPayload> sink, SignalKey<TPayload> key, TPayload payload,
+        string? opKey = null)
     {
         sink.Raise(key.Name, payload, opKey);
     }
 
     /// <summary>
-    /// Sense signals matching a typed key.
+    ///     Sense signals matching a typed key.
     /// </summary>
-    public static IReadOnlyList<SignalEvent<TPayload>> Sense<TPayload>(this TypedSignalSink<TPayload> sink, SignalKey<TPayload> key)
+    public static IReadOnlyList<SignalEvent<TPayload>> Sense<TPayload>(this TypedSignalSink<TPayload> sink,
+        SignalKey<TPayload> key)
     {
         return sink.Sense(e => e.Signal == key.Name);
     }
 
     /// <summary>
-    /// Raise an untyped signal using a SignalKey.
+    ///     Raise an untyped signal using a SignalKey.
     /// </summary>
     public static void Raise(this SignalSink sink, SignalKey key, string? opKey = null)
     {
@@ -69,12 +88,12 @@ public static class SignalKeyExtensions
 #region Signal Aggregation Window
 
 /// <summary>
-/// Time-windowed signal aggregation for queries like "sum of scores in last 5 minutes".
+///     Time-windowed signal aggregation for queries like "sum of scores in last 5 minutes".
 /// </summary>
 public sealed class SignalAggregationWindow<TPayload>
 {
-    private readonly TypedSignalSink<TPayload> _sink;
     private readonly TimeSpan _defaultWindow;
+    private readonly TypedSignalSink<TPayload> _sink;
 
     public SignalAggregationWindow(TypedSignalSink<TPayload> sink, TimeSpan? defaultWindow = null)
     {
@@ -83,7 +102,7 @@ public sealed class SignalAggregationWindow<TPayload>
     }
 
     /// <summary>
-    /// Query signals within a time window.
+    ///     Query signals within a time window.
     /// </summary>
     public IReadOnlyList<SignalEvent<TPayload>> Query(string? pattern = null, TimeSpan? window = null)
     {
@@ -94,7 +113,7 @@ public sealed class SignalAggregationWindow<TPayload>
     }
 
     /// <summary>
-    /// Count signals matching pattern within window.
+    ///     Count signals matching pattern within window.
     /// </summary>
     public int Count(string? pattern = null, TimeSpan? window = null)
     {
@@ -102,7 +121,7 @@ public sealed class SignalAggregationWindow<TPayload>
     }
 
     /// <summary>
-    /// Sum payloads within window using a selector.
+    ///     Sum payloads within window using a selector.
     /// </summary>
     public double Sum(Func<TPayload, double> selector, string? pattern = null, TimeSpan? window = null)
     {
@@ -110,7 +129,7 @@ public sealed class SignalAggregationWindow<TPayload>
     }
 
     /// <summary>
-    /// Average payloads within window using a selector.
+    ///     Average payloads within window using a selector.
     /// </summary>
     public double Average(Func<TPayload, double> selector, string? pattern = null, TimeSpan? window = null)
     {
@@ -119,7 +138,7 @@ public sealed class SignalAggregationWindow<TPayload>
     }
 
     /// <summary>
-    /// Group signals by a key selector within window.
+    ///     Group signals by a key selector within window.
     /// </summary>
     public IEnumerable<IGrouping<TKey, SignalEvent<TPayload>>> GroupBy<TKey>(
         Func<SignalEvent<TPayload>, TKey> keySelector,
@@ -135,36 +154,35 @@ public sealed class SignalAggregationWindow<TPayload>
 #region Early Exit Coordinator
 
 /// <summary>
-/// Options for early exit behavior.
+///     Options for early exit behavior.
 /// </summary>
 public sealed class EarlyExitOptions<TInput, TResult>
 {
     /// <summary>
-    /// Signal patterns that trigger early exit.
-    /// Example: ["verdict.confirmed_bot", "verdict.verified_human"]
+    ///     Signal patterns that trigger early exit.
+    ///     Example: ["verdict.confirmed_bot", "verdict.verified_human"]
     /// </summary>
     public IReadOnlySet<string>? EarlyExitSignals { get; init; }
 
     /// <summary>
-    /// Factory to produce a result from partial results when early exit is triggered.
-    /// Receives the triggering signal and all results collected so far.
+    ///     Factory to produce a result from partial results when early exit is triggered.
+    ///     Receives the triggering signal and all results collected so far.
     /// </summary>
     public Func<string, IReadOnlyList<TResult>, TResult>? OnEarlyExit { get; init; }
 }
 
 /// <summary>
-/// Result coordinator with early exit capability.
-/// When an early exit signal is detected, remaining operations are cancelled and partial results are aggregated.
+///     Result coordinator with early exit capability.
+///     When an early exit signal is detected, remaining operations are cancelled and partial results are aggregated.
 /// </summary>
 public sealed class EarlyExitResultCoordinator<TInput, TResult> : IAsyncDisposable
 {
-    private readonly EphemeralResultCoordinator<TInput, TResult> _inner;
-    private readonly EarlyExitOptions<TInput, TResult> _exitOptions;
-    private readonly SignalSink _sink;
     private readonly CancellationTokenSource _exitCts = new();
+    private readonly EarlyExitOptions<TInput, TResult> _exitOptions;
     private readonly TaskCompletionSource<EarlyExitTcsResult<TResult>> _exitTcs = new();
+    private readonly EphemeralResultCoordinator<TInput, TResult> _inner;
+    private readonly SignalSink _sink;
     private volatile bool _earlyExited;
-    private string? _exitSignal;
 
     public EarlyExitResultCoordinator(
         Func<TInput, CancellationToken, Task<TResult>> body,
@@ -211,7 +229,15 @@ public sealed class EarlyExitResultCoordinator<TInput, TResult> : IAsyncDisposab
     public int TotalEnqueued => _inner.TotalEnqueued;
     public int TotalCompleted => _inner.TotalCompleted;
     public bool EarlyExited => _earlyExited;
-    public string? ExitSignal => _exitSignal;
+    public string? ExitSignal { get; private set; }
+
+    public async ValueTask DisposeAsync()
+    {
+        _sink.SignalRaised -= OnSignal;
+        _exitCts.Cancel();
+        _exitCts.Dispose();
+        await _inner.DisposeAsync().ConfigureAwait(false);
+    }
 
     private void OnSignal(SignalEvent evt)
     {
@@ -221,7 +247,7 @@ public sealed class EarlyExitResultCoordinator<TInput, TResult> : IAsyncDisposab
         if (StringPatternMatcher.MatchesAny(evt.Signal, _exitOptions.EarlyExitSignals))
         {
             _earlyExited = true;
-            _exitSignal = evt.Signal;
+            ExitSignal = evt.Signal;
             _exitCts.Cancel();
 
             var partialResults = _inner.GetResults();
@@ -250,7 +276,10 @@ public sealed class EarlyExitResultCoordinator<TInput, TResult> : IAsyncDisposab
         }
     }
 
-    public void Complete() => _inner.Complete();
+    public void Complete()
+    {
+        _inner.Complete();
+    }
 
     public async Task<EarlyExitResult<TResult>> DrainAsync(CancellationToken ct = default)
     {
@@ -279,14 +308,9 @@ public sealed class EarlyExitResultCoordinator<TInput, TResult> : IAsyncDisposab
             _inner.GetResults().ToArray());
     }
 
-    public IReadOnlyCollection<TResult> GetResults() => _inner.GetResults();
-
-    public async ValueTask DisposeAsync()
+    public IReadOnlyCollection<TResult> GetResults()
     {
-        _sink.SignalRaised -= OnSignal;
-        _exitCts.Cancel();
-        _exitCts.Dispose();
-        await _inner.DisposeAsync().ConfigureAwait(false);
+        return _inner.GetResults();
     }
 }
 
@@ -306,31 +330,30 @@ internal readonly record struct EarlyExitTcsResult<TResult>(
 #region Contributor Tracking (ExpectContributors)
 
 /// <summary>
-/// Tracks named contributors and their completion status for quorum-based coordination.
+///     Tracks named contributors and their completion status for quorum-based coordination.
 /// </summary>
 public sealed class ContributorTracker<TResult>
 {
     private readonly ConcurrentDictionary<string, ContributorState<TResult>> _contributors = new();
-    private readonly SignalSink _sink;
     private readonly TaskCompletionSource<QuorumContributorResult<TResult>> _quorumTcs = new();
     private int _completedCount;
     private int _requiredQuorum;
-    private bool _quorumReached;
 
     public ContributorTracker(IEnumerable<string> expectedContributors, SignalSink? sink = null)
     {
-        _sink = sink ?? new SignalSink();
+        Sink = sink ?? new SignalSink();
         foreach (var name in expectedContributors)
             _contributors[name] = new ContributorState<TResult>(name);
     }
 
-    public SignalSink Sink => _sink;
+    public SignalSink Sink { get; }
+
     public int ExpectedCount => _contributors.Count;
     public int CompletedCount => Volatile.Read(ref _completedCount);
-    public bool QuorumReached => _quorumReached;
+    public bool QuorumReached { get; private set; }
 
     /// <summary>
-    /// Mark a contributor as completed with a result.
+    ///     Mark a contributor as completed with a result.
     /// </summary>
     public void Complete(string contributor, TResult result)
     {
@@ -345,17 +368,17 @@ public sealed class ContributorTracker<TResult>
         state.CompletedAt = DateTimeOffset.UtcNow;
         var count = Interlocked.Increment(ref _completedCount);
 
-        _sink.Raise($"contributor.completed:{contributor}", contributor);
+        Sink.Raise($"contributor.completed:{contributor}", contributor);
 
-        if (_requiredQuorum > 0 && count >= _requiredQuorum && !_quorumReached)
+        if (_requiredQuorum > 0 && count >= _requiredQuorum && !QuorumReached)
         {
-            _quorumReached = true;
+            QuorumReached = true;
             _quorumTcs.TrySetResult(BuildQuorumResult());
         }
     }
 
     /// <summary>
-    /// Mark a contributor as failed.
+    ///     Mark a contributor as failed.
     /// </summary>
     public void Fail(string contributor, Exception? error = null)
     {
@@ -364,11 +387,11 @@ public sealed class ContributorTracker<TResult>
 
         state.IsFailed = true;
         state.Error = error;
-        _sink.Raise($"contributor.failed:{contributor}", contributor);
+        Sink.Raise($"contributor.failed:{contributor}", contributor);
     }
 
     /// <summary>
-    /// Wait for a quorum of contributors to complete.
+    ///     Wait for a quorum of contributors to complete.
     /// </summary>
     public async Task<QuorumContributorResult<TResult>> WaitForQuorumAsync(
         int minCompleted,
@@ -383,23 +406,20 @@ public sealed class ContributorTracker<TResult>
         // Check if already reached
         if (CompletedCount >= minCompleted)
         {
-            _quorumReached = true;
+            QuorumReached = true;
             return BuildQuorumResult();
         }
 
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(timeout);
 
-        using var registration = timeoutCts.Token.Register(() =>
-        {
-            _quorumTcs.TrySetResult(BuildQuorumResult());
-        });
+        using var registration = timeoutCts.Token.Register(() => { _quorumTcs.TrySetResult(BuildQuorumResult()); });
 
         return await _quorumTcs.Task.ConfigureAwait(false);
     }
 
     /// <summary>
-    /// Get all completed results.
+    ///     Get all completed results.
     /// </summary>
     public IReadOnlyList<(string Contributor, TResult Result)> GetCompletedResults()
     {
@@ -410,7 +430,7 @@ public sealed class ContributorTracker<TResult>
     }
 
     /// <summary>
-    /// Get the result for a specific contributor.
+    ///     Get the result for a specific contributor.
     /// </summary>
     public bool TryGetResult(string contributor, out TResult? result)
     {
@@ -419,6 +439,7 @@ public sealed class ContributorTracker<TResult>
             result = state.Result;
             return true;
         }
+
         result = default;
         return false;
     }
@@ -430,25 +451,28 @@ public sealed class ContributorTracker<TResult>
         var pending = _contributors.Values.Where(s => !s.IsCompleted && !s.IsFailed).ToArray();
 
         return new QuorumContributorResult<TResult>(
-            Reached: completed.Length >= _requiredQuorum,
-            CompletedCount: completed.Length,
-            FailedCount: failed.Length,
-            PendingCount: pending.Length,
-            Results: completed.Where(s => s.Result != null).Select(s => (s.Name, s.Result!)).ToArray(),
-            TimedOut: !_quorumReached && completed.Length < _requiredQuorum
+            completed.Length >= _requiredQuorum,
+            completed.Length,
+            failed.Length,
+            pending.Length,
+            completed.Where(s => s.Result != null).Select(s => (s.Name, s.Result!)).ToArray(),
+            !QuorumReached && completed.Length < _requiredQuorum
         );
     }
 
     private sealed class ContributorState<T>
     {
+        public ContributorState(string name)
+        {
+            Name = name;
+        }
+
         public string Name { get; }
         public T? Result { get; set; }
         public bool IsCompleted { get; set; }
         public bool IsFailed { get; set; }
         public Exception? Error { get; set; }
         public DateTimeOffset? CompletedAt { get; set; }
-
-        public ContributorState(string name) => Name = name;
     }
 }
 
@@ -465,7 +489,7 @@ public readonly record struct QuorumContributorResult<TResult>(
 #region Operation Dependencies (Topological Execution)
 
 /// <summary>
-/// Definition of an operation with dependencies.
+///     Definition of an operation with dependencies.
 /// </summary>
 public sealed record DependentOperation<T>(
     string Name,
@@ -473,17 +497,16 @@ public sealed record DependentOperation<T>(
     IReadOnlyCollection<string>? DependsOn = null);
 
 /// <summary>
-/// Executes operations respecting dependency order (topological sort).
-/// Operations only start after all their dependencies complete successfully.
+///     Executes operations respecting dependency order (topological sort).
+///     Operations only start after all their dependencies complete successfully.
 /// </summary>
 public sealed class DependencyCoordinator<T> : IAsyncDisposable
 {
-    private readonly ConcurrentDictionary<string, OperationNode> _operations = new();
     private readonly Func<T, CancellationToken, Task> _body;
-    private readonly SignalSink _sink;
-    private readonly int _maxConcurrency;
     private readonly SemaphoreSlim _concurrencyGate;
     private readonly CancellationTokenSource _cts = new();
+    private readonly int _maxConcurrency;
+    private readonly ConcurrentDictionary<string, OperationNode> _operations = new();
     private readonly List<Task> _runningTasks = new();
 
     public DependencyCoordinator(
@@ -494,13 +517,21 @@ public sealed class DependencyCoordinator<T> : IAsyncDisposable
         _body = body ?? throw new ArgumentNullException(nameof(body));
         _maxConcurrency = maxConcurrency > 0 ? maxConcurrency : Environment.ProcessorCount;
         _concurrencyGate = new SemaphoreSlim(_maxConcurrency, _maxConcurrency);
-        _sink = sink ?? new SignalSink();
+        Sink = sink ?? new SignalSink();
     }
 
-    public SignalSink Sink => _sink;
+    public SignalSink Sink { get; }
+
+    public ValueTask DisposeAsync()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+        _concurrencyGate.Dispose();
+        return ValueTask.CompletedTask;
+    }
 
     /// <summary>
-    /// Add an operation with optional dependencies.
+    ///     Add an operation with optional dependencies.
     /// </summary>
     public void AddOperation(string name, T item, params string[] dependsOn)
     {
@@ -508,7 +539,7 @@ public sealed class DependencyCoordinator<T> : IAsyncDisposable
     }
 
     /// <summary>
-    /// Add an operation with optional dependencies.
+    ///     Add an operation with optional dependencies.
     /// </summary>
     public void AddOperation(DependentOperation<T> operation)
     {
@@ -518,7 +549,7 @@ public sealed class DependencyCoordinator<T> : IAsyncDisposable
     }
 
     /// <summary>
-    /// Execute all operations respecting dependency order.
+    ///     Execute all operations respecting dependency order.
     /// </summary>
     public async Task ExecuteAsync(CancellationToken ct = default)
     {
@@ -526,16 +557,11 @@ public sealed class DependencyCoordinator<T> : IAsyncDisposable
 
         // Validate dependencies
         foreach (var (name, node) in _operations)
-        {
             if (node.Operation.DependsOn is { Count: > 0 } deps)
-            {
                 foreach (var dep in deps)
-                {
                     if (!_operations.ContainsKey(dep))
-                        throw new InvalidOperationException($"Operation '{name}' depends on unknown operation '{dep}'.");
-                }
-            }
-        }
+                        throw new InvalidOperationException(
+                            $"Operation '{name}' depends on unknown operation '{dep}'.");
 
         // Check for cycles
         if (HasCycle())
@@ -543,13 +569,14 @@ public sealed class DependencyCoordinator<T> : IAsyncDisposable
 
         // Start operations with no dependencies
         foreach (var (_, node) in _operations)
-        {
             if (node.Operation.DependsOn is not { Count: > 0 })
             {
                 var task = RunOperationAsync(node, linked.Token);
-                lock (_runningTasks) _runningTasks.Add(task);
+                lock (_runningTasks)
+                {
+                    _runningTasks.Add(task);
+                }
             }
-        }
 
         // Wait for all to complete
         while (true)
@@ -559,6 +586,7 @@ public sealed class DependencyCoordinator<T> : IAsyncDisposable
             {
                 tasks = _runningTasks.Where(t => !t.IsCompleted).ToArray();
             }
+
             if (tasks.Length == 0) break;
             await Task.WhenAny(tasks).ConfigureAwait(false);
         }
@@ -579,9 +607,7 @@ public sealed class DependencyCoordinator<T> : IAsyncDisposable
     {
         // Wait for dependencies
         if (node.Operation.DependsOn is { Count: > 0 } deps)
-        {
             foreach (var depName in deps)
-            {
                 if (_operations.TryGetValue(depName, out var depNode))
                 {
                     await depNode.Completion.Task.WaitAsync(ct).ConfigureAwait(false);
@@ -590,34 +616,33 @@ public sealed class DependencyCoordinator<T> : IAsyncDisposable
                         node.IsFailed = true;
                         node.Error = new InvalidOperationException($"Dependency '{depName}' failed.");
                         node.Completion.TrySetException(node.Error);
-                        _sink.Raise($"operation.skipped:{node.Operation.Name}", node.Operation.Name);
+                        Sink.Raise($"operation.skipped:{node.Operation.Name}", node.Operation.Name);
                         return;
                     }
                 }
-            }
-        }
 
         await _concurrencyGate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            _sink.Raise($"operation.start:{node.Operation.Name}", node.Operation.Name);
+            Sink.Raise($"operation.start:{node.Operation.Name}", node.Operation.Name);
             await _body(node.Operation.Item, ct).ConfigureAwait(false);
             node.IsCompleted = true;
             node.Completion.TrySetResult();
-            _sink.Raise($"operation.done:{node.Operation.Name}", node.Operation.Name);
+            Sink.Raise($"operation.done:{node.Operation.Name}", node.Operation.Name);
 
             // Trigger dependents
             foreach (var (_, other) in _operations)
             {
                 if (other.IsCompleted || other.IsFailed) continue;
                 if (other.Operation.DependsOn?.Contains(node.Operation.Name) == true)
-                {
                     if (AllDependenciesComplete(other))
                     {
                         var task = RunOperationAsync(other, ct);
-                        lock (_runningTasks) _runningTasks.Add(task);
+                        lock (_runningTasks)
+                        {
+                            _runningTasks.Add(task);
+                        }
                     }
-                }
             }
         }
         catch (Exception ex)
@@ -625,7 +650,7 @@ public sealed class DependencyCoordinator<T> : IAsyncDisposable
             node.IsFailed = true;
             node.Error = ex;
             node.Completion.TrySetException(ex);
-            _sink.Raise($"operation.failed:{node.Operation.Name}:{ex.GetType().Name}", node.Operation.Name);
+            Sink.Raise($"operation.failed:{node.Operation.Name}:{ex.GetType().Name}", node.Operation.Name);
         }
         finally
         {
@@ -639,10 +664,8 @@ public sealed class DependencyCoordinator<T> : IAsyncDisposable
             return true;
 
         foreach (var dep in deps)
-        {
             if (!_operations.TryGetValue(dep, out var depNode) || !depNode.IsCompleted)
                 return false;
-        }
         return true;
     }
 
@@ -652,10 +675,8 @@ public sealed class DependencyCoordinator<T> : IAsyncDisposable
         var inStack = new HashSet<string>();
 
         foreach (var name in _operations.Keys)
-        {
             if (HasCycleDfs(name, visited, inStack))
                 return true;
-        }
         return false;
     }
 
@@ -668,35 +689,26 @@ public sealed class DependencyCoordinator<T> : IAsyncDisposable
         inStack.Add(name);
 
         if (_operations.TryGetValue(name, out var node) && node.Operation.DependsOn is { Count: > 0 } deps)
-        {
             foreach (var dep in deps)
-            {
                 if (HasCycleDfs(dep, visited, inStack))
                     return true;
-            }
-        }
 
         inStack.Remove(name);
         return false;
     }
 
-    public ValueTask DisposeAsync()
-    {
-        _cts.Cancel();
-        _cts.Dispose();
-        _concurrencyGate.Dispose();
-        return ValueTask.CompletedTask;
-    }
-
     private sealed class OperationNode
     {
+        public OperationNode(DependentOperation<T> operation)
+        {
+            Operation = operation;
+        }
+
         public DependentOperation<T> Operation { get; }
         public TaskCompletionSource Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool IsCompleted { get; set; }
         public bool IsFailed { get; set; }
         public Exception? Error { get; set; }
-
-        public OperationNode(DependentOperation<T> operation) => Operation = operation;
     }
 }
 
@@ -705,22 +717,21 @@ public sealed class DependencyCoordinator<T> : IAsyncDisposable
 #region Staged Execution (Simplified API)
 
 /// <summary>
-/// Fluent builder for staged/wave execution.
+///     Fluent builder for staged/wave execution.
 /// </summary>
 public sealed class StagedPipelineBuilder<T>
 {
     private readonly List<StageDefinition> _stages = new();
-    private readonly SignalSink _sink;
 
     public StagedPipelineBuilder(SignalSink? sink = null)
     {
-        _sink = sink ?? new SignalSink();
+        Sink = sink ?? new SignalSink();
     }
 
-    public SignalSink Sink => _sink;
+    public SignalSink Sink { get; }
 
     /// <summary>
-    /// Add a stage that runs immediately (no trigger).
+    ///     Add a stage that runs immediately (no trigger).
     /// </summary>
     public StagedPipelineBuilder<T> AddStage(int order, Func<T, CancellationToken, Task> work, string? name = null)
     {
@@ -729,16 +740,17 @@ public sealed class StagedPipelineBuilder<T>
     }
 
     /// <summary>
-    /// Add a stage that triggers when any of the specified signals are seen.
+    ///     Add a stage that triggers when any of the specified signals are seen.
     /// </summary>
-    public StagedPipelineBuilder<T> AddStage(int order, Func<T, CancellationToken, Task> work, IEnumerable<string> whenAny, string? name = null)
+    public StagedPipelineBuilder<T> AddStage(int order, Func<T, CancellationToken, Task> work,
+        IEnumerable<string> whenAny, string? name = null)
     {
         _stages.Add(new StageDefinition(order, name ?? $"stage-{order}", whenAny.ToArray(), work));
         return this;
     }
 
     /// <summary>
-    /// Execute all stages for the given items.
+    ///     Execute all stages for the given items.
     /// </summary>
     public async Task ExecuteAsync(IEnumerable<T> items, CancellationToken ct = default)
     {
@@ -754,31 +766,34 @@ public sealed class StagedPipelineBuilder<T>
                 while (!triggered && !ct.IsCancellationRequested)
                 {
                     foreach (var pattern in stage.TriggerPatterns)
-                    {
-                        if (_sink.Detect(s => StringPatternMatcher.Matches(s.Signal, pattern)))
+                        if (Sink.Detect(s => StringPatternMatcher.Matches(s.Signal, pattern)))
                         {
                             triggered = true;
                             break;
                         }
-                    }
+
                     if (!triggered)
                         await Task.Delay(50, ct).ConfigureAwait(false);
                 }
             }
 
-            _sink.Raise($"stage.start:{stage.Name}", stage.Name);
+            Sink.Raise($"stage.start:{stage.Name}", stage.Name);
 
             // Execute stage for all items
             await itemList.EphemeralForEachAsync(
                 stage.Work,
-                new EphemeralOptions { Signals = _sink },
+                new EphemeralOptions { Signals = Sink },
                 ct).ConfigureAwait(false);
 
-            _sink.Raise($"stage.complete:{stage.Name}", stage.Name);
+            Sink.Raise($"stage.complete:{stage.Name}", stage.Name);
         }
     }
 
-    private sealed record StageDefinition(int Order, string Name, string[]? TriggerPatterns, Func<T, CancellationToken, Task> Work);
+    private sealed record StageDefinition(
+        int Order,
+        string Name,
+        string[]? TriggerPatterns,
+        Func<T, CancellationToken, Task> Work);
 }
 
 #endregion

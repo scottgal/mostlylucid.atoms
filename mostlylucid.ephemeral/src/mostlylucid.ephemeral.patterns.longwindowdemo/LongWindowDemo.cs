@@ -1,16 +1,13 @@
-using Mostlylucid.Ephemeral;
-
 namespace Mostlylucid.Ephemeral.Patterns.LongWindowDemo;
 
 /// <summary>
-/// Demonstrates that the Ephemeral window can be short (tiny memory) or long (thousands of operations)
-/// while staying bounded by MaxTrackedOperations.
+///     Demonstrates that the Ephemeral window can be short (tiny memory) or long (thousands of operations)
+///     while staying bounded by MaxTrackedOperations.
 /// </summary>
 public static class LongWindowDemo
 {
-    public readonly record struct Result(int WindowSize, int TotalItems, int TrackedCount);
-
-    public static async Task<Result> RunAsync(int totalItems, int windowSize, int workDelayMs = 0, CancellationToken ct = default)
+    public static async Task<Result> RunAsync(int totalItems, int windowSize, int workDelayMs = 0,
+        CancellationToken ct = default)
     {
         if (totalItems < 0) throw new ArgumentOutOfRangeException(nameof(totalItems));
         if (windowSize <= 0) throw new ArgumentOutOfRangeException(nameof(windowSize));
@@ -38,4 +35,6 @@ public static class LongWindowDemo
         var tracked = coordinator.GetSnapshot().Count;
         return new Result(windowSize, totalItems, tracked);
     }
+
+    public readonly record struct Result(int WindowSize, int TotalItems, int TrackedCount);
 }

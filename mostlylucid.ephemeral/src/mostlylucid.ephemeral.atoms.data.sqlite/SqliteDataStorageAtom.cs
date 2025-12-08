@@ -1,57 +1,55 @@
-using System;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
-using Mostlylucid.Ephemeral;
-using Mostlylucid.Ephemeral.Atoms.Data;
 
 namespace Mostlylucid.Ephemeral.Atoms.Data.Sqlite;
 
 /// <summary>
-/// Configuration specific to SQLite storage.
+///     Configuration specific to SQLite storage.
 /// </summary>
 public class SqliteDataStorageConfig : DataStorageConfig
 {
     /// <summary>
-    /// SQLite connection string. Default uses in-memory database.
+    ///     SQLite connection string. Default uses in-memory database.
     /// </summary>
     public string ConnectionString { get; set; } = "Data Source=:memory:";
 
     /// <summary>
-    /// Table name for storing data. Default is "data".
+    ///     Table name for storing data. Default is "data".
     /// </summary>
     public string TableName { get; set; } = "data";
 
     /// <summary>
-    /// Whether to use WAL journal mode for better concurrency. Default is true.
+    ///     Whether to use WAL journal mode for better concurrency. Default is true.
     /// </summary>
     public bool UseWalMode { get; set; } = true;
 
     /// <summary>
-    /// JSON serializer options.
+    ///     JSON serializer options.
     /// </summary>
     public JsonSerializerOptions? JsonOptions { get; set; }
 
     /// <summary>
-    /// Creates a file-based SQLite connection string.
+    ///     Creates a file-based SQLite connection string.
     /// </summary>
-    public static string FileConnectionString(string path) => $"Data Source={path}";
+    public static string FileConnectionString(string path)
+    {
+        return $"Data Source={path}";
+    }
 }
 
 /// <summary>
-/// SQLite data storage atom with ACID guarantees.
+///     SQLite data storage atom with ACID guarantees.
 /// </summary>
 /// <typeparam name="TKey">Type of the key.</typeparam>
 /// <typeparam name="TValue">Type of the value (must be JSON-serializable).</typeparam>
 public sealed class SqliteDataStorageAtom<TKey, TValue> : DataStorageAtomBase<TKey, TValue>
     where TKey : notnull
 {
-    private readonly SqliteDataStorageConfig _sqliteConfig;
+    private readonly SemaphoreSlim _initLock = new(1, 1);
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly SqliteDataStorageConfig _sqliteConfig;
     private SqliteConnection? _connection;
     private bool _initialized;
-    private readonly SemaphoreSlim _initLock = new(1, 1);
 
     public SqliteDataStorageAtom(SignalSink signals, SqliteDataStorageConfig config)
         : base(signals, config)
@@ -64,7 +62,7 @@ public sealed class SqliteDataStorageAtom<TKey, TValue> : DataStorageAtomBase<TK
     }
 
     /// <summary>
-    /// Creates a SQLite storage atom with a file path.
+    ///     Creates a SQLite storage atom with a file path.
     /// </summary>
     public SqliteDataStorageAtom(SignalSink signals, string databaseName, string dbPath)
         : this(signals, new SqliteDataStorageConfig
@@ -77,7 +75,7 @@ public sealed class SqliteDataStorageAtom<TKey, TValue> : DataStorageAtomBase<TK
     }
 
     /// <summary>
-    /// Creates an in-memory SQLite storage atom.
+    ///     Creates an in-memory SQLite storage atom.
     /// </summary>
     public SqliteDataStorageAtom(SignalSink signals, string databaseName)
         : this(signals, new SqliteDataStorageConfig
@@ -189,7 +187,7 @@ public sealed class SqliteDataStorageAtom<TKey, TValue> : DataStorageAtomBase<TK
     }
 
     /// <summary>
-    /// Counts all entries.
+    ///     Counts all entries.
     /// </summary>
     public async Task<long> CountAsync(CancellationToken ct = default)
     {
@@ -203,7 +201,7 @@ public sealed class SqliteDataStorageAtom<TKey, TValue> : DataStorageAtomBase<TK
     }
 
     /// <summary>
-    /// Lists all keys.
+    ///     Lists all keys.
     /// </summary>
     public async Task<IReadOnlyList<string>> ListKeysAsync(CancellationToken ct = default)
     {
@@ -215,16 +213,13 @@ public sealed class SqliteDataStorageAtom<TKey, TValue> : DataStorageAtomBase<TK
         cmd.CommandText = $"SELECT key FROM {_sqliteConfig.TableName} ORDER BY key";
 
         await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
-        while (await reader.ReadAsync(ct).ConfigureAwait(false))
-        {
-            keys.Add(reader.GetString(0));
-        }
+        while (await reader.ReadAsync(ct).ConfigureAwait(false)) keys.Add(reader.GetString(0));
 
         return keys;
     }
 
     /// <summary>
-    /// Clears all data.
+    ///     Clears all data.
     /// </summary>
     public async Task ClearAsync(CancellationToken ct = default)
     {

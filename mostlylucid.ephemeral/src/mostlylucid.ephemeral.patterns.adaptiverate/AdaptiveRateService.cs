@@ -1,10 +1,8 @@
-using Mostlylucid.Ephemeral;
-
 namespace Mostlylucid.Ephemeral.Patterns.AdaptiveRate;
 
 /// <summary>
-/// Adaptive rate limiting using ephemeral signals. When rate-limit signals are present,
-/// new work is automatically deferred without explicit coordination.
+///     Adaptive rate limiting using ephemeral signals. When rate-limit signals are present,
+///     new work is automatically deferred without explicit coordination.
 /// </summary>
 public class AdaptiveRateService<T> : IAsyncDisposable
 {
@@ -26,6 +24,16 @@ public class AdaptiveRateService<T> : IAsyncDisposable
             });
     }
 
+    public int PendingCount => _coordinator.PendingCount;
+    public int ActiveCount => _coordinator.ActiveCount;
+
+    public async ValueTask DisposeAsync()
+    {
+        _coordinator.Complete();
+        await _coordinator.DrainAsync();
+        await _coordinator.DisposeAsync();
+    }
+
     public async Task ProcessAsync(T request)
     {
         var rateLimitSignals = _coordinator.GetSignalsByPattern("rate-limit:*");
@@ -36,10 +44,7 @@ public class AdaptiveRateService<T> : IAsyncDisposable
                 .First()
                 .Signal;
 
-            if (TryParseRetryAfter(latest, out var delay))
-            {
-                await Task.Delay(delay);
-            }
+            if (TryParseRetryAfter(latest, out var delay)) await Task.Delay(delay);
         }
 
         await _coordinator.EnqueueAsync(request);
@@ -60,28 +65,18 @@ public class AdaptiveRateService<T> : IAsyncDisposable
         delay = TimeSpan.FromMilliseconds(ms);
         return true;
     }
-
-    public int PendingCount => _coordinator.PendingCount;
-    public int ActiveCount => _coordinator.ActiveCount;
-
-    public async ValueTask DisposeAsync()
-    {
-        _coordinator.Complete();
-        await _coordinator.DrainAsync();
-        await _coordinator.DisposeAsync();
-    }
 }
 
 /// <summary>
-/// Exception thrown when API rate limit is exceeded.
+///     Exception thrown when API rate limit is exceeded.
 /// </summary>
 public class RateLimitException : Exception
 {
-    public TimeSpan? RetryAfter { get; }
-
     public RateLimitException(string message, TimeSpan? retryAfter = null)
         : base(message)
     {
         RetryAfter = retryAfter;
     }
+
+    public TimeSpan? RetryAfter { get; }
 }

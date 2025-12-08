@@ -1,22 +1,17 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-using Mostlylucid.Ephemeral;
-
 namespace Mostlylucid.Ephemeral.Atoms.Molecules;
 
 /// <summary>
-/// Hooks a signal pattern to an action that starts another atom/coordinator.
+///     Hooks a signal pattern to an action that starts another atom/coordinator.
 /// </summary>
 public sealed class AtomTrigger : IDisposable
 {
-    private readonly SignalSink _signals;
-    private readonly Func<string, bool> _matcher;
     private readonly Func<SignalEvent, CancellationToken, Task> _action;
     private readonly CancellationTokenSource _cts = new();
+    private readonly Func<string, bool> _matcher;
+    private readonly SignalSink _signals;
 
     /// <summary>
-    /// Creates a trigger that runs the provided action when signals match the pattern.
+    ///     Creates a trigger that runs the provided action when signals match the pattern.
     /// </summary>
     public AtomTrigger(
         SignalSink signals,
@@ -31,21 +26,21 @@ public sealed class AtomTrigger : IDisposable
         _signals.SignalRaised += OnSignal;
     }
 
-    private void OnSignal(SignalEvent evt)
-    {
-        if (_cts.IsCancellationRequested || !_matcher(evt.Signal))
-            return;
-
-        _ = Task.Run(() => _action(evt, _cts.Token), _cts.Token);
-    }
-
     /// <summary>
-    /// Stop listening for signals.
+    ///     Stop listening for signals.
     /// </summary>
     public void Dispose()
     {
         _signals.SignalRaised -= OnSignal;
         _cts.Cancel();
         _cts.Dispose();
+    }
+
+    private void OnSignal(SignalEvent evt)
+    {
+        if (_cts.IsCancellationRequested || !_matcher(evt.Signal))
+            return;
+
+        _ = Task.Run(() => _action(evt, _cts.Token), _cts.Token);
     }
 }

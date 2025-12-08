@@ -1,21 +1,17 @@
-using Mostlylucid.Ephemeral;
-
 namespace Mostlylucid.Ephemeral.Patterns.SignalCoordinatedReads;
 
 /// <summary>
-/// Demonstrates readers that pause when an update signal is present, then resume when cleared.
-/// Useful for brief "quiesce reads while config/migration runs" patterns without hard locks.
+///     Demonstrates readers that pause when an update signal is present, then resume when cleared.
+///     Useful for brief "quiesce reads while config/migration runs" patterns without hard locks.
 /// </summary>
 public static class SignalCoordinatedReads
 {
     private const string UpdateSignal = "update.in-progress";
     private const string UpdateClearedSignal = "update.done";
 
-    public sealed record Result(int ReadsCompleted, int UpdatesCompleted, IReadOnlyList<string> Signals);
-
     public static async Task<Result> RunAsync(int readCount = 10, int updateCount = 1, CancellationToken ct = default)
     {
-        var sink = new SignalSink(maxCapacity: 128, maxAge: TimeSpan.FromSeconds(5));
+        var sink = new SignalSink(128, TimeSpan.FromSeconds(5));
         var reads = 0;
         var updates = 0;
 
@@ -43,7 +39,8 @@ public static class SignalCoordinatedReads
                 // Emit update signal, run work, then clear by emitting a "done" marker.
                 sink.Raise(new SignalEvent(UpdateSignal, EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
                 await Task.Delay(50, token).ConfigureAwait(false);
-                sink.Raise(new SignalEvent(UpdateClearedSignal, EphemeralIdGenerator.NextId(), null, DateTimeOffset.UtcNow));
+                sink.Raise(new SignalEvent(UpdateClearedSignal, EphemeralIdGenerator.NextId(), null,
+                    DateTimeOffset.UtcNow));
                 Interlocked.Increment(ref updates);
             },
             new EphemeralOptions
@@ -68,4 +65,6 @@ public static class SignalCoordinatedReads
         var signals = sink.Sense().Select(s => s.Signal).ToArray();
         return new Result(reads, updates, signals);
     }
+
+    public sealed record Result(int ReadsCompleted, int UpdatesCompleted, IReadOnlyList<string> Signals);
 }

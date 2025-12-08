@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 namespace Mostlylucid.Ephemeral;
 
 /// <summary>
-/// Minimal glob-style matcher for signal/key filters. Supports '*' and '?' wildcards and comma-separated patterns.
+///     Minimal glob-style matcher for signal/key filters. Supports '*' and '?' wildcards and comma-separated patterns.
 /// </summary>
 public static class StringPatternMatcher
 {
@@ -26,7 +26,9 @@ public static class StringPatternMatcher
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool Matches(string value, string pattern)
-        => Matches(value.AsSpan(), pattern.AsSpan());
+    {
+        return Matches(value.AsSpan(), pattern.AsSpan());
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool MatchesCommaSeparated(string value, ReadOnlySpan<char> patterns)

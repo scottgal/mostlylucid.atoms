@@ -18,16 +18,16 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\mostlylucid.ephemeral.atoms.data\mostlylucid.ephemeral.atoms.data.csproj" />
+        <ProjectReference Include="..\mostlylucid.ephemeral.atoms.data\mostlylucid.ephemeral.atoms.data.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="System.Text.Json" Version="8.0.0" />
+        <PackageReference Include="System.Text.Json" Version="8.0.0"/>
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="README.md" Pack="true" PackagePath="\" />
-        <None Include="icon.png" Pack="true" PackagePath="\" />
+        <None Include="README.md" Pack="true" PackagePath="\"/>
+        <None Include="icon.png" Pack="true" PackagePath="\"/>
     </ItemGroup>
 
 </Project>

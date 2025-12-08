@@ -1,6 +1,7 @@
 # Mostlylucid.Ephemeral.Atoms.Data
 
-Core data storage abstractions for signal-driven persistence. This package provides the base interfaces and configuration used by storage-specific implementations.
+Core data storage abstractions for signal-driven persistence. This package provides the base interfaces and
+configuration used by storage-specific implementations.
 
 ## Installation
 
@@ -9,6 +10,7 @@ dotnet add package Mostlylucid.Ephemeral.Atoms.Data
 ```
 
 For actual storage, install one of:
+
 - `Mostlylucid.Ephemeral.Atoms.Data.File` - JSON file storage
 - `Mostlylucid.Ephemeral.Atoms.Data.Sqlite` - SQLite database
 - `Mostlylucid.Ephemeral.Atoms.Data.Postgres` - PostgreSQL database
@@ -31,14 +33,14 @@ var config = new DataStorageConfig
 
 ## Signal Patterns
 
-| Signal | Description |
-|--------|-------------|
-| `save.data.{dbname}` | Trigger a save operation |
-| `load.data.{dbname}` | Trigger a load operation |
-| `delete.data.{dbname}` | Trigger a delete operation |
-| `saved.data.{dbname}` | Emitted after successful save |
-| `deleted.data.{dbname}` | Emitted after successful delete |
-| `error.data.{dbname}:{ExceptionType}` | Emitted on error |
+| Signal                                | Description                     |
+|---------------------------------------|---------------------------------|
+| `save.data.{dbname}`                  | Trigger a save operation        |
+| `load.data.{dbname}`                  | Trigger a load operation        |
+| `delete.data.{dbname}`                | Trigger a delete operation      |
+| `saved.data.{dbname}`                 | Emitted after successful save   |
+| `deleted.data.{dbname}`               | Emitted after successful delete |
+| `error.data.{dbname}:{ExceptionType}` | Emitted on error                |
 
 ## Usage
 

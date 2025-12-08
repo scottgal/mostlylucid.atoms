@@ -1,6 +1,7 @@
 # Mostlylucid.Ephemeral.Atoms.Data.Postgres
 
-PostgreSQL data storage atom for signal-driven persistence. Provides key-value storage with native JSONB support for efficient querying.
+PostgreSQL data storage atom for signal-driven persistence. Provides key-value storage with native JSONB support for
+efficient querying.
 
 ## Installation
 

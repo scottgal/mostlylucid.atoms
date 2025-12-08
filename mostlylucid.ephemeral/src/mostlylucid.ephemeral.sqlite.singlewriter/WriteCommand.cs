@@ -23,76 +23,77 @@ internal sealed class WriteCommand
     public Action<string>? Signal { get; }
     public TaskCompletionSource<WriteCommandResult> Completion { get; }
 
-    public static WriteCommand ForSql(string sql, object? parameters, bool emitSignal, int commandTimeoutSeconds, string instanceId, Action<string>? signal)
+    public static WriteCommand ForSql(string sql, object? parameters, bool emitSignal, int commandTimeoutSeconds,
+        string instanceId, Action<string>? signal)
     {
         return new WriteCommand(async (conn, ct) =>
-        {
-            await using var cmd = conn.CreateCommand();
-            cmd.CommandText = sql;
-            cmd.CommandTimeout = commandTimeoutSeconds;
-            if (parameters != null)
-                AddParameters(cmd, parameters);
+            {
+                await using var cmd = conn.CreateCommand();
+                cmd.CommandText = sql;
+                cmd.CommandTimeout = commandTimeoutSeconds;
+                if (parameters != null)
+                    AddParameters(cmd, parameters);
 
-            var rows = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
-            return new WriteCommandResult(rows, null);
-        }, $"write:{SqlPreview(sql)}:{instanceId}", emitSignal, signal);
+                var rows = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+                return new WriteCommandResult(rows, null);
+            }, $"write:{SqlPreview(sql)}:{instanceId}", emitSignal, signal);
     }
 
     public static WriteCommand ForBatch(IReadOnlyList<(string Sql, object? Parameters)> batch, bool transactional,
         bool emitSignal, int commandTimeoutSeconds, string instanceId, Action<string>? signal)
     {
         return new WriteCommand(async (conn, ct) =>
-        {
-            SqliteTransaction? transaction = null;
-            if (transactional)
-                transaction = (SqliteTransaction)await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
-
-            var total = 0;
-            try
             {
-                if (emitSignal)
-                    signal?.Invoke("write.batch.tx.begin");
+                SqliteTransaction? transaction = null;
+                if (transactional)
+                    transaction = (SqliteTransaction)await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
 
-                foreach (var (sql, parameters) in batch)
+                var total = 0;
+                try
                 {
                     if (emitSignal)
-                        signal?.Invoke($"write.batch.item.start:{SqlPreview(sql)}");
+                        signal?.Invoke("write.batch.tx.begin");
 
-                    await using var cmd = conn.CreateCommand();
-                    cmd.CommandText = sql;
-                    cmd.CommandTimeout = commandTimeoutSeconds;
+                    foreach (var (sql, parameters) in batch)
+                    {
+                        if (emitSignal)
+                            signal?.Invoke($"write.batch.item.start:{SqlPreview(sql)}");
+
+                        await using var cmd = conn.CreateCommand();
+                        cmd.CommandText = sql;
+                        cmd.CommandTimeout = commandTimeoutSeconds;
+                        if (transaction != null)
+                            cmd.Transaction = transaction;
+                        if (parameters != null)
+                            AddParameters(cmd, parameters);
+                        var rows = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+                        total += rows;
+
+                        if (emitSignal)
+                            signal?.Invoke($"write.batch.item.done:{rows}:{SqlPreview(sql)}");
+                    }
+
                     if (transaction != null)
-                        cmd.Transaction = transaction;
-                    if (parameters != null)
-                        AddParameters(cmd, parameters);
-                    var rows = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
-                    total += rows;
-
+                        await transaction.CommitAsync(ct).ConfigureAwait(false);
                     if (emitSignal)
-                        signal?.Invoke($"write.batch.item.done:{rows}:{SqlPreview(sql)}");
+                        signal?.Invoke("write.batch.tx.commit");
+                }
+                catch
+                {
+                    if (transaction != null)
+                        await transaction.RollbackAsync(ct).ConfigureAwait(false);
+                    if (emitSignal)
+                        signal?.Invoke("write.batch.tx.rollback");
+                    throw;
+                }
+                finally
+                {
+                    if (transaction != null)
+                        await transaction.DisposeAsync().ConfigureAwait(false);
                 }
 
-                if (transaction != null)
-                    await transaction.CommitAsync(ct).ConfigureAwait(false);
-                if (emitSignal)
-                    signal?.Invoke("write.batch.tx.commit");
-            }
-            catch
-            {
-                if (transaction != null)
-                    await transaction.RollbackAsync(ct).ConfigureAwait(false);
-                if (emitSignal)
-                    signal?.Invoke("write.batch.tx.rollback");
-                throw;
-            }
-            finally
-            {
-                if (transaction != null)
-                    await transaction.DisposeAsync().ConfigureAwait(false);
-            }
-
-            return new WriteCommandResult(total, null);
-        }, $"write:batch:{instanceId}", emitSignal, signal);
+                return new WriteCommandResult(total, null);
+            }, $"write:batch:{instanceId}", emitSignal, signal);
     }
 
     public static WriteCommand ForTransactional<T>(
@@ -102,32 +103,36 @@ internal sealed class WriteCommand
         Action<string>? signal)
     {
         return new WriteCommand(async (conn, ct) =>
-        {
-            await using SqliteTransaction transaction = (SqliteTransaction)await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
-            try
             {
-                if (emitSignal)
-                    signal?.Invoke("write.transaction.begin");
+                await using var transaction =
+                    (SqliteTransaction)await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
+                try
+                {
+                    if (emitSignal)
+                        signal?.Invoke("write.transaction.begin");
 
-                var result = await work(conn, transaction, ct).ConfigureAwait(false);
-                await transaction.CommitAsync(ct).ConfigureAwait(false);
+                    var result = await work(conn, transaction, ct).ConfigureAwait(false);
+                    await transaction.CommitAsync(ct).ConfigureAwait(false);
 
-                if (emitSignal)
-                    signal?.Invoke("write.transaction.commit");
-                return new WriteCommandResult(0, result);
-            }
-            catch
-            {
-                await transaction.RollbackAsync(ct).ConfigureAwait(false);
-                if (emitSignal)
-                    signal?.Invoke("write.transaction.rollback");
-                throw;
-            }
-        }, $"write:transaction:{instanceId}", emitSignal, signal);
+                    if (emitSignal)
+                        signal?.Invoke("write.transaction.commit");
+                    return new WriteCommandResult(0, result);
+                }
+                catch
+                {
+                    await transaction.RollbackAsync(ct).ConfigureAwait(false);
+                    if (emitSignal)
+                        signal?.Invoke("write.transaction.rollback");
+                    throw;
+                }
+            }, $"write:transaction:{instanceId}", emitSignal, signal);
     }
 
-    public static WriteCommand Barrier() =>
-        new((_, _) => Task.FromResult(new WriteCommandResult(0, null)), "write:barrier", emitSignal: false, signalEmitter: null);
+    public static WriteCommand Barrier()
+    {
+        return new WriteCommand((_, _) => Task.FromResult(new WriteCommandResult(0, null)), "write:barrier", false,
+            null);
+    }
 
     private static void AddParameters(SqliteCommand cmd, object parameters)
     {

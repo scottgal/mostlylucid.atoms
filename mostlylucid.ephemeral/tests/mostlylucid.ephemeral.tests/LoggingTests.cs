@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Mostlylucid.Ephemeral;
 using Mostlylucid.Ephemeral.Logging;
 using Xunit;
 
@@ -153,11 +152,20 @@ public class LoggingTests
     {
         private readonly List<(LogLevel Level, string Message)> _logs;
 
-        public MockLogger(List<(LogLevel, string)> logs) => _logs = logs;
+        public MockLogger(List<(LogLevel, string)> logs)
+        {
+            _logs = logs;
+        }
 
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+        {
+            return null;
+        }
 
-        public bool IsEnabled(LogLevel logLevel) => true;
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            return true;
+        }
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
             Func<TState, Exception?, string> formatter)

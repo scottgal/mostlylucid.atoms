@@ -1,6 +1,4 @@
-using System;
 using System.Collections.Concurrent;
-using Mostlylucid.Ephemeral;
 using Mostlylucid.Ephemeral.Signals;
 using Xunit;
 
@@ -20,7 +18,7 @@ public class ResponsibilitySignalManagerTests
 
         Assert.True(pinned);
         Assert.True(pinning.IsPinned(operationId));
-        sink.Raise("responsibility.ack.42", key: ResponsibilitySignals.DefaultAckKey(operationId));
+        sink.Raise("responsibility.ack.42", ResponsibilitySignals.DefaultAckKey(operationId));
         Assert.False(pinning.IsPinned(operationId));
         Assert.Equal(0, manager.PendingCount);
     }
@@ -47,21 +45,25 @@ public class ResponsibilitySignalManagerTests
     {
         var sink = new SignalSink();
         var pinning = new FakePinning();
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        DateTimeOffset Clock() => now;
+        var now = DateTimeOffset.UtcNow;
+
+        DateTimeOffset Clock()
+        {
+            return now;
+        }
 
         using var manager = new ResponsibilitySignalManager(
             pinning,
             sink,
-            maxPinDuration: TimeSpan.FromSeconds(1),
-            clock: Clock);
+            TimeSpan.FromSeconds(1),
+            Clock);
 
         var operationId = 100L;
         Assert.True(manager.PinUntilQueried(operationId, ResponsibilitySignals.DefaultAckPattern));
         Assert.True(pinning.IsPinned(operationId));
 
-        now = now.AddSeconds(2);                   // move time forward beyond the max pin duration
-        sink.Raise("heartbeat");                   // trigger signal processing which triggers cleanup
+        now = now.AddSeconds(2); // move time forward beyond the max pin duration
+        sink.Raise("heartbeat"); // trigger signal processing which triggers cleanup
 
         Assert.False(pinning.IsPinned(operationId));
         Assert.Equal(0, manager.PendingCount);
@@ -76,7 +78,8 @@ public class ResponsibilitySignalManagerTests
 
         var operationId = 99L;
         const string description = "Saved file /bucket/uuid";
-        Assert.True(manager.PinUntilQueried(operationId, ResponsibilitySignals.DefaultAckPattern, ackKey: ResponsibilitySignals.DefaultAckKey(operationId), description: description));
+        Assert.True(manager.PinUntilQueried(operationId, ResponsibilitySignals.DefaultAckPattern,
+            ResponsibilitySignals.DefaultAckKey(operationId), description));
 
         var snapshot = Assert.Single(manager.GetActiveResponsibilities());
         Assert.Equal(operationId, snapshot.OperationId);
@@ -86,9 +89,6 @@ public class ResponsibilitySignalManagerTests
     private sealed class FakePinning : IOperationPinning
     {
         private readonly ConcurrentDictionary<long, bool> _pins = new();
-
-        public bool IsPinned(long operationId) =>
-            _pins.TryGetValue(operationId, out var pinned) && pinned;
 
         public bool Pin(long operationId)
         {
@@ -103,7 +103,13 @@ public class ResponsibilitySignalManagerTests
                 _pins[operationId] = false;
                 return true;
             }
+
             return false;
+        }
+
+        public bool IsPinned(long operationId)
+        {
+            return _pins.TryGetValue(operationId, out var pinned) && pinned;
         }
     }
 }

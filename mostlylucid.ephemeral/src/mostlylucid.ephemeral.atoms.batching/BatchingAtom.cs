@@ -1,20 +1,19 @@
-using System.Timers;
 using Timer = System.Timers.Timer;
 
 namespace Mostlylucid.Ephemeral.Atoms.Batching;
 
 /// <summary>
-/// Collects items into batches and processes them when full or when a flush interval elapses.
+///     Collects items into batches and processes them when full or when a flush interval elapses.
 /// </summary>
 public sealed class BatchingAtom<T> : IAsyncDisposable
 {
-    private readonly object _lock = new();
     private readonly List<T> _buffer = new();
-    private readonly Func<IReadOnlyList<T>, CancellationToken, Task> _onBatch;
+    private readonly object _lock = new();
     private readonly int _maxBatchSize;
+    private readonly Func<IReadOnlyList<T>, CancellationToken, Task> _onBatch;
     private readonly Timer _timer;
-    private bool _flushing;
     private bool _disposed;
+    private bool _flushing;
 
     public BatchingAtom(
         Func<IReadOnlyList<T>, CancellationToken, Task> onBatch,
@@ -32,8 +31,17 @@ public sealed class BatchingAtom<T> : IAsyncDisposable
         _timer.Elapsed += async (_, _) => await TryFlushAsync().ConfigureAwait(false);
     }
 
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _timer.Stop();
+        _timer.Dispose();
+        await FlushAsync().ConfigureAwait(false);
+    }
+
     /// <summary>
-    /// Enqueue an item. Returns immediately; batching is handled in the background.
+    ///     Enqueue an item. Returns immediately; batching is handled in the background.
     /// </summary>
     public void Enqueue(T item)
     {
@@ -41,10 +49,7 @@ public sealed class BatchingAtom<T> : IAsyncDisposable
         {
             if (_disposed) throw new ObjectDisposedException(nameof(BatchingAtom<T>));
             _buffer.Add(item);
-            if (_buffer.Count >= _maxBatchSize && !_flushing)
-            {
-                _ = FlushAsync();
-            }
+            if (_buffer.Count >= _maxBatchSize && !_flushing) _ = FlushAsync();
         }
     }
 
@@ -56,13 +61,17 @@ public sealed class BatchingAtom<T> : IAsyncDisposable
             if (_flushing || _buffer.Count == 0) return;
             _flushing = true;
         }
+
         try
         {
             await FlushAsync().ConfigureAwait(false);
         }
         finally
         {
-            lock (_lock) { _flushing = false; }
+            lock (_lock)
+            {
+                _flushing = false;
+            }
         }
     }
 
@@ -77,14 +86,5 @@ public sealed class BatchingAtom<T> : IAsyncDisposable
         }
 
         await _onBatch(batch, CancellationToken.None).ConfigureAwait(false);
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_disposed) return;
-        _disposed = true;
-        _timer.Stop();
-        _timer.Dispose();
-        await FlushAsync().ConfigureAwait(false);
     }
 }

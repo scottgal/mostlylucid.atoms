@@ -21,66 +21,66 @@
 
     <!-- Core source files -->
     <ItemGroup>
-        <Compile Include="..\mostlylucid.ephemeral\**\*.cs" Link="Core\%(RecursiveDir)%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral\**\*.cs" Link="Core\%(RecursiveDir)%(Filename)%(Extension)"/>
     </ItemGroup>
 
     <ItemGroup>
-        <Compile Include="..\mostlylucid.ephemeral.logging\*.cs" Link="Logging\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.logging\*.cs" Link="Logging\%(Filename)%(Extension)"/>
     </ItemGroup>
 
     <ItemGroup>
-        <Compile Include="..\mostlylucid.ephemeral.attributes\**\*.cs" Link="Attributes\%(RecursiveDir)%(Filename)%(Extension)" />
-        <Compile Remove="..\mostlylucid.ephemeral.attributes\bin\**\*.cs" />
-        <Compile Remove="..\mostlylucid.ephemeral.attributes\obj\**\*.cs" />
+        <Compile Include="..\mostlylucid.ephemeral.attributes\**\*.cs" Link="Attributes\%(RecursiveDir)%(Filename)%(Extension)"/>
+        <Compile Remove="..\mostlylucid.ephemeral.attributes\bin\**\*.cs"/>
+        <Compile Remove="..\mostlylucid.ephemeral.attributes\obj\**\*.cs"/>
     </ItemGroup>
 
     <ItemGroup>
-        <Compile Remove="..\mostlylucid.ephemeral\bin\**\*.cs" />
-        <Compile Remove="..\mostlylucid.ephemeral\obj\**\*.cs" />
+        <Compile Remove="..\mostlylucid.ephemeral\bin\**\*.cs"/>
+        <Compile Remove="..\mostlylucid.ephemeral\obj\**\*.cs"/>
     </ItemGroup>
 
     <!-- Atom source files -->
     <ItemGroup>
-        <Compile Include="..\mostlylucid.ephemeral.atoms.batching\*.cs" Link="Atoms\%(Filename)%(Extension)" />
-        <Compile Include="..\mostlylucid.ephemeral.atoms.fixedwork\*.cs" Link="Atoms\%(Filename)%(Extension)" />
-        <Compile Include="..\mostlylucid.ephemeral.atoms.keyedsequential\*.cs" Link="Atoms\%(Filename)%(Extension)" />
-        <Compile Include="..\mostlylucid.ephemeral.atoms.retry\*.cs" Link="Atoms\%(Filename)%(Extension)" />
-        <Compile Include="..\mostlylucid.ephemeral.atoms.signalaware\*.cs" Link="Atoms\%(Filename)%(Extension)" />
-        <Compile Include="..\mostlylucid.ephemeral.atoms.slidingcache\*.cs" Link="Atoms\%(Filename)%(Extension)" />
-        <Compile Include="..\mostlylucid.ephemeral.atoms.scheduledtasks\*.cs" Link="Atoms\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.atoms.batching\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.atoms.fixedwork\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.atoms.keyedsequential\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.atoms.retry\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.atoms.signalaware\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.atoms.slidingcache\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.atoms.scheduledtasks\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
     </ItemGroup>
 
     <!-- Pattern source files -->
     <ItemGroup>
-        <Compile Include="..\mostlylucid.ephemeral.patterns.adaptiverate\*.cs" Link="Patterns\%(Filename)%(Extension)" />
-        <Compile Include="..\mostlylucid.ephemeral.patterns.anomalydetector\*.cs" Link="Patterns\%(Filename)%(Extension)" />
-        <Compile Include="..\mostlylucid.ephemeral.patterns.backpressure\*.cs" Link="Patterns\%(Filename)%(Extension)" />
-        <Compile Include="..\mostlylucid.ephemeral.patterns.circuitbreaker\*.cs" Link="Patterns\%(Filename)%(Extension)" />
-        <Compile Include="..\mostlylucid.ephemeral.patterns.controlledfanout\*.cs" Link="Patterns\%(Filename)%(Extension)" />
-        <Compile Include="..\mostlylucid.ephemeral.patterns.dynamicconcurrency\*.cs" Link="Patterns\%(Filename)%(Extension)" />
-        <Compile Include="..\mostlylucid.ephemeral.patterns.keyedpriorityfanout\*.cs" Link="Patterns\%(Filename)%(Extension)" />
-        <Compile Include="..\mostlylucid.ephemeral.patterns.longwindowdemo\*.cs" Link="Patterns\%(Filename)%(Extension)" />
-        <Compile Include="..\mostlylucid.ephemeral.patterns.reactivefanout\*.cs" Link="Patterns\%(Filename)%(Extension)" />
-        <Compile Include="..\mostlylucid.ephemeral.patterns.signalcoordinatedreads\*.cs" Link="Patterns\%(Filename)%(Extension)" />
-        <Compile Include="..\mostlylucid.ephemeral.patterns.signalinghttp\*.cs" Link="Patterns\%(Filename)%(Extension)" />
-        <Compile Include="..\mostlylucid.ephemeral.patterns.signallogwatcher\*.cs" Link="Patterns\%(Filename)%(Extension)" />
-        <Compile Include="..\mostlylucid.ephemeral.patterns.signalreactionshowcase\*.cs" Link="Patterns\%(Filename)%(Extension)" />
-        <Compile Include="..\mostlylucid.ephemeral.patterns.telemetry\*.cs" Link="Patterns\%(Filename)%(Extension)" />
-        <Compile Include="..\mostlylucid.ephemeral.patterns.persistentwindow\*.cs" Link="Patterns\%(Filename)%(Extension)" />
+        <Compile Include="..\mostlylucid.ephemeral.patterns.adaptiverate\*.cs" Link="Patterns\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.patterns.anomalydetector\*.cs" Link="Patterns\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.patterns.backpressure\*.cs" Link="Patterns\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.patterns.circuitbreaker\*.cs" Link="Patterns\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.patterns.controlledfanout\*.cs" Link="Patterns\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.patterns.dynamicconcurrency\*.cs" Link="Patterns\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.patterns.keyedpriorityfanout\*.cs" Link="Patterns\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.patterns.longwindowdemo\*.cs" Link="Patterns\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.patterns.reactivefanout\*.cs" Link="Patterns\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.patterns.signalcoordinatedreads\*.cs" Link="Patterns\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.patterns.signalinghttp\*.cs" Link="Patterns\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.patterns.signallogwatcher\*.cs" Link="Patterns\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.patterns.signalreactionshowcase\*.cs" Link="Patterns\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.patterns.telemetry\*.cs" Link="Patterns\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.patterns.persistentwindow\*.cs" Link="Patterns\%(Filename)%(Extension)"/>
     </ItemGroup>
 
     <!-- Package dependencies (same as core + SQLite for PersistentWindow) -->
     <ItemGroup>
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
-        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
-        <PackageReference Include="System.IO.Hashing" Version="8.0.0" />
-        <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
-        <PackageReference Include="Cronos" Version="0.11.1" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0"/>
+        <PackageReference Include="System.IO.Hashing" Version="8.0.0"/>
+        <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0"/>
+        <PackageReference Include="Cronos" Version="0.11.1"/>
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="README.md" Pack="true" PackagePath="\" />
-        <None Include="icon.png" Pack="true" PackagePath="\" />
+        <None Include="README.md" Pack="true" PackagePath="\"/>
+        <None Include="icon.png" Pack="true" PackagePath="\"/>
     </ItemGroup>
 
 </Project>

@@ -1,62 +1,57 @@
-using System;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using Npgsql;
-using Mostlylucid.Ephemeral;
-using Mostlylucid.Ephemeral.Atoms.Data;
 
 namespace Mostlylucid.Ephemeral.Atoms.Data.Postgres;
 
 /// <summary>
-/// Configuration specific to PostgreSQL storage.
+///     Configuration specific to PostgreSQL storage.
 /// </summary>
 public class PostgresDataStorageConfig : DataStorageConfig
 {
     /// <summary>
-    /// PostgreSQL connection string.
+    ///     PostgreSQL connection string.
     /// </summary>
     public string ConnectionString { get; set; } = "";
 
     /// <summary>
-    /// Schema name. Default is "public".
+    ///     Schema name. Default is "public".
     /// </summary>
     public string Schema { get; set; } = "public";
 
     /// <summary>
-    /// Table name for storing data. Default is "data".
+    ///     Table name for storing data. Default is "data".
     /// </summary>
     public string TableName { get; set; } = "data";
 
     /// <summary>
-    /// Whether to use JSONB type (recommended). Default is true.
+    ///     Whether to use JSONB type (recommended). Default is true.
     /// </summary>
     public bool UseJsonb { get; set; } = true;
 
     /// <summary>
-    /// JSON serializer options.
+    ///     JSON serializer options.
     /// </summary>
     public JsonSerializerOptions? JsonOptions { get; set; }
 
     /// <summary>
-    /// Full qualified table name (schema.table).
+    ///     Full qualified table name (schema.table).
     /// </summary>
     public string FullTableName => $"{Schema}.{TableName}";
 }
 
 /// <summary>
-/// PostgreSQL data storage atom with native JSONB support.
+///     PostgreSQL data storage atom with native JSONB support.
 /// </summary>
 /// <typeparam name="TKey">Type of the key.</typeparam>
 /// <typeparam name="TValue">Type of the value (must be JSON-serializable).</typeparam>
 public sealed class PostgresDataStorageAtom<TKey, TValue> : DataStorageAtomBase<TKey, TValue>
     where TKey : notnull
 {
-    private readonly PostgresDataStorageConfig _pgConfig;
-    private readonly JsonSerializerOptions _jsonOptions;
     private readonly NpgsqlDataSource _dataSource;
-    private bool _initialized;
     private readonly SemaphoreSlim _initLock = new(1, 1);
+    private readonly JsonSerializerOptions _jsonOptions;
+    private readonly PostgresDataStorageConfig _pgConfig;
+    private bool _initialized;
 
     public PostgresDataStorageAtom(SignalSink signals, PostgresDataStorageConfig config)
         : base(signals, config)
@@ -71,7 +66,7 @@ public sealed class PostgresDataStorageAtom<TKey, TValue> : DataStorageAtomBase<
     }
 
     /// <summary>
-    /// Creates a PostgreSQL storage atom with a connection string.
+    ///     Creates a PostgreSQL storage atom with a connection string.
     /// </summary>
     public PostgresDataStorageAtom(SignalSink signals, string databaseName, string connectionString)
         : this(signals, new PostgresDataStorageConfig
@@ -181,7 +176,7 @@ public sealed class PostgresDataStorageAtom<TKey, TValue> : DataStorageAtomBase<
     }
 
     /// <summary>
-    /// Counts all entries.
+    ///     Counts all entries.
     /// </summary>
     public async Task<long> CountAsync(CancellationToken ct = default)
     {
@@ -196,7 +191,7 @@ public sealed class PostgresDataStorageAtom<TKey, TValue> : DataStorageAtomBase<
     }
 
     /// <summary>
-    /// Lists all keys.
+    ///     Lists all keys.
     /// </summary>
     public async Task<IReadOnlyList<string>> ListKeysAsync(CancellationToken ct = default)
     {
@@ -209,18 +204,16 @@ public sealed class PostgresDataStorageAtom<TKey, TValue> : DataStorageAtomBase<
         cmd.CommandText = $"SELECT key FROM {_pgConfig.FullTableName} ORDER BY key";
 
         await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
-        while (await reader.ReadAsync(ct).ConfigureAwait(false))
-        {
-            keys.Add(reader.GetString(0));
-        }
+        while (await reader.ReadAsync(ct).ConfigureAwait(false)) keys.Add(reader.GetString(0));
 
         return keys;
     }
 
     /// <summary>
-    /// Queries by JSON path (PostgreSQL JSONB feature).
+    ///     Queries by JSON path (PostgreSQL JSONB feature).
     /// </summary>
-    public async Task<IReadOnlyList<TValue>> QueryByJsonPathAsync(string jsonPath, object value, CancellationToken ct = default)
+    public async Task<IReadOnlyList<TValue>> QueryByJsonPathAsync(string jsonPath, object value,
+        CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct).ConfigureAwait(false);
 
@@ -249,7 +242,7 @@ public sealed class PostgresDataStorageAtom<TKey, TValue> : DataStorageAtomBase<
     }
 
     /// <summary>
-    /// Clears all data.
+    ///     Clears all data.
     /// </summary>
     public async Task ClearAsync(CancellationToken ct = default)
     {

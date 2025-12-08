@@ -1,11 +1,7 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-
 namespace Mostlylucid.Ephemeral.Atoms.Data;
 
 /// <summary>
-/// Interface for data storage atoms that listen to signals for transparent persistence.
+///     Interface for data storage atoms that listen to signals for transparent persistence.
 /// </summary>
 /// <typeparam name="TKey">Type of the key.</typeparam>
 /// <typeparam name="TValue">Type of the value.</typeparam>
@@ -13,42 +9,42 @@ public interface IDataStorageAtom<TKey, TValue> : IAsyncDisposable
     where TKey : notnull
 {
     /// <summary>
-    /// Configuration for this storage atom.
+    ///     Configuration for this storage atom.
     /// </summary>
     DataStorageConfig Config { get; }
 
     /// <summary>
-    /// Saves a value by key. Can be called directly or triggered via signal.
+    ///     Saves a value by key. Can be called directly or triggered via signal.
     /// </summary>
     Task SaveAsync(TKey key, TValue value, CancellationToken ct = default);
 
     /// <summary>
-    /// Loads a value by key. Returns default if not found.
+    ///     Loads a value by key. Returns default if not found.
     /// </summary>
     Task<TValue?> LoadAsync(TKey key, CancellationToken ct = default);
 
     /// <summary>
-    /// Deletes a value by key.
+    ///     Deletes a value by key.
     /// </summary>
     Task DeleteAsync(TKey key, CancellationToken ct = default);
 
     /// <summary>
-    /// Checks if a key exists.
+    ///     Checks if a key exists.
     /// </summary>
     Task<bool> ExistsAsync(TKey key, CancellationToken ct = default);
 }
 
 /// <summary>
-/// Base class for data storage atoms with signal handling.
+///     Base class for data storage atoms with signal handling.
 /// </summary>
 /// <typeparam name="TKey">Type of the key.</typeparam>
 /// <typeparam name="TValue">Type of the value.</typeparam>
 public abstract class DataStorageAtomBase<TKey, TValue> : IDataStorageAtom<TKey, TValue>
     where TKey : notnull
 {
-    protected readonly SignalSink Signals;
-    protected readonly EphemeralWorkCoordinator<DataOperation<TKey, TValue>> Coordinator;
     private readonly Action<SignalEvent> _signalHandler;
+    protected readonly EphemeralWorkCoordinator<DataOperation<TKey, TValue>> Coordinator;
+    protected readonly SignalSink Signals;
 
     protected DataStorageAtomBase(SignalSink signals, DataStorageConfig config)
     {
@@ -71,21 +67,60 @@ public abstract class DataStorageAtomBase<TKey, TValue> : IDataStorageAtom<TKey,
 
     public DataStorageConfig Config { get; }
 
+    public async Task SaveAsync(TKey key, TValue value, CancellationToken ct = default)
+    {
+        var tcs = new TaskCompletionSource<object?>();
+        var op = new DataOperation<TKey, TValue>(DataOperationType.Save, key, value, tcs);
+        await Coordinator.EnqueueAsync(op, ct).ConfigureAwait(false);
+        await tcs.Task.WaitAsync(ct).ConfigureAwait(false);
+    }
+
+    public async Task<TValue?> LoadAsync(TKey key, CancellationToken ct = default)
+    {
+        var tcs = new TaskCompletionSource<object?>();
+        var op = new DataOperation<TKey, TValue>(DataOperationType.Load, key, default, tcs);
+        await Coordinator.EnqueueAsync(op, ct).ConfigureAwait(false);
+        var result = await tcs.Task.WaitAsync(ct).ConfigureAwait(false);
+        return result is TValue val ? val : default;
+    }
+
+    public async Task DeleteAsync(TKey key, CancellationToken ct = default)
+    {
+        var tcs = new TaskCompletionSource<object?>();
+        var op = new DataOperation<TKey, TValue>(DataOperationType.Delete, key, default, tcs);
+        await Coordinator.EnqueueAsync(op, ct).ConfigureAwait(false);
+        await tcs.Task.WaitAsync(ct).ConfigureAwait(false);
+    }
+
+    public async Task<bool> ExistsAsync(TKey key, CancellationToken ct = default)
+    {
+        var tcs = new TaskCompletionSource<object?>();
+        var op = new DataOperation<TKey, TValue>(DataOperationType.Exists, key, default, tcs);
+        await Coordinator.EnqueueAsync(op, ct).ConfigureAwait(false);
+        var result = await tcs.Task.WaitAsync(ct).ConfigureAwait(false);
+        return result is true;
+    }
+
+    public virtual async ValueTask DisposeAsync()
+    {
+        Signals.SignalRaised -= _signalHandler;
+        Coordinator.Complete();
+        await Coordinator.DrainAsync().ConfigureAwait(false);
+        await Coordinator.DisposeAsync().ConfigureAwait(false);
+    }
+
     private void OnSignal(SignalEvent signal)
     {
         // Check for save signal
         if (StringPatternMatcher.Matches(signal.Signal, Config.SaveSignalPattern) ||
             StringPatternMatcher.Matches(signal.Signal, $"{Config.SaveSignalPattern}.*"))
-        {
             // Signal payload should contain the data
             return;
-        }
 
         // Check for delete signal
         if (StringPatternMatcher.Matches(signal.Signal, Config.DeleteSignalPattern) ||
             StringPatternMatcher.Matches(signal.Signal, $"{Config.DeleteSignalPattern}.*"))
         {
-            return;
         }
     }
 
@@ -127,42 +162,8 @@ public abstract class DataStorageAtomBase<TKey, TValue> : IDataStorageAtom<TKey,
         }
     }
 
-    public async Task SaveAsync(TKey key, TValue value, CancellationToken ct = default)
-    {
-        var tcs = new TaskCompletionSource<object?>();
-        var op = new DataOperation<TKey, TValue>(DataOperationType.Save, key, value, tcs);
-        await Coordinator.EnqueueAsync(op, ct).ConfigureAwait(false);
-        await tcs.Task.WaitAsync(ct).ConfigureAwait(false);
-    }
-
-    public async Task<TValue?> LoadAsync(TKey key, CancellationToken ct = default)
-    {
-        var tcs = new TaskCompletionSource<object?>();
-        var op = new DataOperation<TKey, TValue>(DataOperationType.Load, key, default, tcs);
-        await Coordinator.EnqueueAsync(op, ct).ConfigureAwait(false);
-        var result = await tcs.Task.WaitAsync(ct).ConfigureAwait(false);
-        return result is TValue val ? val : default;
-    }
-
-    public async Task DeleteAsync(TKey key, CancellationToken ct = default)
-    {
-        var tcs = new TaskCompletionSource<object?>();
-        var op = new DataOperation<TKey, TValue>(DataOperationType.Delete, key, default, tcs);
-        await Coordinator.EnqueueAsync(op, ct).ConfigureAwait(false);
-        await tcs.Task.WaitAsync(ct).ConfigureAwait(false);
-    }
-
-    public async Task<bool> ExistsAsync(TKey key, CancellationToken ct = default)
-    {
-        var tcs = new TaskCompletionSource<object?>();
-        var op = new DataOperation<TKey, TValue>(DataOperationType.Exists, key, default, tcs);
-        await Coordinator.EnqueueAsync(op, ct).ConfigureAwait(false);
-        var result = await tcs.Task.WaitAsync(ct).ConfigureAwait(false);
-        return result is true;
-    }
-
     /// <summary>
-    /// Enqueue a save operation triggered by signal (fire-and-forget style).
+    ///     Enqueue a save operation triggered by signal (fire-and-forget style).
     /// </summary>
     public void EnqueueSave(TKey key, TValue value)
     {
@@ -171,7 +172,7 @@ public abstract class DataStorageAtomBase<TKey, TValue> : IDataStorageAtom<TKey,
     }
 
     /// <summary>
-    /// Enqueue a delete operation triggered by signal (fire-and-forget style).
+    ///     Enqueue a delete operation triggered by signal (fire-and-forget style).
     /// </summary>
     public void EnqueueDelete(TKey key)
     {
@@ -183,18 +184,10 @@ public abstract class DataStorageAtomBase<TKey, TValue> : IDataStorageAtom<TKey,
     protected abstract Task<TValue?> LoadInternalAsync(TKey key, CancellationToken ct);
     protected abstract Task DeleteInternalAsync(TKey key, CancellationToken ct);
     protected abstract Task<bool> ExistsInternalAsync(TKey key, CancellationToken ct);
-
-    public virtual async ValueTask DisposeAsync()
-    {
-        Signals.SignalRaised -= _signalHandler;
-        Coordinator.Complete();
-        await Coordinator.DrainAsync().ConfigureAwait(false);
-        await Coordinator.DisposeAsync().ConfigureAwait(false);
-    }
 }
 
 /// <summary>
-/// Type of data operation.
+///     Type of data operation.
 /// </summary>
 public enum DataOperationType
 {
@@ -205,7 +198,7 @@ public enum DataOperationType
 }
 
 /// <summary>
-/// Internal data operation record.
+///     Internal data operation record.
 /// </summary>
 public record DataOperation<TKey, TValue>(
     DataOperationType Type,
