@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir:*)",
+      "Bash(copy \"C:\\Blog\\mostlylucidweb\\Umami.Net\\icon.png\" \"D:\\Source\\mostlylucid.atoms\\mostlylucid.ephemeral\\src\\mostlylucid.ephemeral.complete\\icon.png\")",
+      "Bash(dotnet new:*)",
+      "Bash(taskkill:*)",
+      "Bash(chmod:*)",
+      "Bash(git add:*)",
+      "Bash(dotnet sln:*)",
+      "Bash(git commit:*)",
+      "Bash(git reset:*)",
+      "Bash(dotnet run:*)",
+      "Bash(xargs cat:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

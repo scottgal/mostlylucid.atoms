@@ -104,16 +104,28 @@ public readonly struct SignalCommandMatch
         if (string.IsNullOrEmpty(signal) || string.IsNullOrEmpty(command))
             return false;
 
-        var pattern = $"*{command}:*";
-        if (!StringPatternMatcher.Matches(signal, pattern))
-            return false;
+        // Optimization: Direct IndexOf instead of pattern matching + IndexOf
+        // Pattern was "*{command}:*" which just checks if "command:" exists anywhere
+        ReadOnlySpan<char> signalSpan = signal.AsSpan();
+        ReadOnlySpan<char> commandSpan = command.AsSpan();
 
-        var prefix = command + ":";
-        var idx = signal.IndexOf(prefix, StringComparison.Ordinal);
+        // Search for "command:" pattern without allocating
+        int idx = -1;
+        for (int i = 0; i <= signalSpan.Length - commandSpan.Length - 1; i++)
+        {
+            if (signalSpan.Slice(i, commandSpan.Length).SequenceEqual(commandSpan) &&
+                i + commandSpan.Length < signalSpan.Length &&
+                signalSpan[i + commandSpan.Length] == ':')
+            {
+                idx = i;
+                break;
+            }
+        }
+
         if (idx < 0)
             return false;
 
-        var payloadStart = idx + prefix.Length;
+        var payloadStart = idx + command.Length + 1; // +1 for ':'
         if (payloadStart > signal.Length)
             return false;
 
