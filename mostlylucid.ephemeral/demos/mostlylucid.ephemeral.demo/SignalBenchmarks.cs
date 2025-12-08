@@ -370,6 +370,120 @@ public class SignalBenchmarks
             }
         }
     }
+
+    [Benchmark(Description = "Large Window (10K capacity)")]
+    public void LargeWindow_10K()
+    {
+        var sink = new SignalSink(maxCapacity: 10000);
+
+        // Fill window to capacity
+        for (int i = 0; i < 10000; i++)
+        {
+            sink.Raise($"signal.{i}");
+        }
+    }
+
+    [Benchmark(Description = "Large Window (50K capacity)")]
+    public void LargeWindow_50K()
+    {
+        var sink = new SignalSink(maxCapacity: 50000);
+
+        // Fill window to capacity
+        for (int i = 0; i < 50000; i++)
+        {
+            sink.Raise($"signal.{i}");
+        }
+    }
+
+    [Benchmark(Description = "Large Window (100K capacity)")]
+    public void LargeWindow_100K()
+    {
+        var sink = new SignalSink(maxCapacity: 100000);
+
+        // Fill window to capacity
+        for (int i = 0; i < 100000; i++)
+        {
+            sink.Raise($"signal.{i}");
+        }
+    }
+
+    [Benchmark(Description = "Window Scaling (1K → 10K → 50K)")]
+    public void WindowScaling_Dynamic()
+    {
+        var sink = new SignalSink(maxCapacity: 1000);
+
+        // Start with 1K
+        for (int i = 0; i < 1000; i++)
+        {
+            sink.Raise($"phase1.{i}");
+        }
+
+        // Scale to 10K
+        sink = new SignalSink(maxCapacity: 10000);
+        for (int i = 0; i < 10000; i++)
+        {
+            sink.Raise($"phase2.{i}");
+        }
+
+        // Scale to 50K
+        sink = new SignalSink(maxCapacity: 50000);
+        for (int i = 0; i < 50000; i++)
+        {
+            sink.Raise($"phase3.{i}");
+        }
+    }
+
+    [Benchmark(Description = "Large Window with Listener (10K)")]
+    public void LargeWindow_WithListener_10K()
+    {
+        var sink = new SignalSink(maxCapacity: 10000);
+        var count = 0;
+
+        sink.SignalRaised += _ => count++;
+
+        for (int i = 0; i < 10000; i++)
+        {
+            sink.Raise($"signal.{i}");
+        }
+    }
+
+    [Benchmark(Description = "Large Window with Listener (50K)")]
+    public void LargeWindow_WithListener_50K()
+    {
+        var sink = new SignalSink(maxCapacity: 50000);
+        var count = 0;
+
+        sink.SignalRaised += _ => count++;
+
+        for (int i = 0; i < 50000; i++)
+        {
+            sink.Raise($"signal.{i}");
+        }
+    }
+
+    [Benchmark(Description = "Window Eviction Performance")]
+    public void WindowEviction_Performance()
+    {
+        var sink = new SignalSink(maxCapacity: 1000);
+
+        // Continuously exceed capacity to test eviction
+        for (int i = 0; i < 10000; i++)
+        {
+            sink.Raise($"evict.{i}");
+        }
+    }
+
+    [Benchmark(Description = "Massive Burst (100K signals)")]
+    public void MassiveBurst_100K()
+    {
+        var sink = new SignalSink(maxCapacity: 100000);
+
+        // Stress test: 100K signals as fast as possible
+        for (int i = 0; i < 100000; i++)
+        {
+            sink.Raise($"burst.{i % 1000}");
+        }
+    }
 }
 
 /// <summary>
