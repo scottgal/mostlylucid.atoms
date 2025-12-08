@@ -210,6 +210,166 @@ public class SignalBenchmarks
 
         await Task.WhenAll(tasks);
     }
+
+    [Benchmark(Description = "Signal Raise (5 listeners)")]
+    public void Signal_Raise_FiveListeners()
+    {
+        var sink = new SignalSink();
+        var count = 0;
+
+        // Add 5 minimal listeners
+        for (int i = 0; i < 5; i++)
+        {
+            sink.SignalRaised += _ => count++;
+        }
+
+        for (int i = 0; i < 1000; i++)
+        {
+            sink.Raise("test.signal");
+        }
+    }
+
+    [Benchmark(Description = "Signal Raise (10 listeners)")]
+    public void Signal_Raise_TenListeners()
+    {
+        var sink = new SignalSink();
+        var count = 0;
+
+        // Add 10 minimal listeners
+        for (int i = 0; i < 10; i++)
+        {
+            sink.SignalRaised += _ => count++;
+        }
+
+        for (int i = 0; i < 1000; i++)
+        {
+            sink.Raise("test.signal");
+        }
+    }
+
+    [Benchmark(Description = "Deep Signal Chain (10 atoms)")]
+    public async Task DeepSignalChain_TenAtoms()
+    {
+        var sink = new SignalSink();
+        var atoms = new List<BenchmarkChainAtom>();
+        var completionTcs = new TaskCompletionSource<bool>();
+        var completedCount = 0;
+
+        // Create chain: input → step1 → step2 → ... → step10 → output
+        atoms.Add(new BenchmarkChainAtom(sink, "input", "step1"));
+        for (int i = 1; i < 10; i++)
+        {
+            atoms.Add(new BenchmarkChainAtom(sink, $"step{i}", $"step{i + 1}"));
+        }
+        atoms.Add(new BenchmarkChainAtom(sink, "step10", "output"));
+
+        // Track completion
+        sink.SignalRaised += (signal) =>
+        {
+            if (signal.Signal == "output")
+            {
+                if (Interlocked.Increment(ref completedCount) == 100)
+                    completionTcs.TrySetResult(true);
+            }
+        };
+
+        for (int i = 0; i < 100; i++)
+        {
+            sink.Raise("input");
+        }
+
+        await Task.WhenAny(completionTcs.Task, Task.Delay(5000));
+
+        foreach (var atom in atoms)
+        {
+            await atom.DisposeAsync();
+        }
+    }
+
+    [Benchmark(Description = "Pattern Matching Complex")]
+    public void PatternMatching_Complex()
+    {
+        var patterns = new[] {
+            "app.*.error.*",
+            "system.metrics.*.cpu.*",
+            "user.*.login.*",
+            "cache.*.miss.*"
+        };
+
+        var signals = new[] {
+            "app.web.error.500",
+            "system.metrics.server1.cpu.high",
+            "user.john.login.success",
+            "cache.redis.miss.product",
+            "other.unmatched.signal"
+        };
+
+        for (int i = 0; i < 1000; i++)
+        {
+            foreach (var signal in signals)
+            {
+                foreach (var pattern in patterns)
+                {
+                    _ = StringPatternMatcher.Matches(signal, pattern);
+                }
+            }
+        }
+    }
+
+    [Benchmark(Description = "High Frequency Burst")]
+    public void HighFrequencyBurst()
+    {
+        var sink = new SignalSink(maxCapacity: 10000);
+
+        // Simulate burst: 5000 signals as fast as possible
+        for (int i = 0; i < 5000; i++)
+        {
+            sink.Raise($"burst.{i % 100}");
+        }
+    }
+
+    [Benchmark(Description = "Signal Window Overflow")]
+    public void SignalWindow_Overflow()
+    {
+        var sink = new SignalSink(maxCapacity: 100);
+
+        // Exceed window capacity significantly
+        for (int i = 0; i < 1000; i++)
+        {
+            sink.Raise($"overflow.{i}");
+        }
+    }
+
+    [Benchmark(Description = "Mixed Pattern Complexity")]
+    public void MixedPatternComplexity()
+    {
+        var signals = new[] {
+            "simple",
+            "one.level",
+            "two.level.deep",
+            "three.level.very.deep",
+            "four.level.even.more.deep"
+        };
+
+        var patterns = new[] {
+            "*",
+            "*.level",
+            "*.*.deep",
+            "*.level.*.deep",
+            "four.level.even.more.deep"
+        };
+
+        for (int i = 0; i < 1000; i++)
+        {
+            foreach (var signal in signals)
+            {
+                foreach (var pattern in patterns)
+                {
+                    _ = StringPatternMatcher.Matches(signal, pattern);
+                }
+            }
+        }
+    }
 }
 
 /// <summary>
