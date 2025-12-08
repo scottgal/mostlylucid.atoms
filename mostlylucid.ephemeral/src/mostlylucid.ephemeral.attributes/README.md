@@ -90,6 +90,41 @@ This snippet shows how to:
 4. Emit start/complete signals for downstream stages.
 5. Extract keys from signals (`KeyFromSignal`) or payloads (`KeyFromPayload` / `[KeySource]`).
 
+### Pipeline jobs with pins and keys
+
+```csharp
+[EphemeralJobs(DefaultLane = "pipeline", DefaultMaxConcurrency = 2)]
+public sealed class PipelineJobs
+{
+    [EphemeralJob(
+        triggerSignal: "orders.process",
+        Priority = 1,
+        MaxConcurrency = 3,
+        Lane = "hot:4",
+        KeyFromSignal = true,
+        Pin = true,
+        EmitOnComplete = new[] { "orders.processed" })]
+    public Task ProcessOrderAsync(SignalEvent signal, OrderPayload payload, CancellationToken ct)
+    {
+        Console.WriteLine($"Processing {payload.Order.Id} in lane {signal.Signal}");
+        return Task.CompletedTask;
+    }
+
+    [EphemeralJob("orders.processed", KeyFromPayload = "Order.Id")]
+    public Task NotifyCustomerAsync([KeySource(PropertyPath = "Order.Id")] OrderPayload payload)
+    {
+        Console.WriteLine($"Notified customer for order {payload.Order.Id}");
+        return Task.CompletedTask;
+    }
+}
+
+var sink = new SignalSink();
+await using var runner = new EphemeralSignalJobRunner(sink, new[] { new PipelineJobs() });
+sink.Raise("orders.process", key: "order-42");
+```
+
+The runner keeps the pipeline alive without additional wiring: `ProcessOrderAsync` picks up hot work in the `hot:4` lane, pins its responsibility until downstream signals (e.g., `orders.processed`) arrive, and extracts the operation key from the signal. `NotifyCustomerAsync` reads the payload via `[KeySource]` so the notifier stays keyed to the same order. Register the runner with `services.AddEphemeralSignalJobRunner<PipelineJobs>()` so DI keeps the sink, runner, and attribute descriptors aligned with your other services.
+
 ### Lanes for workload separation
 
 Use lanes to separate different types of work (I/O-bound, CPU-bound, fast, slow):

@@ -21,8 +21,21 @@
         <ProjectReference Include="..\mostlylucid.ephemeral.atoms.data\mostlylucid.ephemeral.atoms.data.csproj"/>
     </ItemGroup>
 
-    <ItemGroup>
-        <PackageReference Include="System.Text.Json" Version="8.0.0"/>
+    <!-- Use secure versions across all frameworks -->
+    <ItemGroup Condition="'$(TargetFramework)' == 'net6.0' OR '$(TargetFramework)' == 'net7.0'">
+        <PackageReference Include="System.Text.Json" Version="8.0.5"/>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+        <PackageReference Include="System.Text.Json" Version="8.0.5"/>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net9.0'">
+        <PackageReference Include="System.Text.Json" Version="9.0.1"/>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+        <PackageReference Include="System.Text.Json" Version="10.0.0"/>
     </ItemGroup>
 
     <ItemGroup>

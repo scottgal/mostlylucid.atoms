@@ -21,9 +21,30 @@
         <ProjectReference Include="..\mostlylucid.ephemeral.atoms.data\mostlylucid.ephemeral.atoms.data.csproj"/>
     </ItemGroup>
 
-    <ItemGroup>
-        <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0"/>
-        <PackageReference Include="System.Text.Json" Version="8.0.0"/>
+    <!-- Use latest matching versions per framework -->
+    <ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
+        <PackageReference Include="Microsoft.Data.Sqlite" Version="6.0.36"/>
+        <PackageReference Include="System.Text.Json" Version="8.0.5"/>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net7.0'">
+        <PackageReference Include="Microsoft.Data.Sqlite" Version="7.0.20"/>
+        <PackageReference Include="System.Text.Json" Version="8.0.5"/>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+        <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11"/>
+        <PackageReference Include="System.Text.Json" Version="8.0.5"/>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net9.0'">
+        <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.1"/>
+        <PackageReference Include="System.Text.Json" Version="9.0.1"/>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+        <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0"/>
+        <PackageReference Include="System.Text.Json" Version="10.0.0"/>
     </ItemGroup>
 
     <ItemGroup>

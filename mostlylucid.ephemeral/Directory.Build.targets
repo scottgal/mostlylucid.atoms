@@ -1,0 +1,13 @@
+<Project>
+    <PropertyGroup>
+        <PackageVersionNormalized Condition="'$(PackageVersion)' != '' and $([System.String]::Copy($(PackageVersion)).StartsWith('v', System.StringComparison.OrdinalIgnoreCase))">
+            $([System.String]::Copy($(PackageVersion)).Substring(1))
+        </PackageVersionNormalized>
+    </PropertyGroup>
+
+    <Target Name="NormalizePackageVersion" BeforeTargets="Pack">
+        <PropertyGroup Condition="'$(PackageVersionNormalized)' != '' and '$(PackageVersion)' != '$(PackageVersionNormalized)'">
+            <PackageVersion>$(PackageVersionNormalized)</PackageVersion>
+        </PropertyGroup>
+    </Target>
+</Project>

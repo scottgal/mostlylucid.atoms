@@ -29,6 +29,7 @@ section below.
     - [Data Storage Atoms](#data-storage-atoms)
     - [MoleculeRunner & AtomTrigger](#moleculerunner--atomtrigger)
     - [SlidingCacheAtom](#slidingcacheatom)
+    - [VolatileOperationAtom](#volatileoperationatom)
     - [EphemeralLruCache](#ephemerallrucache)
     - [Echo Maker](#echo-maker)
 - [Patterns](#patterns-ready-to-use)
@@ -667,6 +668,30 @@ if (cache.TryGet("user-123", out var profile))
 var stats = cache.GetStats();
 Console.WriteLine($"Entries: {stats.TotalEntries}, Hot: {stats.HotEntries}");
 ```
+
+### VolatileOperationAtom
+
+> **Package:** [mostlylucid.ephemeral.atoms.volatile](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.volatile)
+
+Drop operations the instant they emit a kill signal so the window stays lightweight even under very high throughput. The atom listens for a configurable pattern (default `kill.*`) on the shared `SignalSink`, calls `IOperationEvictor.TryKill` with the captured operation ID, and still lets the coordinator fire its echo/finalization hooks before the entry disappears.
+
+```csharp
+var sink = new SignalSink();
+await using var coordinator = new EphemeralWorkCoordinator<JobItem>(
+    async (job, ct) => await QuickProcessAsync(job, ct),
+    new EphemeralOptions
+    {
+        Signals = sink,
+        EnableOperationEcho = true,
+        OperationEchoRetention = TimeSpan.FromSeconds(30)
+    });
+
+using var volatileAtom = new VolatileOperationAtom(sink, coordinator);
+
+// inside the job: emitter.Emit("kill.job");
+```
+
+Pair the atom with `OperationEchoMaker`/`OperationEchoAtom` so typed `*.echo.*` signals survive the kill as a tiny TTL’d record.
 
 ### EphemeralLruCache
 

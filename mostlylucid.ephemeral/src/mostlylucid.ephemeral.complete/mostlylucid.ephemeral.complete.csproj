@@ -47,6 +47,7 @@
         <Compile Include="..\mostlylucid.ephemeral.atoms.retry\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
         <Compile Include="..\mostlylucid.ephemeral.atoms.signalaware\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
         <Compile Include="..\mostlylucid.ephemeral.atoms.slidingcache\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.atoms.volatile\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
         <Compile Include="..\mostlylucid.ephemeral.atoms.scheduledtasks\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
     </ItemGroup>
 

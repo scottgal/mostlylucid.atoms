@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading.Channels;
 
 namespace Mostlylucid.Ephemeral;
@@ -8,7 +9,7 @@ namespace Mostlylucid.Ephemeral;
 ///     Unlike EphemeralForEachAsync (which processes a collection), this stays alive
 ///     and lets you enqueue items over time, inspect operations, and gracefully shutdown.
 /// </summary>
-public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPinning, IOperationFinalization
+public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPinning, IOperationFinalization, IOperationEvictor
 {
     private readonly Func<T, CancellationToken, Task> _body;
 
@@ -825,7 +826,11 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPi
 
     private void EnqueueOperation(EphemeralOperation op)
     {
-        _recent.Enqueue(op);
+        lock (_windowLock)
+        {
+            _recent.Enqueue(op);
+        }
+
         CleanupWindow();
     }
 
@@ -908,4 +913,47 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPi
     }
 
     private readonly record struct WorkItem(T Item, long? Id);
+
+    /// <inheritdoc />
+    public bool TryKill(long operationId)
+    {
+        if (operationId <= 0)
+            return false;
+
+        if (!TryRemoveOperation(operationId, out var candidate) || candidate is null)
+            return false;
+
+        if (candidate.Completed is null) candidate.Completed = DateTimeOffset.UtcNow;
+        candidate.IsPinned = false;
+        NotifyOperationFinalized(candidate);
+        CleanupWindow();
+        return true;
+    }
+
+    private bool TryRemoveOperation(long operationId, out EphemeralOperation? removed)
+    {
+        removed = null;
+        var buffer = new List<EphemeralOperation>();
+        var found = false;
+
+        lock (_windowLock)
+        {
+            while (_recent.TryDequeue(out var op))
+            {
+                if (!found && op.Id == operationId)
+                {
+                    removed = op;
+                    found = true;
+                    continue;
+                }
+
+                buffer.Add(op);
+            }
+
+            foreach (var op in buffer)
+                _recent.Enqueue(op);
+        }
+
+        return found;
+    }
 }

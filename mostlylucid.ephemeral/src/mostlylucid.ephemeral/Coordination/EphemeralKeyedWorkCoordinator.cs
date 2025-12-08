@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading.Channels;
 
 namespace Mostlylucid.Ephemeral;
@@ -6,7 +7,7 @@ namespace Mostlylucid.Ephemeral;
 /// <summary>
 ///     Keyed version: per-key sequential execution with fair scheduling.
 /// </summary>
-public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, IOperationPinning, IOperationFinalization
+public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, IOperationPinning, IOperationFinalization, IOperationEvictor
     where TKey : notnull
 {
     private const long KeyLockIdleTimeoutMs = 60_000;
@@ -152,6 +153,51 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
     {
         OperationFinalized?.Invoke(op.ToSnapshot());
         RecordEcho(op);
+    }
+
+    /// <inheritdoc />
+    public bool TryKill(long operationId)
+    {
+        if (operationId <= 0)
+            return false;
+
+        if (!TryRemoveOperation(operationId, out var candidate) || candidate is null)
+            return false;
+
+        if (candidate.Completed is null) candidate.Completed = DateTimeOffset.UtcNow;
+        candidate.IsPinned = false;
+        NotifyOperationFinalized(candidate);
+        CleanupWindow();
+        return true;
+    }
+
+    private bool TryRemoveOperation(long operationId, out EphemeralOperation? removed)
+    {
+        removed = null;
+        var buffer = new List<EphemeralOperation>();
+        var found = false;
+
+        lock (_windowLock)
+        {
+            while (_recent.TryDequeue(out var op))
+            {
+                if (!found && op.Id == operationId)
+                {
+                    removed = op;
+                    found = true;
+                    continue;
+                }
+
+                buffer.Add(op);
+            }
+
+            foreach (var op in buffer)
+            {
+                _recent.Enqueue(op);
+            }
+        }
+
+        return found;
     }
 
     private void RecordEcho(EphemeralOperation op)
@@ -593,7 +639,10 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
 
     private void EnqueueOperation(EphemeralOperation op)
     {
-        _recent.Enqueue(op);
+        lock (_windowLock)
+        {
+            _recent.Enqueue(op);
+        }
         CleanupWindow();
     }
 

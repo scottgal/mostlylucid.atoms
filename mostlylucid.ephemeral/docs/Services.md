@@ -4,6 +4,20 @@ This document describes how to register and use the Ephemeral coordinators and a
 
 ## Registering coordinators
 
+These helpers let you keep registration as concise as any other `AddX` call in ASP.NET Core. Use the shorter `AddCoordinator`/`AddScopedCoordinator`/`AddKeyedCoordinator` wrappers for readability, then pair them with `AddEphemeralSignalJobRunner` when you also need attribute-driven jobs.
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddCoordinator<WorkItem>(
+    async (item, ct) => await ProcessAsync(item, ct),
+    new EphemeralOptions { MaxConcurrency = 8 });
+
+builder.Services.AddEphemeralSignalJobRunner<LogWatcherJobs>();
+```
+
+The runner registers its own `SignalSink` so the builder-owned sink is shared between coordinators, log hooks, and the `ResponsibilitySignalManager` wiring.
+
 The library exposes extension methods on `IServiceCollection` to register coordinators in DI so they can be injected and managed by the container.
 
 - `services.AddEphemeralWorkCoordinator<T>(Func<IServiceProvider, Func<T, CancellationToken, Task>> bodyFactory, EphemeralOptions? options = null)`

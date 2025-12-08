@@ -187,6 +187,32 @@ public sealed class LogWatcherJobs
 }
 ```
 
+```csharp
+[EphemeralJobs(SignalPrefix = "pipeline", DefaultLane = "io", DefaultMaxConcurrency = 2)]
+public sealed class PipelineJobs
+{
+    [EphemeralJob("orders.process", Priority = 1, MaxConcurrency = 3, Lane = "hot:4", KeyFromSignal = true, Pin = true, EmitOnComplete = new[] { "orders.processed" })]
+    public Task ProcessOrderAsync(SignalEvent signal, OrderPayload payload, CancellationToken ct)
+    {
+        Console.WriteLine($"Processing {signal.Key}");
+        return Task.CompletedTask;
+    }
+
+    [EphemeralJob("orders.processed", KeyFromPayload = "Order.Id")]
+    public Task NotifyCustomerAsync([KeySource(PropertyPath = "Order.Id")] OrderPayload payload)
+    {
+        Console.WriteLine($"Notified order {payload.Order.Id}");
+        return Task.CompletedTask;
+    }
+}
+
+var pipelineSink = new SignalSink();
+await using var pipelineRunner = new EphemeralSignalJobRunner(pipelineSink, new[] { new PipelineJobs() });
+pipelineSink.Raise("orders.process", key: "order-42");
+```
+
+This sample shows how attribute jobs can prioritize hot handlers, pin their responsibility until downstream acks, and extract meaningful keys from signals or payloads via `KeyFromSignal`, `KeyFromPayload`, and `[KeySource]`.
+
 This bootstraps a watcher at application start and lets later tasks (or logger events) trigger the pipeline without wiring. Attribute jobs can also declare keys via `OperationKey`, `KeyFromSignal`, `KeyFromPayload`, or `[KeySource]`, emit lifecycle signals, pin work until acked, and slot into named lanes.
 
 Key knobs include:
@@ -541,6 +567,7 @@ Small, opinionated wrappers for common patterns:
 | `mostlylucid.ephemeral.atoms.signalaware` | Pause/cancel intake based on signals |
 | `mostlylucid.ephemeral.atoms.batching` | Time/size-based batching before processing |
 | `mostlylucid.ephemeral.atoms.retry` | Exponential backoff retry with limits |
+| `mostlylucid.ephemeral.atoms.volatile` | Instantly evicts operations that emit a kill signal so high-throughput work stays untracked |
 | `mostlylucid.ephemeral.atoms.windowsize` | Signal-based window/retention adjustments for shared sink windows |
 | `mostlylucid.ephemeral.atoms.windowsize` | Signals can grow/shrink the signal window/retention (window size atom) |
 | `mostlylucid.ephemeral.atoms.molecules` | Molecules/atom-trigger helpers for signal-driven workflows |
@@ -588,6 +615,32 @@ Production-ready implementations:
 | `SlidingCacheAtom` | Sliding on every hit + absolute max lifetime | Async factory + dedupe; rich signals | `atoms.slidingcache` |
 | `EphemeralLruCache` (default) | Sliding on hit; hot keys extend TTL; LRU-style eviction | Hot detection (`cache.hot/evict` signals) | Core + `sqlite.singlewriter` |
 | `MemoryCache` (legacy/optional) | Sliding TTL only | No hot tracking or dedupe | Only if you opt out of LRU |
+
+Configuring `MemoryCacheEntryOptions.SlidingExpiration` lets you approximate a sliding window (each hit refreshes the TTL), but the built-in cache never signals why operations were evicted nor extends TTLs for hot keys. `EphemeralLruCache` (the default in this repo) adds hot-key amplification, signal telemetry, and background eviction so you get both the sliding window feel and the self-optimizing behavior you need for observability.
+
+### VolatileOperationAtom
+
+> **Package:** [mostlylucid.ephemeral.atoms.volatile](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.volatile)
+
+Immediately drops operations the moment they raise a kill signal so high-throughput tasks never bloat the tracked window. The atom watches the shared `SignalSink`, calls `IOperationEvictor.TryKill` on the operation ID carried by the matching signal, and still lets the coordinator emit the final echoes before the entry disappears.
+
+```csharp
+var sink = new SignalSink();
+await using var coordinator = new EphemeralWorkCoordinator<JobItem>(
+    async (job, ct) => await QuickProcessAsync(job, ct),
+    new EphemeralOptions
+    {
+        Signals = sink,
+        EnableOperationEcho = true,
+        OperationEchoRetention = TimeSpan.FromSeconds(30)
+    });
+
+using var volatileAtom = new VolatileOperationAtom(sink, coordinator);
+
+// inside the job: emitter.Emit("kill.job");
+```
+
+Combine it with `OperationEchoMaker`/`OperationEchoAtom` and typed `*.echo.*` signals so only the tiny echo you care about survives after the kill drops the rest.
 
 ### Window Size Atom
 

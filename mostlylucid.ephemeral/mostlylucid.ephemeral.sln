@@ -96,6 +96,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "mostlylucid.ephemeral.atoms
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "mostlylucid.ephemeral.atoms.windowsize", "src\mostlylucid.ephemeral.atoms.windowsize\mostlylucid.ephemeral.atoms.windowsize.csproj", "{F164C82C-B0D8-408A-B805-434A237B19E1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "mostlylucid.ephemeral.atoms.volatile", "src\mostlylucid.ephemeral.atoms.volatile\mostlylucid.ephemeral.atoms.volatile.csproj", "{6A648482-3064-4581-8D67-BA7078D50E85}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -550,6 +552,18 @@ Global
 		{F164C82C-B0D8-408A-B805-434A237B19E1}.Release|x64.Build.0 = Release|Any CPU
 		{F164C82C-B0D8-408A-B805-434A237B19E1}.Release|x86.ActiveCfg = Release|Any CPU
 		{F164C82C-B0D8-408A-B805-434A237B19E1}.Release|x86.Build.0 = Release|Any CPU
+		{6A648482-3064-4581-8D67-BA7078D50E85}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6A648482-3064-4581-8D67-BA7078D50E85}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6A648482-3064-4581-8D67-BA7078D50E85}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6A648482-3064-4581-8D67-BA7078D50E85}.Debug|x64.Build.0 = Debug|Any CPU
+		{6A648482-3064-4581-8D67-BA7078D50E85}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6A648482-3064-4581-8D67-BA7078D50E85}.Debug|x86.Build.0 = Debug|Any CPU
+		{6A648482-3064-4581-8D67-BA7078D50E85}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6A648482-3064-4581-8D67-BA7078D50E85}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6A648482-3064-4581-8D67-BA7078D50E85}.Release|x64.ActiveCfg = Release|Any CPU
+		{6A648482-3064-4581-8D67-BA7078D50E85}.Release|x64.Build.0 = Release|Any CPU
+		{6A648482-3064-4581-8D67-BA7078D50E85}.Release|x86.ActiveCfg = Release|Any CPU
+		{6A648482-3064-4581-8D67-BA7078D50E85}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -593,5 +607,6 @@ Global
 		{D549AAE1-90A9-4697-A28A-58ADE1BD4987} = {A1B2C3D4-0002-0002-0002-000000000002}
 		{94431BDA-8EF7-4F7A-B341-A81981F827A8} = {A1B2C3D4-0001-0001-0001-000000000001}
 		{F164C82C-B0D8-408A-B805-434A237B19E1} = {A1B2C3D4-0001-0001-0001-000000000001}
+		{6A648482-3064-4581-8D67-BA7078D50E85} = {A1B2C3D4-0001-0001-0001-000000000001}
 	EndGlobalSection
 EndGlobal
