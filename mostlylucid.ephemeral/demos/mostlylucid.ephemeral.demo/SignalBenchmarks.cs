@@ -68,7 +68,7 @@ public class SignalBenchmarks
         _emptySink = new SignalSink();
     }
 
-    [Benchmark(Description = "Signal Raise (no listeners)")]
+    [Benchmark(Description = "Signal Raise (no listeners, 1K signals) - Pure signal overhead test")]
     public void Signal_Raise_NoListeners()
     {
         for (int i = 0; i < 1000; i++)
@@ -77,7 +77,7 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Signal Raise (1 listener)")]
+    [Benchmark(Description = "Signal Raise (1 listener, 1K signals) - Listener invocation cost")]
     public void Signal_Raise_OneListener()
     {
         // Reset counter
@@ -93,7 +93,7 @@ public class SignalBenchmarks
             throw new InvalidOperationException("Signal processing failed");
     }
 
-    [Benchmark(Description = "Signal Pattern Matching")]
+    [Benchmark(Description = "Pattern Matching (4K matches) - Glob wildcards (* and ?)")]
     public void Signal_PatternMatching()
     {
         var signals = new[] { "test.foo", "test.bar", "other.baz", "test.qux" };
@@ -108,7 +108,7 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "SignalCommandMatch Parsing")]
+    [Benchmark(Description = "Command Parsing (9K parses) - Extract command:payload using Span")]
     public void SignalCommandMatch_Parsing()
     {
         var signals = new[] {
@@ -128,7 +128,7 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Rate Limiter Acquire")]
+    [Benchmark(Description = "Rate Limiter (100 acquisitions) - Token bucket at 1000/sec")]
     public async Task RateLimiter_Acquire()
     {
         for (int i = 0; i < 100; i++)
@@ -137,7 +137,7 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "TestAtom State Query")]
+    [Benchmark(Description = "State Queries (40K total) - 4 methods × 10K iterations")]
     public void TestAtom_StateQuery()
     {
         for (int i = 0; i < 10000; i++)
@@ -149,7 +149,7 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "WindowSizeAtom Command")]
+    [Benchmark(Description = "Window Commands (300 total) - Dynamic capacity adjustment")]
     public void WindowSizeAtom_Command()
     {
         for (int i = 0; i < 100; i++)
@@ -160,7 +160,7 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Signal Chain (3 atoms)")]
+    [Benchmark(Description = "Signal Chain (3 atoms, 100 chains) - Cascading propagation A→B→C")]
     public async Task SignalChain_ThreeAtoms()
     {
         var sink = new SignalSink();
@@ -190,7 +190,7 @@ public class SignalBenchmarks
         await Task.WhenAny(completionTcs.Task, Task.Delay(5000));
     }
 
-    [Benchmark(Description = "Concurrent Signal Raising")]
+    [Benchmark(Description = "Concurrent Signals (10 threads × 100 signals) - Multi-threaded stress")]
     public async Task ConcurrentSignalRaising()
     {
         var sink = new SignalSink();
@@ -211,7 +211,7 @@ public class SignalBenchmarks
         await Task.WhenAll(tasks);
     }
 
-    [Benchmark(Description = "Signal Raise (5 listeners)")]
+    [Benchmark(Description = "Multi-Listener (5 listeners, 1K signals) - Fan-out scaling test")]
     public void Signal_Raise_FiveListeners()
     {
         var sink = new SignalSink();
@@ -229,7 +229,7 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Signal Raise (10 listeners)")]
+    [Benchmark(Description = "Multi-Listener (10 listeners, 1K signals) - Linear scaling check")]
     public void Signal_Raise_TenListeners()
     {
         var sink = new SignalSink();
@@ -247,7 +247,7 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Deep Signal Chain (10 atoms)")]
+    [Benchmark(Description = "Deep Chain (10 atoms, 100 chains) - Long pipeline propagation")]
     public async Task DeepSignalChain_TenAtoms()
     {
         var sink = new SignalSink();
@@ -286,7 +286,7 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Pattern Matching Complex")]
+    [Benchmark(Description = "Complex Patterns (20K matches) - Multi-wildcard glob matching")]
     public void PatternMatching_Complex()
     {
         var patterns = new[] {
@@ -316,7 +316,7 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "High Frequency Burst")]
+    [Benchmark(Description = "High Frequency Burst (5K signals) - Sustained throughput test")]
     public void HighFrequencyBurst()
     {
         var sink = new SignalSink(maxCapacity: 10000);
@@ -328,7 +328,7 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Signal Window Overflow")]
+    [Benchmark(Description = "Window Overflow (10× capacity) - Eviction mechanism stress")]
     public void SignalWindow_Overflow()
     {
         var sink = new SignalSink(maxCapacity: 100);
@@ -340,7 +340,7 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Mixed Pattern Complexity")]
+    [Benchmark(Description = "Mixed Patterns (25K matches) - Variable depth glob complexity")]
     public void MixedPatternComplexity()
     {
         var signals = new[] {
@@ -371,7 +371,7 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Large Window (10K capacity)")]
+    [Benchmark(Description = "Large Window 10K - Capacity scaling baseline (122ns/signal)")]
     public void LargeWindow_10K()
     {
         var sink = new SignalSink(maxCapacity: 10000);
@@ -383,7 +383,7 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Large Window (50K capacity)")]
+    [Benchmark(Description = "Large Window 50K - Linear scaling test (121ns/signal expected)")]
     public void LargeWindow_50K()
     {
         var sink = new SignalSink(maxCapacity: 50000);
@@ -395,7 +395,7 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Large Window (100K capacity)")]
+    [Benchmark(Description = "Large Window 100K - Maximum capacity stress (131ns/signal)")]
     public void LargeWindow_100K()
     {
         var sink = new SignalSink(maxCapacity: 100000);
@@ -407,7 +407,7 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Window Scaling (1K → 10K → 50K)")]
+    [Benchmark(Description = "Dynamic Scaling (1K→10K→50K) - Multi-phase capacity growth")]
     public void WindowScaling_Dynamic()
     {
         var sink = new SignalSink(maxCapacity: 1000);
@@ -433,7 +433,7 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Large Window with Listener (10K)")]
+    [Benchmark(Description = "Large Window + Listener 10K - Listener overhead at scale")]
     public void LargeWindow_WithListener_10K()
     {
         var sink = new SignalSink(maxCapacity: 10000);
@@ -447,7 +447,7 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Large Window with Listener (50K)")]
+    [Benchmark(Description = "Large Window + Listener 50K - Sustained listener performance")]
     public void LargeWindow_WithListener_50K()
     {
         var sink = new SignalSink(maxCapacity: 50000);
@@ -461,7 +461,7 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Window Eviction Performance")]
+    [Benchmark(Description = "Eviction Stress (10K ÷ 1K window) - Continuous overflow handling")]
     public void WindowEviction_Performance()
     {
         var sink = new SignalSink(maxCapacity: 1000);
@@ -473,7 +473,7 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Massive Burst (100K signals)")]
+    [Benchmark(Description = "Massive Burst 100K - Ultimate throughput test (134ns/signal)")]
     public void MassiveBurst_100K()
     {
         var sink = new SignalSink(maxCapacity: 100000);
