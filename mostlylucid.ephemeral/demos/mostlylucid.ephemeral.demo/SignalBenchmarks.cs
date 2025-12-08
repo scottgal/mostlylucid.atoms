@@ -68,38 +68,41 @@ public class SignalBenchmarks
         _emptySink = new SignalSink();
     }
 
-    [Benchmark(Description = "Signal Raise (no listeners, 1K signals) - Pure signal overhead test")]
+    // 136.4µs → 100ms: need ~733× more operations (1K → 750K)
+    [Benchmark(Description = "Signal Raise (no listeners, 750K signals) - Pure signal overhead test")]
     public void Signal_Raise_NoListeners()
     {
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; i < 750_000; i++)
         {
             _emptySink.Raise("test.signal");
         }
     }
 
-    [Benchmark(Description = "Signal Raise (1 listener, 1K signals) - Listener invocation cost")]
+    // 913µs → 100ms: need ~110× more operations (1K → 110K)
+    [Benchmark(Description = "Signal Raise (1 listener, 110K signals) - Listener invocation cost")]
     public void Signal_Raise_OneListener()
     {
         // Reset counter
         var initialCount = _benchAtom.GetCount();
 
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; i < 110_000; i++)
         {
             _sink.Raise("test.input");
         }
 
         // Ensure signals were processed (prevents optimization removal)
-        if (_benchAtom.GetCount() - initialCount != 1000)
+        if (_benchAtom.GetCount() - initialCount != 110_000)
             throw new InvalidOperationException("Signal processing failed");
     }
 
-    [Benchmark(Description = "Pattern Matching (4K matches) - Glob wildcards (* and ?)")]
+    // 58.4µs → 100ms: need ~1700× more (4K matches → 7M matches = 1.75M iterations)
+    [Benchmark(Description = "Pattern Matching (7M matches) - Glob wildcards (* and ?)")]
     public void Signal_PatternMatching()
     {
         var signals = new[] { "test.foo", "test.bar", "other.baz", "test.qux" };
         var pattern = "test.*";
 
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; i < 1_750_000; i++)
         {
             foreach (var signal in signals)
             {
@@ -108,7 +111,8 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Command Parsing (9K parses) - Extract command:payload using Span")]
+    // 95.6µs → 100ms: need ~1050× more (9K → 9.5M parses = 1.05M iterations)
+    [Benchmark(Description = "Command Parsing (9.5M parses) - Extract command:payload using Span")]
     public void SignalCommandMatch_Parsing()
     {
         var signals = new[] {
@@ -117,7 +121,7 @@ public class SignalBenchmarks
             "window.time.set:30s"
         };
 
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; i < 1_050_000; i++)
         {
             foreach (var signal in signals)
             {
@@ -128,19 +132,21 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Rate Limiter (100 acquisitions) - Token bucket at 1000/sec")]
+    // 6.3µs → 100ms: need ~15,800× more (100 → 1.58M acquisitions)
+    [Benchmark(Description = "Rate Limiter (1.58M acquisitions) - Token bucket at 1000/sec")]
     public async Task RateLimiter_Acquire()
     {
-        for (int i = 0; i < 100; i++)
+        for (int i = 0; i < 1_580_000; i++)
         {
             using var lease = await _rateAtom.AcquireAsync();
         }
     }
 
-    [Benchmark(Description = "State Queries (40K total) - 4 methods × 10K iterations")]
+    // 70.7µs → 100ms: need ~1400× more (40K → 56M queries = 14K iterations)
+    [Benchmark(Description = "State Queries (56M total) - 4 methods × 14M iterations")]
     public void TestAtom_StateQuery()
     {
-        for (int i = 0; i < 10000; i++)
+        for (int i = 0; i < 14_000_000; i++)
         {
             _ = _atom.GetProcessedCount();
             _ = _atom.GetLastProcessedSignal();
@@ -149,10 +155,11 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Window Commands (300 total) - Dynamic capacity adjustment")]
+    // 125.8µs → 100ms: need ~800× more (300 → 240K commands = 80K iterations)
+    [Benchmark(Description = "Window Commands (240K total) - Dynamic capacity adjustment")]
     public void WindowSizeAtom_Command()
     {
-        for (int i = 0; i < 100; i++)
+        for (int i = 0; i < 80_000; i++)
         {
             _sink.Raise("window.size.set:500");
             _sink.Raise("window.size.increase:100");
@@ -160,10 +167,11 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Signal Chain (3 atoms, 100 chains) - Cascading propagation A→B→C")]
+    // 64µs → 100ms: need ~1560× more (100 → 156K chains)
+    [Benchmark(Description = "Signal Chain (3 atoms, 156K chains) - Cascading propagation A→B→C")]
     public async Task SignalChain_ThreeAtoms()
     {
-        var sink = new SignalSink();
+        var sink = new SignalSink(maxCapacity: 200000);
         var completionTcs = new TaskCompletionSource<bool>();
         var completedCount = 0;
 
@@ -176,24 +184,25 @@ public class SignalBenchmarks
         {
             if (signal.Signal == "output")
             {
-                if (Interlocked.Increment(ref completedCount) == 100)
+                if (Interlocked.Increment(ref completedCount) == 156_000)
                     completionTcs.TrySetResult(true);
             }
         };
 
-        for (int i = 0; i < 100; i++)
+        for (int i = 0; i < 156_000; i++)
         {
             sink.Raise("input");
         }
 
         // Wait for all chains to complete (with timeout)
-        await Task.WhenAny(completionTcs.Task, Task.Delay(5000));
+        await Task.WhenAny(completionTcs.Task, Task.Delay(10000));
     }
 
-    [Benchmark(Description = "Concurrent Signals (10 threads × 100 signals) - Multi-threaded stress")]
+    // 276µs → 100ms: need ~360× more (10×100 → 10×36K)
+    [Benchmark(Description = "Concurrent Signals (10 threads × 36K signals) - Multi-threaded stress")]
     public async Task ConcurrentSignalRaising()
     {
-        var sink = new SignalSink();
+        var sink = new SignalSink(maxCapacity: 400000);
         var tasks = new Task[10];
 
         for (int i = 0; i < 10; i++)
@@ -201,7 +210,7 @@ public class SignalBenchmarks
             var taskId = i;
             tasks[i] = Task.Run(() =>
             {
-                for (int j = 0; j < 100; j++)
+                for (int j = 0; j < 36_000; j++)
                 {
                     sink.Raise($"task.{taskId}.signal");
                 }
@@ -211,10 +220,11 @@ public class SignalBenchmarks
         await Task.WhenAll(tasks);
     }
 
-    [Benchmark(Description = "Multi-Listener (5 listeners, 1K signals) - Fan-out scaling test")]
+    // 146.6µs → 100ms: need ~680× more (1K → 680K signals)
+    [Benchmark(Description = "Multi-Listener (5 listeners, 680K signals) - Fan-out scaling test")]
     public void Signal_Raise_FiveListeners()
     {
-        var sink = new SignalSink();
+        var sink = new SignalSink(maxCapacity: 700000);
         var count = 0;
 
         // Add 5 minimal listeners
@@ -223,16 +233,17 @@ public class SignalBenchmarks
             sink.SignalRaised += _ => count++;
         }
 
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; i < 680_000; i++)
         {
             sink.Raise("test.signal");
         }
     }
 
-    [Benchmark(Description = "Multi-Listener (10 listeners, 1K signals) - Linear scaling check")]
+    // 159.3µs → 100ms: need ~630× more (1K → 630K signals)
+    [Benchmark(Description = "Multi-Listener (10 listeners, 630K signals) - Linear scaling check")]
     public void Signal_Raise_TenListeners()
     {
-        var sink = new SignalSink();
+        var sink = new SignalSink(maxCapacity: 700000);
         var count = 0;
 
         // Add 10 minimal listeners
@@ -241,16 +252,17 @@ public class SignalBenchmarks
             sink.SignalRaised += _ => count++;
         }
 
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; i < 630_000; i++)
         {
             sink.Raise("test.signal");
         }
     }
 
-    [Benchmark(Description = "Deep Chain (10 atoms, 100 chains) - Long pipeline propagation")]
+    // 255.7µs → 100ms: need ~390× more (100 → 39K chains)
+    [Benchmark(Description = "Deep Chain (10 atoms, 39K chains) - Long pipeline propagation")]
     public async Task DeepSignalChain_TenAtoms()
     {
-        var sink = new SignalSink();
+        var sink = new SignalSink(maxCapacity: 500000);
         var atoms = new List<BenchmarkChainAtom>();
         var completionTcs = new TaskCompletionSource<bool>();
         var completedCount = 0;
@@ -268,17 +280,17 @@ public class SignalBenchmarks
         {
             if (signal.Signal == "output")
             {
-                if (Interlocked.Increment(ref completedCount) == 100)
+                if (Interlocked.Increment(ref completedCount) == 39_000)
                     completionTcs.TrySetResult(true);
             }
         };
 
-        for (int i = 0; i < 100; i++)
+        for (int i = 0; i < 39_000; i++)
         {
             sink.Raise("input");
         }
 
-        await Task.WhenAny(completionTcs.Task, Task.Delay(5000));
+        await Task.WhenAny(completionTcs.Task, Task.Delay(10000));
 
         foreach (var atom in atoms)
         {
@@ -286,7 +298,8 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "Complex Patterns (20K matches) - Multi-wildcard glob matching")]
+    // 156.7µs → 100ms: need ~640× more (20K → 12.8M matches = 640K iterations)
+    [Benchmark(Description = "Complex Patterns (12.8M matches) - Multi-wildcard glob matching")]
     public void PatternMatching_Complex()
     {
         var patterns = new[] {
@@ -304,7 +317,7 @@ public class SignalBenchmarks
             "other.unmatched.signal"
         };
 
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; i < 640_000; i++)
         {
             foreach (var signal in signals)
             {
@@ -316,31 +329,34 @@ public class SignalBenchmarks
         }
     }
 
-    [Benchmark(Description = "High Frequency Burst (5K signals) - Sustained throughput test")]
+    // 622.5µs → 100ms: need ~160× more (5K → 800K signals)
+    [Benchmark(Description = "High Frequency Burst (800K signals) - Sustained throughput test")]
     public void HighFrequencyBurst()
     {
-        var sink = new SignalSink(maxCapacity: 10000);
+        var sink = new SignalSink(maxCapacity: 1000000);
 
-        // Simulate burst: 5000 signals as fast as possible
-        for (int i = 0; i < 5000; i++)
+        // Simulate burst: 800K signals as fast as possible
+        for (int i = 0; i < 800_000; i++)
         {
             sink.Raise($"burst.{i % 100}");
         }
     }
 
-    [Benchmark(Description = "Window Overflow (10× capacity) - Eviction mechanism stress")]
+    // 162.8µs → 100ms: need ~614× more (1K → 614K signals)
+    [Benchmark(Description = "Window Overflow (614K ÷ 100 capacity) - Eviction mechanism stress")]
     public void SignalWindow_Overflow()
     {
         var sink = new SignalSink(maxCapacity: 100);
 
         // Exceed window capacity significantly
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; i < 614_000; i++)
         {
             sink.Raise($"overflow.{i}");
         }
     }
 
-    [Benchmark(Description = "Mixed Patterns (25K matches) - Variable depth glob complexity")]
+    // 423.8µs → 100ms: need ~236× more (25K → 5.9M matches = 236K iterations)
+    [Benchmark(Description = "Mixed Patterns (5.9M matches) - Variable depth glob complexity")]
     public void MixedPatternComplexity()
     {
         var signals = new[] {
@@ -359,7 +375,7 @@ public class SignalBenchmarks
             "four.level.even.more.deep"
         };
 
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; i < 236_000; i++)
         {
             foreach (var signal in signals)
             {
@@ -371,6 +387,7 @@ public class SignalBenchmarks
         }
     }
 
+    // Already >= 100ms - keep as-is
     [Benchmark(Description = "Large Window 10K - Capacity scaling baseline (122ns/signal)")]
     public void LargeWindow_10K()
     {
@@ -383,6 +400,7 @@ public class SignalBenchmarks
         }
     }
 
+    // Already >= 100ms - keep as-is
     [Benchmark(Description = "Large Window 50K - Linear scaling test (121ns/signal expected)")]
     public void LargeWindow_50K()
     {
@@ -395,6 +413,7 @@ public class SignalBenchmarks
         }
     }
 
+    // Already >= 100ms - keep as-is
     [Benchmark(Description = "Large Window 100K - Maximum capacity stress (131ns/signal)")]
     public void LargeWindow_100K()
     {
@@ -407,6 +426,7 @@ public class SignalBenchmarks
         }
     }
 
+    // Already >= 100ms - keep as-is
     [Benchmark(Description = "Dynamic Scaling (1K→10K→50K) - Multi-phase capacity growth")]
     public void WindowScaling_Dynamic()
     {
@@ -433,6 +453,7 @@ public class SignalBenchmarks
         }
     }
 
+    // Already >= 100ms - keep as-is
     [Benchmark(Description = "Large Window + Listener 10K - Listener overhead at scale")]
     public void LargeWindow_WithListener_10K()
     {
@@ -447,6 +468,7 @@ public class SignalBenchmarks
         }
     }
 
+    // Already >= 100ms - keep as-is
     [Benchmark(Description = "Large Window + Listener 50K - Sustained listener performance")]
     public void LargeWindow_WithListener_50K()
     {
@@ -461,6 +483,7 @@ public class SignalBenchmarks
         }
     }
 
+    // Already >= 100ms - keep as-is
     [Benchmark(Description = "Eviction Stress (10K ÷ 1K window) - Continuous overflow handling")]
     public void WindowEviction_Performance()
     {
@@ -473,6 +496,7 @@ public class SignalBenchmarks
         }
     }
 
+    // Already >= 100ms - keep as-is
     [Benchmark(Description = "Massive Burst 100K - Ultimate throughput test (134ns/signal)")]
     public void MassiveBurst_100K()
     {
@@ -483,6 +507,324 @@ public class SignalBenchmarks
         {
             sink.Raise($"burst.{i % 1000}");
         }
+    }
+
+    // 154.4µs → 100ms: need ~650× more (2×500 → 2×325K)
+    [Benchmark(Description = "Parallel 2 Cores (2×325K signals) - Dual-core scaling")]
+    public void Parallel_2Cores()
+    {
+        var sink = new SignalSink(maxCapacity: 700000);
+        var options = new ParallelOptions { MaxDegreeOfParallelism = 2 };
+
+        Parallel.For(0, 2, options, threadId =>
+        {
+            for (int i = 0; i < 325_000; i++)
+            {
+                sink.Raise($"thread.{threadId}.signal.{i}");
+            }
+        });
+    }
+
+    // 227.3µs → 100ms: need ~440× more (4×250 → 4×110K)
+    [Benchmark(Description = "Parallel 4 Cores (4×110K signals) - Quad-core scaling")]
+    public void Parallel_4Cores()
+    {
+        var sink = new SignalSink(maxCapacity: 500000);
+        var options = new ParallelOptions { MaxDegreeOfParallelism = 4 };
+
+        Parallel.For(0, 4, options, threadId =>
+        {
+            for (int i = 0; i < 110_000; i++)
+            {
+                sink.Raise($"thread.{threadId}.signal.{i}");
+            }
+        });
+    }
+
+    // 230µs → 100ms: need ~435× more (8×125 → 8×54K)
+    [Benchmark(Description = "Parallel 8 Cores (8×54K signals) - Octa-core scaling")]
+    public void Parallel_8Cores()
+    {
+        var sink = new SignalSink(maxCapacity: 500000);
+        var options = new ParallelOptions { MaxDegreeOfParallelism = 8 };
+
+        Parallel.For(0, 8, options, threadId =>
+        {
+            for (int i = 0; i < 54_000; i++)
+            {
+                sink.Raise($"thread.{threadId}.signal.{i}");
+            }
+        });
+    }
+
+    // 190.1µs → 100ms: need ~526× more (16×62 → 16×33K)
+    [Benchmark(Description = "Parallel 16 Cores (16×33K signals) - Full multi-core stress")]
+    public void Parallel_16Cores()
+    {
+        var sink = new SignalSink(maxCapacity: 600000);
+        var options = new ParallelOptions { MaxDegreeOfParallelism = 16 };
+
+        Parallel.For(0, 16, options, threadId =>
+        {
+            for (int i = 0; i < 33_000; i++)
+            {
+                sink.Raise($"thread.{threadId}.signal.{i}");
+            }
+        });
+    }
+
+    // 3.849ms → 100ms: need ~26× more (16×1000 → 16×26K)
+    [Benchmark(Description = "Parallel 16 Cores Heavy (16×26K signals) - Maximum contention test")]
+    public void Parallel_16Cores_Heavy()
+    {
+        var sink = new SignalSink(maxCapacity: 500000);
+        var options = new ParallelOptions { MaxDegreeOfParallelism = 16 };
+
+        Parallel.For(0, 16, options, threadId =>
+        {
+            for (int i = 0; i < 26_000; i++)
+            {
+                sink.Raise($"thread.{threadId}.signal.{i}");
+            }
+        });
+    }
+
+    // 1.724ms → 100ms: need ~58× more (16×500 → 16×29K)
+    [Benchmark(Description = "Parallel 16 Cores + Listener (16×29K) - Multi-core with fan-out")]
+    public void Parallel_16Cores_WithListener()
+    {
+        var sink = new SignalSink(maxCapacity: 500000);
+        var count = 0;
+        var options = new ParallelOptions { MaxDegreeOfParallelism = 16 };
+
+        sink.SignalRaised += _ => Interlocked.Increment(ref count);
+
+        Parallel.For(0, 16, options, threadId =>
+        {
+            for (int i = 0; i < 29_000; i++)
+            {
+                sink.Raise($"thread.{threadId}.signal.{i}");
+            }
+        });
+    }
+
+    // 333.2µs → 100ms: need ~300× more (16×250 → 16×75K matches)
+    [Benchmark(Description = "Parallel Pattern Matching (16 cores × 75K matches) - Concurrent filtering")]
+    public void Parallel_PatternMatching_16Cores()
+    {
+        var signals = new[] { "test.foo", "test.bar", "other.baz", "test.qux", "app.error", "system.warn" };
+        var patterns = new[] { "test.*", "app.*", "system.*" };
+        var options = new ParallelOptions { MaxDegreeOfParallelism = 16 };
+
+        Parallel.For(0, 16, options, threadId =>
+        {
+            for (int i = 0; i < 75_000; i++)
+            {
+                foreach (var signal in signals)
+                {
+                    foreach (var pattern in patterns)
+                    {
+                        _ = StringPatternMatcher.Matches(signal, pattern);
+                    }
+                }
+            }
+        });
+    }
+
+    // 733.6µs → 100ms: need ~136× more (16×50 → 16×6.8K chains)
+    [Benchmark(Description = "Parallel Chain (16 cores × 6.8K chains) - Multi-threaded propagation")]
+    public async Task Parallel_Chains_16Cores()
+    {
+        var sink = new SignalSink(maxCapacity: 500000);
+        var completionCount = 0;
+        var expectedCompletions = 16 * 6_800;
+        var completionTcs = new TaskCompletionSource<bool>();
+
+        await using var atom1 = new BenchmarkChainAtom(sink, "input", "step1");
+        await using var atom2 = new BenchmarkChainAtom(sink, "step1", "step2");
+        await using var atom3 = new BenchmarkChainAtom(sink, "step2", "output");
+
+        sink.SignalRaised += (signal) =>
+        {
+            if (signal.Signal == "output")
+            {
+                if (Interlocked.Increment(ref completionCount) == expectedCompletions)
+                    completionTcs.TrySetResult(true);
+            }
+        };
+
+        var options = new ParallelOptions { MaxDegreeOfParallelism = 16 };
+
+        Parallel.For(0, 16, options, threadId =>
+        {
+            for (int i = 0; i < 6_800; i++)
+            {
+                sink.Raise("input");
+            }
+        });
+
+        await Task.WhenAny(completionTcs.Task, Task.Delay(10000));
+    }
+
+    // 776.9µs → 100ms: need ~129× more
+    [Benchmark(Description = "Core Scaling Test (1→2→4→8→16) - Progressive parallelism")]
+    public void CoreScaling_Progressive()
+    {
+        var sink = new SignalSink(maxCapacity: 700000);
+
+        // 1 core: 129K signals
+        Parallel.For(0, 1, new ParallelOptions { MaxDegreeOfParallelism = 1 }, _ =>
+        {
+            for (int i = 0; i < 129_000; i++) sink.Raise($"1core.{i}");
+        });
+
+        // 2 cores: 2×64.5K
+        Parallel.For(0, 2, new ParallelOptions { MaxDegreeOfParallelism = 2 }, threadId =>
+        {
+            for (int i = 0; i < 64_500; i++) sink.Raise($"2core.{threadId}.{i}");
+        });
+
+        // 4 cores: 4×32.2K
+        Parallel.For(0, 4, new ParallelOptions { MaxDegreeOfParallelism = 4 }, threadId =>
+        {
+            for (int i = 0; i < 32_200; i++) sink.Raise($"4core.{threadId}.{i}");
+        });
+
+        // 8 cores: 8×16.1K
+        Parallel.For(0, 8, new ParallelOptions { MaxDegreeOfParallelism = 8 }, threadId =>
+        {
+            for (int i = 0; i < 16_100; i++) sink.Raise($"8core.{threadId}.{i}");
+        });
+
+        // 16 cores: 16×8K
+        Parallel.For(0, 16, new ParallelOptions { MaxDegreeOfParallelism = 16 }, threadId =>
+        {
+            for (int i = 0; i < 8_000; i++) sink.Raise($"16core.{threadId}.{i}");
+        });
+    }
+
+    // Additional benchmarks for 20, 24, 28, 32 cores
+    [Benchmark(Description = "Parallel 20 Cores (20×26K signals) - 20-core scaling")]
+    public void Parallel_20Cores()
+    {
+        var sink = new SignalSink(maxCapacity: 600000);
+        var options = new ParallelOptions { MaxDegreeOfParallelism = 20 };
+
+        Parallel.For(0, 20, options, threadId =>
+        {
+            for (int i = 0; i < 26_000; i++)
+            {
+                sink.Raise($"thread.{threadId}.signal.{i}");
+            }
+        });
+    }
+
+    [Benchmark(Description = "Parallel 24 Cores (24×22K signals) - 24-core scaling")]
+    public void Parallel_24Cores()
+    {
+        var sink = new SignalSink(maxCapacity: 600000);
+        var options = new ParallelOptions { MaxDegreeOfParallelism = 24 };
+
+        Parallel.For(0, 24, options, threadId =>
+        {
+            for (int i = 0; i < 22_000; i++)
+            {
+                sink.Raise($"thread.{threadId}.signal.{i}");
+            }
+        });
+    }
+
+    [Benchmark(Description = "Parallel 28 Cores (28×19K signals) - 28-core scaling")]
+    public void Parallel_28Cores()
+    {
+        var sink = new SignalSink(maxCapacity: 600000);
+        var options = new ParallelOptions { MaxDegreeOfParallelism = 28 };
+
+        Parallel.For(0, 28, options, threadId =>
+        {
+            for (int i = 0; i < 19_000; i++)
+            {
+                sink.Raise($"thread.{threadId}.signal.{i}");
+            }
+        });
+    }
+
+    [Benchmark(Description = "Parallel 32 Cores (32×16K signals) - Maximum 32-core stress")]
+    public void Parallel_32Cores()
+    {
+        var sink = new SignalSink(maxCapacity: 600000);
+        var options = new ParallelOptions { MaxDegreeOfParallelism = 32 };
+
+        Parallel.For(0, 32, options, threadId =>
+        {
+            for (int i = 0; i < 16_000; i++)
+            {
+                sink.Raise($"thread.{threadId}.signal.{i}");
+            }
+        });
+    }
+
+    // THE FINALE: Maximum parallelism stress test with progressive scaling
+    [Benchmark(Description = "🔥 FINALE: Full System Stress (1→32 cores, 2M+ signals) - Ultimate scalability test")]
+    public void MaxParallelism_BallsOut_Finale()
+    {
+        var sink = new SignalSink(maxCapacity: 3_000_000);
+
+        // Phase 1: 1 core baseline - 100K signals
+        Parallel.For(0, 1, new ParallelOptions { MaxDegreeOfParallelism = 1 }, _ =>
+        {
+            for (int i = 0; i < 100_000; i++) sink.Raise($"1core.{i}");
+        });
+
+        // Phase 2: 2 cores - 2×50K = 100K signals
+        Parallel.For(0, 2, new ParallelOptions { MaxDegreeOfParallelism = 2 }, threadId =>
+        {
+            for (int i = 0; i < 50_000; i++) sink.Raise($"2core.{threadId}.{i}");
+        });
+
+        // Phase 3: 4 cores - 4×50K = 200K signals
+        Parallel.For(0, 4, new ParallelOptions { MaxDegreeOfParallelism = 4 }, threadId =>
+        {
+            for (int i = 0; i < 50_000; i++) sink.Raise($"4core.{threadId}.{i}");
+        });
+
+        // Phase 4: 8 cores - 8×50K = 400K signals
+        Parallel.For(0, 8, new ParallelOptions { MaxDegreeOfParallelism = 8 }, threadId =>
+        {
+            for (int i = 0; i < 50_000; i++) sink.Raise($"8core.{threadId}.{i}");
+        });
+
+        // Phase 5: 16 cores - 16×50K = 800K signals
+        Parallel.For(0, 16, new ParallelOptions { MaxDegreeOfParallelism = 16 }, threadId =>
+        {
+            for (int i = 0; i < 50_000; i++) sink.Raise($"16core.{threadId}.{i}");
+        });
+
+        // Phase 6: 20 cores - 20×20K = 400K signals
+        Parallel.For(0, 20, new ParallelOptions { MaxDegreeOfParallelism = 20 }, threadId =>
+        {
+            for (int i = 0; i < 20_000; i++) sink.Raise($"20core.{threadId}.{i}");
+        });
+
+        // Phase 7: 24 cores - 24×20K = 480K signals
+        Parallel.For(0, 24, new ParallelOptions { MaxDegreeOfParallelism = 24 }, threadId =>
+        {
+            for (int i = 0; i < 20_000; i++) sink.Raise($"24core.{threadId}.{i}");
+        });
+
+        // Phase 8: 28 cores - 28×15K = 420K signals
+        Parallel.For(0, 28, new ParallelOptions { MaxDegreeOfParallelism = 28 }, threadId =>
+        {
+            for (int i = 0; i < 15_000; i++) sink.Raise($"28core.{threadId}.{i}");
+        });
+
+        // Phase 9: BALLS OUT - 32 cores at MAXIMUM - 32×10K = 320K signals
+        Parallel.For(0, 32, new ParallelOptions { MaxDegreeOfParallelism = 32 }, threadId =>
+        {
+            for (int i = 0; i < 10_000; i++) sink.Raise($"32core.MAX.{threadId}.{i}");
+        });
+
+        // Total: ~2.62M signals across 9 phases testing full 1→32 core progression
     }
 }
 
