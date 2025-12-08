@@ -6,6 +6,40 @@
 
 WindowSizeAtom listens for command signals and dynamically tunes `SignalSink` parameters without requiring service restarts. This enables adaptive memory management, debug modes, circuit breaker integration, and runtime configuration tuning.
 
+## ⚠️ **Important: This Atom is an Exception to the Ephemeral Signals Pattern**
+
+**Ephemeral Signals Philosophy**: Signals are meant to be "hey, look at me!" notifications, not state carriers.
+The pattern is: **Signal provides context, atom holds state**.
+
+**Example of the pattern:**
+```csharp
+// ✅ CORRECT: Signal is just a notification
+sink.Raise("file.saved");
+// Listener queries the atom for actual state:
+var filename = fileAtom.GetCurrentFilename();
+
+// ❌ ANTI-PATTERN: Don't do this
+sink.Raise($"file.saved:{filename}"); // State in signal!
+```
+
+**WindowSizeAtom is a deliberate exception** because:
+1. It's a **command pattern**, not event notification
+2. The "state" (capacity/retention) is transient configuration, not business data
+3. The commands are **imperative actions** ("set to 500") not events ("something happened")
+4. It operates on the SignalSink itself, which is infrastructure, not domain logic
+
+**When to use command signals (rare):**
+- Infrastructure configuration (like WindowSizeAtom)
+- System control commands (shutdown, pause, resume)
+- Admin/debug operations (enable logging, change verbosity)
+
+**When to use notification signals (common):**
+- Domain events: "order.placed", "user.registered", "payment.completed"
+- State changes: "circuit.open", "cache.expired", "connection.lost"
+- Metrics: "error.occurred", "threshold.exceeded", "quota.warning"
+
+For these, **listeners query the atom** for actual state rather than embedding it in the signal.
+
 ## Installation
 
 ```bash

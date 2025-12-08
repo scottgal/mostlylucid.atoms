@@ -79,11 +79,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Test pass rate**: 100% (175/175 passing)
 
 ### Documentation
+- **Added SIGNALS_PATTERN.md** - Comprehensive guide to the Ephemeral Signals pattern
+  - "Hey, look at me!" philosophy explained
+  - Three models: Pure Notification, Context + Hint (double-safe), Command
+  - Extensive examples showing atom state management
+  - Decision trees for choosing the right model
+  - Anti-patterns and red flags
+  - When to use hints vs pure notifications
+
 - Added comprehensive XML documentation to:
   - `WindowSizeAtom` class (40+ lines with examples and use cases)
+  - Note: WindowSizeAtom is a deliberate exception (command pattern)
   - `SignalCommandMatch` struct (70+ lines with pattern matching guide)
   - `WindowSizeAtomOptions` class (full property documentation)
+
 - Created detailed README for WindowSizeAtom package (300+ lines)
+  - Includes warning about command pattern exception
+  - Contrasts with normal signal usage (notification)
+
 - Added inline comments explaining security and performance fixes
 - Updated CLAUDE.md with WindowSizeAtom documentation
 
