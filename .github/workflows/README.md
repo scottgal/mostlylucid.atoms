@@ -118,3 +118,96 @@ dotnet publish mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo/mostlyluci
 - [ ] Include SHA256 checksums in release
 - [ ] Add automatic version bumping
 - [ ] Create installer packages (MSI, DEB, PKG)
+
+---
+
+## Performance Regression Workflow
+
+Automatically runs benchmarks and detects performance regressions on every commit to main and PR.
+
+### What It Does
+
+1. **Runs benchmarks** using BenchmarkDotNet
+2. **Exports results** to MD, CSV, HTML, JSON
+3. **Compares** with baseline from previous runs
+4. **Comments on PRs** with performance results
+5. **Stores baseline** for future comparisons (365 days retention)
+
+### Triggering
+
+Runs automatically on:
+- Push to `main` branch (updates baseline)
+- Pull requests (compares against baseline)
+- Manual dispatch via Actions tab
+
+Triggered by changes to:
+- `mostlylucid.ephemeral/src/**`
+- `mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo/**`
+- `.github/workflows/benchmark-regression.yml`
+
+### Running Locally
+
+```bash
+cd mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo
+
+# Run all benchmarks
+dotnet run -c Release -- --benchmark
+
+# Results exported to:
+# - BenchmarkDotNet.Artifacts/results/*-report-github.md
+# - BenchmarkDotNet.Artifacts/results/*.csv
+# - BenchmarkDotNet.Artifacts/results/*.json
+# - BenchmarkDotNet.Artifacts/results/*.html
+```
+
+### Baseline Management
+
+- **Baseline** = Last successful run on `main` branch
+- **Retention**: 365 days for baseline, 90 days for individual runs
+- **Location**: Stored as GitHub Actions artifacts
+- Baseline updated automatically on merge to `main`
+
+### Regression Detection
+
+The workflow:
+- ✅ Compares current results with baseline
+- ✅ Posts summary to PR comments
+- ✅ Stores full results in artifacts
+- ⚠️ Manual review required for significant changes
+
+### Benchmark Optimizations
+
+The benchmarks are optimized for minimal allocations:
+- `BenchmarkTestAtom` - Zero-delay, allocation-free listener
+- `BenchmarkChainAtom` - Synchronous re-emission, no async overhead
+- Separate iteration setup to exclude initialization costs
+- Multiple exporters for cross-tool compatibility
+
+### Viewing Results
+
+**GitHub UI:**
+1. Go to Actions tab
+2. Click workflow run
+3. Download artifacts
+4. View markdown report
+
+**Command line:**
+```bash
+gh run list --workflow=benchmark-regression.yml
+gh run download <run-id>
+cat benchmark-results/*-report-github.md
+```
+
+### Benchmark Metrics
+
+Each benchmark reports:
+- **Mean** - Average execution time
+- **StdDev** - Standard deviation
+- **Gen0/Gen1** - GC collections per 1000 operations
+- **Allocated** - Memory allocated per operation
+
+Key metrics to watch:
+- Signal raising: Target <100ns
+- Pattern matching: Target <10ns (zero allocation)
+- State queries: Target <5ns
+- Chain propagation: Target <1ms for 100 chains

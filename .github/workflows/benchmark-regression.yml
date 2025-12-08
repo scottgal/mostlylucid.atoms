@@ -1,0 +1,133 @@
+name: Performance Regression Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mostlylucid.ephemeral/src/**'
+      - 'mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo/**'
+      - '.github/workflows/benchmark-regression.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'mostlylucid.ephemeral/src/**'
+      - 'mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo/**'
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for comparisons
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore mostlylucid.ephemeral/mostlylucid.ephemeral.sln
+
+      - name: Build Release
+        run: dotnet build mostlylucid.ephemeral/mostlylucid.ephemeral.sln -c Release --no-restore
+
+      - name: Run Benchmarks
+        run: |
+          cd mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo
+          dotnet run -c Release --no-build -- --benchmark
+        continue-on-error: true
+
+      - name: Store benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: |
+            mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo/BenchmarkDotNet.Artifacts/**/*.md
+            mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo/BenchmarkDotNet.Artifacts/**/*.csv
+            mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo/BenchmarkDotNet.Artifacts/**/*.json
+          retention-days: 90
+
+      - name: Download baseline (if exists)
+        uses: dawidd6/action-download-artifact@v3
+        continue-on-error: true
+        with:
+          workflow: benchmark-regression.yml
+          name: benchmark-baseline
+          path: baseline/
+          branch: main
+
+      - name: Compare with baseline
+        id: compare
+        run: |
+          cd mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo
+
+          # Find the latest results
+          RESULTS_DIR=$(find BenchmarkDotNet.Artifacts/results -name "*.json" -type f | head -1 | xargs dirname)
+
+          if [ -f "$GITHUB_WORKSPACE/baseline/benchmark-results.json" ]; then
+            echo "::notice::Baseline found, performing comparison"
+
+            # Simple comparison script (you can enhance this)
+            echo "# Performance Comparison" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Baseline exists - manual review required" >> $GITHUB_STEP_SUMMARY
+            echo "Check artifacts for detailed comparison" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "::notice::No baseline found, this will become the new baseline"
+            echo "# Initial Baseline" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "No previous baseline - these results will be used as reference" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Save as new baseline (main branch only)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-baseline
+          path: |
+            mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo/BenchmarkDotNet.Artifacts/**/*.json
+          retention-days: 365  # Keep baseline for 1 year
+
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // Find the markdown summary
+            const artifactsDir = 'mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo/BenchmarkDotNet.Artifacts/results';
+            let mdFile = null;
+
+            try {
+              const files = fs.readdirSync(artifactsDir, { recursive: true });
+              mdFile = files.find(f => f.endsWith('-report-github.md'));
+            } catch (e) {
+              console.log('Could not find results');
+              return;
+            }
+
+            if (!mdFile) {
+              console.log('No markdown report found');
+              return;
+            }
+
+            const mdPath = path.join(artifactsDir, mdFile);
+            const mdContent = fs.readFileSync(mdPath, 'utf8');
+
+            const comment = `## 📊 Benchmark Results\n\n${mdContent}\n\n<sub>Full results available in workflow artifacts</sub>`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

@@ -4,6 +4,14 @@ using Mostlylucid.Ephemeral.Atoms.RateLimit;
 using Mostlylucid.Ephemeral.Atoms.WindowSize;
 using Spectre.Console;
 
+// Check for command-line arguments
+if (args.Length > 0 && args[0] == "--benchmark")
+{
+    AnsiConsole.MarkupLine("[yellow]Running in benchmark mode...[/]");
+    BenchmarkRunner.RunBenchmarks();
+    return;
+}
+
 AnsiConsole.Write(
     new FigletText("Ephemeral Signals")
         .LeftJustified()
