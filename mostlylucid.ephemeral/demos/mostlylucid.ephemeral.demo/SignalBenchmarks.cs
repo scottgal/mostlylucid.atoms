@@ -121,13 +121,14 @@ public class SignalBenchmarks
             "window.time.set:30s"
         };
 
+        // Use zero-allocation span-based parsing
         for (int i = 0; i < 1_050_000; i++)
         {
             foreach (var signal in signals)
             {
-                _ = SignalCommandMatch.TryParse(signal, "window.size.set", out _);
-                _ = SignalCommandMatch.TryParse(signal, "rate.limit.set", out _);
-                _ = SignalCommandMatch.TryParse(signal, "window.time.set", out _);
+                _ = SignalCommandMatch.TryParseSpan(signal, "window.size.set", out _);
+                _ = SignalCommandMatch.TryParseSpan(signal, "rate.limit.set", out _);
+                _ = SignalCommandMatch.TryParseSpan(signal, "window.time.set", out _);
             }
         }
     }
@@ -974,13 +975,13 @@ public class SignalBenchmarks
 /// </summary>
 public class BenchmarkTestAtom : IAsyncDisposable
 {
-    private readonly SignalSink _sink;
+    private readonly IDisposable _subscription;
     private int _count = 0;
 
     public BenchmarkTestAtom(SignalSink sink)
     {
-        _sink = sink;
-        _sink.SignalRaised += OnSignal;
+        // Use lock-free Subscribe instead of event for better performance
+        _subscription = sink.Subscribe(OnSignal);
     }
 
     private void OnSignal(SignalEvent signal)
@@ -996,7 +997,7 @@ public class BenchmarkTestAtom : IAsyncDisposable
 
     public ValueTask DisposeAsync()
     {
-        _sink.SignalRaised -= OnSignal;
+        _subscription.Dispose();
         return default;
     }
 }

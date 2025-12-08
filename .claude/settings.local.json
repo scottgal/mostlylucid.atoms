@@ -11,7 +11,15 @@
       "Bash(git commit:*)",
       "Bash(git reset:*)",
       "Bash(dotnet run:*)",
-      "Bash(xargs cat:*)"
+      "Bash(xargs cat:*)",
+      "Bash(timeout 180 dotnet run:*)",
+      "Bash(timeout 300 dotnet run:*)",
+      "Bash(tee:*)",
+      "Bash(timeout 240 dotnet run:*)",
+      "Bash(timeout 120 dotnet run:*)",
+      "Bash(sort:*)",
+      "Bash(timeout 90 dotnet run:*)",
+      "Bash(timeout 60 dotnet run:*)"
     ],
     "deny": [],
     "ask": []

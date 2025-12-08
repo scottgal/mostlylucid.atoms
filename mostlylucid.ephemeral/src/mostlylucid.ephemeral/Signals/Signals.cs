@@ -335,6 +335,10 @@ public sealed class SignalSink
 
     private readonly object _windowSizeLock = new();
 
+    // Lock-free listener array for optimal performance
+    private volatile Action<SignalEvent>[] _listeners = Array.Empty<Action<SignalEvent>>();
+    private readonly object _listenersLock = new();
+
     public SignalSink(int maxCapacity = 1000, TimeSpan? maxAge = null)
     {
         _maxCapacity = maxCapacity;
@@ -366,6 +370,7 @@ public sealed class SignalSink
     /// <summary>
     ///     Raised immediately whenever a signal is enqueued. Use for live subscribers that need push semantics.
     /// </summary>
+    [Obsolete("Use Subscribe() instead for better performance. This event will be removed in version 2.0.", false)]
     public event Action<SignalEvent>? SignalRaised;
 
     /// <summary>
@@ -375,13 +380,38 @@ public sealed class SignalSink
     public void Raise(SignalEvent signal)
     {
         _window.Enqueue(signal);
-        try
+
+        // Lock-free listener invocation - volatile read ensures we get latest array
+        var listeners = _listeners;
+        var len = listeners.Length;
+
+        // Manual loop for better inlining and branch prediction
+        for (int i = 0; i < len; i++)
         {
-            SignalRaised?.Invoke(signal);
+            try
+            {
+                listeners[i](signal);
+            }
+            catch
+            {
+                /* never throw from signal fan-out */
+            }
         }
-        catch
+
+        // Legacy event support - kept for backward compatibility
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var handler = SignalRaised;
+        #pragma warning restore CS0618
+        if (handler is not null)
         {
-            /* never throw from signal fan-out */
+            try
+            {
+                handler(signal);
+            }
+            catch
+            {
+                /* never throw from signal fan-out */
+            }
         }
 
         // Only cleanup every ~1024 calls to avoid contention
@@ -425,6 +455,7 @@ public sealed class SignalSink
     ///     Detect any signals matching predicate.
     ///     Short-circuits on first match for O(1) best case.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Detect(Func<SignalEvent, bool> predicate)
     {
         foreach (var s in _window)
@@ -440,10 +471,82 @@ public sealed class SignalSink
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Detect(string signalName)
     {
+        // Fast ordinal comparison for hot path
         foreach (var s in _window)
-            if (s.Signal == signalName)
+            if (string.Equals(s.Signal, signalName, StringComparison.Ordinal))
                 return true;
         return false;
+    }
+
+    /// <summary>
+    ///     Detect any signals with name (span overload for zero-allocation hot paths).
+    ///     Optimized for exact match - short-circuits on first match.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool Detect(ReadOnlySpan<char> signalName)
+    {
+        foreach (var s in _window)
+            if (s.Signal.AsSpan().SequenceEqual(signalName))
+                return true;
+        return false;
+    }
+
+    /// <summary>
+    ///     Subscribe to signal events with optimal lock-free performance.
+    ///     Preferred over SignalRaised event.
+    /// </summary>
+    /// <param name="listener">Callback to invoke for each signal.</param>
+    /// <returns>IDisposable that unsubscribes when disposed.</returns>
+    public IDisposable Subscribe(Action<SignalEvent> listener)
+    {
+        if (listener == null) throw new ArgumentNullException(nameof(listener));
+
+        lock (_listenersLock)
+        {
+            var current = _listeners;
+            var newListeners = new Action<SignalEvent>[current.Length + 1];
+            Array.Copy(current, newListeners, current.Length);
+            newListeners[current.Length] = listener;
+            _listeners = newListeners;
+        }
+
+        return new Subscription(this, listener);
+    }
+
+    private void Unsubscribe(Action<SignalEvent> listener)
+    {
+        lock (_listenersLock)
+        {
+            var current = _listeners;
+            var index = Array.IndexOf(current, listener);
+            if (index < 0) return;
+
+            var newListeners = new Action<SignalEvent>[current.Length - 1];
+            Array.Copy(current, 0, newListeners, 0, index);
+            Array.Copy(current, index + 1, newListeners, index, current.Length - index - 1);
+            _listeners = newListeners;
+        }
+    }
+
+    private sealed class Subscription : IDisposable
+    {
+        private readonly SignalSink _sink;
+        private readonly Action<SignalEvent> _listener;
+        private int _disposed;
+
+        public Subscription(SignalSink sink, Action<SignalEvent> listener)
+        {
+            _sink = sink;
+            _listener = listener;
+        }
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) == 0)
+            {
+                _sink.Unsubscribe(_listener);
+            }
+        }
     }
 
     private void Cleanup()

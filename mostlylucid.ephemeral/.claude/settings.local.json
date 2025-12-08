@@ -6,7 +6,10 @@
       "Bash(findstr:*)",
       "Bash(copy:*)",
       "Bash(dotnet sln:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(dotnet run:*)",
+      "Bash(tee:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
