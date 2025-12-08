@@ -329,6 +329,18 @@ sink.Raise("system.maintenance");
 
 ---
 
+## Molecules & Atom triggers
+
+Use the `mostlylucid.ephemeral.atoms.molecules` package when you want to treat several atoms as one workflow. `MoleculeBlueprintBuilder` lets you describe each step, wire its signals into downstream steps, and build a blueprint that `MoleculeRunner` listens for (matching on a trigger signal and shared `SignalSink`). The runner raises `MoleculeStarted`, `MoleculeCompleted`, and `MoleculeFailed`, so you can observe what the chef (coordinator) dropped into the soup, and `AtomTrigger` gives you a lightweight watcher that starts additional atoms or molecules whenever a signal pattern fires.
+
+## Scheduled tasks
+
+`DurableTaskAtom` + `ScheduledTasksAtom` turn cron/JSON schedules into durable work inside your coordinator window. Create `ScheduledTaskDefinition`s (cron expression, signal, optional `key`, `payload`, `description`, `timeZone`, `format`, `runOnStartup`, etc.), point the scheduler at `SignalSink`, and let it enqueue `DurableTask`s that emit the configured signals. Because the work runs inside the same coordinator, it inherits pinning, signal logging, and responsibility semantics along with your ad-hoc work.
+
+## Responsibility signals & echoes
+
+Coordinators implement `IOperationPinning` and raise `OperationFinalized` when entries leave the window. `ResponsibilitySignalManager` provides `PinUntilQueried` so atoms can declare responsibility (pin) until a downstream ack signal arrives, preventing resources from disappearing while they await consumers. Subscribe to `OperationFinalized` to record “last words” (logs, diagnostics, signals) via `LastWordsNoteAtom`, or let `OperationEchoMaker` capture typed echoes for a configurable window so molecules, monitors, or auditors can still read the final signal wave.
+
 ## Dependency Injection
 
 ```csharp

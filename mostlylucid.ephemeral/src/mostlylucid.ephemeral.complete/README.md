@@ -24,6 +24,7 @@ This package compiles all core, atom, and pattern code into one assembly. For in
   - [SignalAwareAtom](#signalawareatom)
   - [BatchingAtom](#batchingatom)
   - [RetryAtom](#retryatom)
+  - [MoleculeRunner & AtomTrigger](#moleculerunner--atomtrigger)
   - [SlidingCacheAtom](#slidingcacheatom)
   - [EphemeralLruCache](#ephemerallrucache)
   - [Echo Maker](#echo-maker)
@@ -68,6 +69,13 @@ await items.EphemeralForEachAsync(
 ### Attribute-driven jobs
 
 `mostlylucid.ephemeral.complete` bundles `mostlylucid.ephemeral.attributes`, so attribute pipelines are part of the core surface. Treat the runner as a first-class signal consumer: decorated methods join the same caching, logging, and pinning stories, and each attribute can declare `Priority`, job-level `MaxConcurrency`, `Lane`, `Key` sources, signal emissions, pin/expire overrides, and retries.
+
+Key attribute knobs:
+
+- **Ordering & lanes**: Use `Priority`, `MaxConcurrency`, and `Lane` to keep work in deterministic order while hot paths stay separate.
+- **Keying & tagging**: `OperationKey`, `KeyFromSignal`, `KeyFromPayload`, and `[KeySource]` help you group work with meaningful keys for logging, fair scheduling, and diagnostics.
+- **Pinning & retries**: `Pin`, `ExpireAfterMs`, `AwaitSignals`, `MaxRetries`, and `RetryDelayMs` let handlers extend their visibility, gate execution until dependencies arrive, and heal with retries while emitting failure signals.
+- **Signal choreography**: Emit `EmitOnStart`, `EmitOnComplete`, and `EmitOnFailure` to signal downstream stages, log watchers, or other coordinators without manual wiring.
 
 ```csharp
 var sink = new SignalSink();
@@ -125,6 +133,12 @@ public sealed class StageJobs
 var stageSink = new SignalSink();
 await using var stageRunner = new EphemeralSignalJobRunner(stageSink, new[] { new StageJobs() });
 stageSink.Raise("stage.ingest");
+
+Pin-heavy jobs can rely on `ResponsibilitySignalManager.PinUntilQueried` (default ack pattern `responsibility.ack.*`) to keep their operations visible until a downstream reader fetches the payload, while `OperationEchoMaker`/`OperationEchoAtom` persist the final signal stream so auditors or molecules can still “taste” the last state even after the atom dies.
+
+### Scheduled tasks
+
+`mostlylucid.ephemeral.complete` also contains `mostlylucid.ephemeral.atoms.scheduledtasks`. Define cron or JSON schedules via `ScheduledTaskDefinition` (cron, signal, optional `key`, `payload`, `description`, `timeZone`, `format`, `runOnStartup`, etc.), and let `ScheduledTasksAtom` enqueue durable work through `DurableTaskAtom`. Each scheduled job raises the configured signal inside a coordinator window, so it inherits pinning, logging, and responsibility semantics while your molecules or attribute pipelines respond to the emitted signal wave.
 
 ### Logging & Signals
 
@@ -492,6 +506,36 @@ await atom.EnqueueAsync(new ApiRequest("https://api.example.com"));
 
 await atom.DrainAsync();
 ```
+
+---
+
+### MoleculeRunner & AtomTrigger
+
+> **Package:** [mostlylucid.ephemeral.atoms.molecules](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.molecules)
+
+Blueprints composed with `MoleculeBlueprintBuilder` let you define the atoms (payment, inventory, shipping, notification) that should run when a signal such as `order.placed` arrives. `MoleculeRunner` listens for the trigger pattern, creates a shared `MoleculeContext`, and executes each step while you subscribe to start/completion events. Use `AtomTrigger` when one atom's signal should start another coordinator or molecule.
+
+```csharp
+var sink = new SignalSink();
+var blueprint = new MoleculeBlueprintBuilder("order", "order.placed")
+    .AddAtom(async (ctx, ct) => await paymentCoordinator.EnqueueAsync(ctx.TriggerSignal.Key!, ct))
+    .AddAtom(async (ctx, ct) =>
+    {
+        ctx.Raise("order.payment.complete", ctx.TriggerSignal.Key);
+        await inventoryCoordinator.EnqueueAsync(ctx.TriggerSignal.Key!, ct);
+    })
+    .Build();
+
+await using var runner = new MoleculeRunner(sink, new[] { blueprint }, serviceProvider);
+using var trigger = new AtomTrigger(sink, "order.payment.complete", async (signal, ct) =>
+{
+    await notificationCoordinator.EnqueueAsync(signal.Key!, ct);
+});
+
+sink.Raise("order.placed", key: "order-42");
+```
+
+Molecule steps can raise additional signals (`ctx.Raise("order.shipping.start")`) so the rest of the system picks up the baton.
 
 ---
 

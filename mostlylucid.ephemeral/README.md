@@ -161,7 +161,18 @@ public sealed class LogWatcherJobs
 }
 ```
 
-This bootstraps a watcher at application start and lets later tasks (or logger events) trigger the pipeline without wiring. Attribute jobs can also declare keys via `OperationKey`, `KeyFromSignal`, `KeyFromPayload`, or `[KeySource]`, emit lifecycle signals, pin work until acked, and slot into named lanes. Use `services.AddEphemeralSignalJobRunner<T>()` (or the scoped variant) so DI owns the sink and runner; `services.AddCoordinator<T>(…)` + `services.AddScopedCoordinator<T>(…)` helpers mirror the classic `AddX` surface for coordinators.
+This bootstraps a watcher at application start and lets later tasks (or logger events) trigger the pipeline without wiring. Attribute jobs can also declare keys via `OperationKey`, `KeyFromSignal`, `KeyFromPayload`, or `[KeySource]`, emit lifecycle signals, pin work until acked, and slot into named lanes.
+
+Key knobs include:
+
+- **Ordering & lanes**: `Priority`, `MaxConcurrency`, and `Lane` let you keep hot paths constrained while other jobs run in parallel. `EphemeralJobsAttribute.DefaultLane` / `DefaultMaxConcurrency` let you share defaults across a handler class.
+- **Tagging & routing**: `OperationKey`, `KeyFromSignal`, `KeyFromPayload`, and `[KeySource]` capture meaningful keys so operations stay grouped, aiding logging, reporting, and fair scheduling.
+- **Responsibility & retries**: `Pin`, `ExpireAfterMs`, `AwaitSignals`, and `AwaitTimeoutMs` extend visibility or gate execution until dependencies arrive. `MaxRetries`, `RetryDelayMs`, and `SwallowExceptions` keep the runner resilient while emitting signals you can trace.
+- **Signal choreography**: `EmitOnStart`, `EmitOnComplete`, and `EmitOnFailure` publish lifecycle signals instantly so downstream jobs, molecules, or log watchers can follow the breadcrumbs.
+
+Use `services.AddEphemeralSignalJobRunner<T>()` (or the scoped variant) so DI owns the sink and runner; `services.AddCoordinator<T>(…)` + `services.AddScopedCoordinator<T>(…)` helpers mirror the classic `AddX` surface for coordinators.
+
+When a job sets `Pin = true`, the operation stays visible until a downstream signal releases it. Combine this with `ResponsibilitySignalManager.PinUntilQueried` (default ack `responsibility.ack.*` keyed by the operation ID) so you can declare “I saved this file, hold it until somebody acknowledges the pointer.” Append `ExpireAfterMs` to bound the pin, and let `OperationEchoMaker` capture the final signal payloads (“last words”) so scouts or auditors can still read the state once the job is trimmed.
 
 [EphemeralJobs(SignalPrefix = "stage", DefaultLane = "pipeline")]
 public sealed class StageJobs
@@ -465,7 +476,13 @@ Small, opinionated wrappers for common patterns:
 | `mostlylucid.ephemeral.atoms.signalaware` | Pause/cancel intake based on signals |
 | `mostlylucid.ephemeral.atoms.batching` | Time/size-based batching before processing |
 | `mostlylucid.ephemeral.atoms.retry` | Exponential backoff retry with limits |
+| `mostlylucid.ephemeral.atoms.molecules` | Molecules/atom-trigger helpers for signal-driven workflows |
+| `mostlylucid.ephemeral.atoms.scheduledtasks` | Cron/JSON-driven durable tasks using `DurableTaskAtom` + `ScheduledTasksAtom` |
 | `mostlylucid.ephemeral.atoms.echo` | Capture typed “last words” payloads via `OperationEchoMaker` and persist them with `OperationEchoAtom` |
+
+### Scheduled tasks
+
+The `mostlylucid.ephemeral.atoms.scheduledtasks` package turns cron definitions (or JSON files of schedules) into durable, pinned work. `DurableTaskAtom` tracks each job inside its own coordinator, and `ScheduledTasksAtom` uses `ScheduledTaskDefinition.LoadFromJsonFile` (cron, signal, key, payload, timezone, `runOnStartup`, etc.) to raise a `DurableTask` that in turn emits the configured signal. Keep the runner alive at startup so downstream coordinators, log watchers, or molecules can respond to the emitted `signal.*` events without extra glue.
 
 ### Patterns (Ready-to-Use Compositions)
 
@@ -634,8 +651,19 @@ await retryable.ExecuteAsync(request);  // Retries with exponential backoff
 |  - PriorityWorkCoordinator<T>                                |
 |  - SignalSink, SignalDispatcher                              |
 |  - EphemeralOptions, Snapshots                               |
+|  - MoleculeFactory & blueprints                              |
 +-------------------------------------------------------------+
 ```
+
+## Molecules: reusable workflows
+
+See `mostlylucid.ephemeral.atoms.molecules` for the blueprint/runner pattern plus the `AtomTrigger` helper that lets atoms start other atoms whenever matching signals arrive. `MoleculeBlueprintBuilder` lets you describe the steps (the ingredients) and wire signals between them, while `MoleculeRunner` listens for your trigger signal and executes each atom in order inside the shared coordinator window and DI scope. `AtomTrigger` can then watch for signals to drop new atoms or even spin up another molecule when a step emits a follow-up signal.
+
+Molecule steps can also emit the typed echoes (`mostlylucid.ephemeral.atoms.echo`) when they finish. Think of that echo as the molecule shouting to the parent chef/coordinator (“taste the soup”). If the chef likes it, add more ingredients or signal “served”; if it fails, the chef can retrigger another molecule or raise alerts. This keeps the whole hierarchy cooking together—from chef to soup to molecules to atoms.
+ 
+## How the stack cooks
+
+Think of the runtime like a kitchen: the coordinator is the chef that stands over the working window (the soup) capturing the recent operations and signals. Molecules are the ready-to-make assemblies of atoms (pre-assembled kits the chef can drop in when a trigger signal arrives), and individual atoms are the discrete work pieces that each molecule (or the chef directly) orchestrates to finish a dish. This hierarchy keeps things composable: coordinators/chefs own the window, molecules orchestrate multiple atoms, and the atoms themselves raise signals or trigger further molecules through `AtomTrigger`.
 
 ## Memory Model
 

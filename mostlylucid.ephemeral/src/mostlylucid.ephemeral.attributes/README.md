@@ -10,6 +10,13 @@ This package exposes:
 | `EphemeralJobScanner` | Reflection helper that enumerates all annotated methods on a target instance and builds descriptors. |
 | `EphemeralSignalJobRunner` | Listens on a shared `SignalSink`, matches incoming signals to job descriptors, and enqueues them on an internal `EphemeralWorkCoordinator`. |
 
+### Attribute knobs at a glance
+
+- **Ordering & lanes** – `Priority`, per-job `MaxConcurrency`, and `Lane` keep hot paths composable while slower work stays in separate lanes (class-level defaults via `EphemeralJobsAttribute.DefaultLane` / `.DefaultMaxConcurrency`).
+- **Keying & tagging** – `OperationKey`, `KeyFromSignal`, `KeyFromPayload`, and `[KeySource]` capture meaningful keys so logging, telemetry, or fair scheduling stays aligned.
+- **Pinning & retries** – `Pin`, `ExpireAfterMs`, `AwaitSignals`, `MaxRetries`, and `RetryDelayMs` extend visibility, gate execution until dependencies arrive, and heal horizontally without leaking operations.
+- **Signal choreography** – `EmitOnStart`, `EmitOnComplete`, and `EmitOnFailure` automatically raise downstream signals for your molecules, log watchers, or other coordinators.
+
 ## Examples
 
 ### Simple stage pipeline
@@ -116,7 +123,26 @@ signals.Raise("log.error.application", key: "orders");
 
 This bootstraps a log watcher job that listens for `log.error.*` signals, raises an `incident.escalate` notification, and lets downstream jobs (like ticket creation) fire automatically.
 
-Pair this with `SignalLoggerProvider` so your shared `SignalSink` receives slugged `log.*` signals whenever `Microsoft.Extensions.Logging` emits an error. The attribute runner then reacts to log-derived signals just like any other, keeping log watching and alerting accessible from the same declarative API. Keep the `EphemeralSignalJobRunner`/`SignalSink` wired at startup so the watcher handles log events emitted later in the app lifetime without extra wiring.
+Pair this with `SignalLoggerProvider` so your shared `SignalSink` receives slugged `log.*` signals whenever `Microsoft.Extensions.Logging` emits an error. The attribute runner then reacts to log-derived signals just like any other, keeping log watching and alerting accessible from the same declarative API. Keep the `EphemeralSignalJobRunner`/`SignalSink` wired at startup so the watcher handles log events emitted later in the app lifetime without extra wiring, and any later service that raises `log.*` or related signals (like `incident.created`) will automatically trigger the attributed jobs you already registered.
+
+Now that the runner is listening, any later task can raise the watched signal directly and the same pipeline fires without extra dependencies:
+
+```csharp
+sink.Raise("log.error.orders.dbfailure", key: "orders");
+```
+
+### Pin until queried & echoes
+
+Attribute jobs can declare `Pin = true` so the coordinator keeps their operations alive after completion. Use `ResponsibilitySignalManager.PinUntilQueried` (default ack pattern `responsibility.ack.*` with key=`operationId`) to tie that pin to a downstream acknowledgement, optionally adding a `description` such as “the file is ready for pickup” and a `maxPinDuration` so the window still self-cleans if nobody arrives.
+
+```csharp
+var manager = new ResponsibilitySignalManager(coordinator, sink, maxPinDuration: TimeSpan.FromMinutes(5));
+manager.PinUntilQueried(operationId, "responsibility.ack.file", description: "awaiting file pickup");
+```
+
+When the ack signal arrives the pin is released automatically, eliminating races between producers and consumers. Combine this with `OperationEchoMaker`/`OperationEchoAtom` (see `mostlylucid.ephemeral.atoms.echo`) if you need structured “last words”: capture the key signals or typed payloads that summarize the operation before it vanishes so molecules or auditors can still taste the soup.
+
+For “echo-worthy” jobs you can also create a `TypedSignalSink<EchoPayload>` (sharing the same underlying sink) and let `mostlylucid.ephemeral.atoms.echo` build and persist `OperationEchoEntry<EchoPayload>` records as operations finalize. Just raise `typedSink.Raise("echo.capture", payload, key: signal.Key)` when your handler reaches the critical state.
 
 For “echo-worthy” jobs you can also create a `TypedSignalSink<EchoPayload>` (sharing the same underlying sink) and let `mostlylucid.ephemeral.atoms.echo` build and persist `OperationEchoEntry<EchoPayload>` records as operations finalize. Just raise `typedSink.Raise("echo.capture", payload, key: signal.Key)` when your handler reaches the critical state.
 

@@ -31,6 +31,8 @@
         <ProjectReference Include="..\..\src\mostlylucid.ephemeral.attributes\mostlylucid.ephemeral.attributes.csproj" />
         <ProjectReference Include="..\..\src\mostlylucid.ephemeral.patterns.persistentwindow\mostlylucid.ephemeral.patterns.persistentwindow.csproj" />
         <ProjectReference Include="..\..\src\mostlylucid.ephemeral.atoms.echo\mostlylucid.ephemeral.atoms.echo.csproj" />
+        <ProjectReference Include="..\..\src\mostlylucid.ephemeral.atoms.molecules\mostlylucid.ephemeral.atoms.molecules.csproj" />
+        <ProjectReference Include="..\..\src\mostlylucid.ephemeral.atoms.scheduledtasks\mostlylucid.ephemeral.atoms.scheduledtasks.csproj" />
     </ItemGroup>
 
 </Project>
