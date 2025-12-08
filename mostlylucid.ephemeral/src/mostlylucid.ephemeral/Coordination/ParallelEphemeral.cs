@@ -23,9 +23,17 @@ public static class ParallelEphemeral
     {
         options ??= new EphemeralOptions();
 
-        using var concurrency = new SemaphoreSlim(options.MaxConcurrency);
+        using var concurrency = new SemaphoreSlim(options.MaxConcurrency, options.MaxConcurrency);
         var recent = new ConcurrentQueue<EphemeralOperation>();
-        var running = new ConcurrentBag<Task>();
+
+        // Use List<Task> for better performance than ConcurrentBag
+        var running = new List<Task>();
+
+        // Pre-size if source is a collection
+        if (source is ICollection<T> coll)
+        {
+            running.Capacity = Math.Min(coll.Count, options.MaxConcurrency * 2);
+        }
 
         foreach (var item in source)
         {
@@ -59,10 +67,18 @@ public static class ParallelEphemeral
     {
         options ??= new EphemeralOptions();
 
-        using var globalConcurrency = new SemaphoreSlim(options.MaxConcurrency);
+        using var globalConcurrency = new SemaphoreSlim(options.MaxConcurrency, options.MaxConcurrency);
         var perKeyLocks = new ConcurrentDictionary<TKey, SemaphoreSlim>();
         var recent = new ConcurrentQueue<EphemeralOperation>();
-        var running = new ConcurrentBag<Task>();
+
+        // Use List<Task> instead of ConcurrentBag for better perf
+        var running = new List<Task>();
+
+        // Pre-size if possible
+        if (source is ICollection<T> coll)
+        {
+            running.Capacity = Math.Min(coll.Count, options.MaxConcurrency * 2);
+        }
 
         try
         {
@@ -71,9 +87,12 @@ public static class ParallelEphemeral
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var key = keySelector(item);
+
+                // Optimize GetOrAdd with factory that captures maxConcurrencyPerKey
+                var maxPerKey = options.MaxConcurrencyPerKey;
                 var keyGate = perKeyLocks.GetOrAdd(
                     key,
-                    _ => new SemaphoreSlim(options.MaxConcurrencyPerKey));
+                    _ => new SemaphoreSlim(maxPerKey, maxPerKey));
 
                 await globalConcurrency.WaitAsync(cancellationToken).ConfigureAwait(false);
                 await keyGate.WaitAsync(cancellationToken).ConfigureAwait(false);
