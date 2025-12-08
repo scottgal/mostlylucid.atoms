@@ -7,9 +7,137 @@ using Spectre.Console;
 // Check for command-line arguments
 if (args.Length > 0 && args[0] == "--benchmark")
 {
-    AnsiConsole.MarkupLine("[yellow]Running in benchmark mode...[/]");
-    BenchmarkRunner.RunBenchmarks();
-    return;
+    var category = args.Length > 1 ? args[1] : "all";
+
+    AnsiConsole.Clear();
+    AnsiConsole.Write(new Rule("[yellow]Benchmark Mode[/]").RuleStyle("grey"));
+    AnsiConsole.WriteLine();
+
+    switch (category.ToLower())
+    {
+        case "list":
+            ListBenchmarks();
+            return;
+
+        case "signals":
+            AnsiConsole.MarkupLine("[cyan1]Running Signal Infrastructure benchmarks...[/]\n");
+            BenchmarkRunner.RunBenchmark("Signal");
+            return;
+
+        case "coordinators":
+            AnsiConsole.MarkupLine("[cyan1]Running Coordinator benchmarks...[/]\n");
+            BenchmarkRunner.RunBenchmark("Coordinator|ForEach|Result");
+            return;
+
+        case "parallelism":
+            AnsiConsole.MarkupLine("[cyan1]Running Parallelism benchmarks...[/]\n");
+            BenchmarkRunner.RunBenchmark("Parallel|Core");
+            return;
+
+        case "finale":
+            AnsiConsole.MarkupLine("[cyan1]Running FINALE benchmark...[/]\n");
+            BenchmarkRunner.RunBenchmark("FINALE");
+            return;
+
+        case "all":
+        default:
+            AnsiConsole.MarkupLine("[cyan1]Running ALL benchmarks...[/]\n");
+            BenchmarkRunner.RunBenchmarks();
+            return;
+    }
+}
+
+void ListBenchmarks()
+{
+    AnsiConsole.Clear();
+    AnsiConsole.Write(new Rule("[yellow]Available Benchmarks[/]").RuleStyle("grey"));
+    AnsiConsole.WriteLine();
+
+    var benchmarks = new[]
+    {
+        ("Signal Infrastructure (24 benchmarks)", new[]
+        {
+            "Signal Raise (no listeners, 750K signals) - Pure signal overhead test",
+            "Signal Raise (1 listener, 110K signals) - Listener invocation cost",
+            "Pattern Matching (7M matches) - Glob wildcards (* and ?)",
+            "Command Parsing (9.5M parses) - Extract command:payload using Span",
+            "Rate Limiter (1.58M acquisitions) - Token bucket at 1000/sec",
+            "State Queries (56M total) - 4 methods × 14M iterations",
+            "Window Commands (240K total) - Dynamic capacity adjustment",
+            "Signal Chain (3 atoms, 156K chains) - Cascading propagation A→B→C",
+            "Concurrent Signals (10 threads × 36K signals) - Multi-threaded stress",
+            "Multi-Listener (5 listeners, 680K signals) - Fan-out scaling test",
+            "Multi-Listener (10 listeners, 630K signals) - Linear scaling check",
+            "Deep Chain (10 atoms, 39K chains) - Long pipeline propagation",
+            "Complex Patterns (12.8M matches) - Multi-wildcard glob matching",
+            "High Frequency Burst (800K signals) - Sustained throughput test",
+            "Window Overflow (614K ÷ 100 capacity) - Eviction mechanism stress",
+            "Mixed Patterns (5.9M matches) - Variable depth glob complexity",
+            "Large Window 10K - Capacity scaling baseline (122ns/signal)",
+            "Large Window 50K - Linear scaling test (121ns/signal expected)",
+            "Large Window 100K - Maximum capacity stress (131ns/signal)",
+            "Dynamic Scaling (1K→10K→50K) - Multi-phase capacity growth",
+            "Large Window + Listener 10K - Listener overhead at scale",
+            "Large Window + Listener 50K - Sustained listener performance",
+            "Eviction Stress (10K ÷ 1K window) - Continuous overflow handling",
+            "Massive Burst 100K - Ultimate throughput test (134ns/signal)"
+        }),
+        ("Coordinator Benchmarks (4 benchmarks)", new[]
+        {
+            "EphemeralWorkCoordinator Enqueue (100K items, 16 concurrency) - Queue throughput",
+            "EphemeralKeyedWorkCoordinator (10K keys × 10 items) - Per-key sequential processing",
+            "EphemeralForEachAsync (100K items, 16 concurrency) - Parallel collection processing",
+            "EphemeralForEachAsync (10K items, 32 concurrency) - Maximum parallelism",
+            "EphemeralResultCoordinator (50K items) - Result capture + retrieval overhead"
+        }),
+        ("Parallelism Benchmarks (13 benchmarks)", new[]
+        {
+            "Parallel 2 Cores (2×325K signals) - Dual-core scaling",
+            "Parallel 4 Cores (4×110K signals) - Quad-core scaling",
+            "Parallel 8 Cores (8×54K signals) - Octa-core scaling",
+            "Parallel 16 Cores (16×33K signals) - Full multi-core stress",
+            "Parallel 16 Cores Heavy (16×26K signals) - Maximum contention test",
+            "Parallel 16 Cores + Listener (16×29K) - Multi-core with fan-out",
+            "Parallel Pattern Matching (16 cores × 75K matches) - Concurrent filtering",
+            "Parallel Chain (16 cores × 6.8K chains) - Multi-threaded propagation",
+            "Core Scaling Test (1→2→4→8→16) - Progressive parallelism",
+            "Parallel 20 Cores (20×26K signals) - 20-core scaling",
+            "Parallel 24 Cores (24×22K signals) - 24-core scaling",
+            "Parallel 28 Cores (28×19K signals) - 28-core scaling",
+            "Parallel 32 Cores (32×16K signals) - Maximum 32-core stress",
+        }),
+        ("FINALE (1 benchmark)", new[]
+        {
+            "🔥 FINALE: Full System Stress (1→32 cores, 2M+ signals) - Ultimate scalability test"
+        })
+    };
+
+    foreach (var (category, items) in benchmarks)
+    {
+        AnsiConsole.MarkupLine($"\n[cyan1]{category}:[/]");
+        foreach (var item in items)
+        {
+            AnsiConsole.MarkupLine($"  [grey]• {item}[/]");
+        }
+    }
+
+    AnsiConsole.WriteLine();
+    AnsiConsole.MarkupLine("[yellow]Usage:[/]");
+    AnsiConsole.MarkupLine("  [grey]dotnet run -c Release -- --benchmark <category>[/]\n");
+
+    AnsiConsole.MarkupLine("[yellow]Categories:[/]");
+    AnsiConsole.MarkupLine("  [cyan1]all[/]          - Run all 42 benchmarks (default)");
+    AnsiConsole.MarkupLine("  [cyan1]signals[/]      - Signal infrastructure only (24 benchmarks)");
+    AnsiConsole.MarkupLine("  [cyan1]coordinators[/] - Coordinator benchmarks only (5 benchmarks)");
+    AnsiConsole.MarkupLine("  [cyan1]parallelism[/]  - Parallelism benchmarks only (13 benchmarks)");
+    AnsiConsole.MarkupLine("  [cyan1]finale[/]       - FINALE benchmark only (1 benchmark)");
+    AnsiConsole.MarkupLine("  [cyan1]list[/]         - Show this list\n");
+
+    AnsiConsole.MarkupLine("[yellow]Examples:[/]");
+    AnsiConsole.MarkupLine("  [grey]dotnet run -c Release -- --benchmark all[/]");
+    AnsiConsole.MarkupLine("  [grey]dotnet run -c Release -- --benchmark signals[/]");
+    AnsiConsole.MarkupLine("  [grey]dotnet run -c Release -- --benchmark coordinators[/]");
+    AnsiConsole.MarkupLine("  [grey]dotnet run -c Release -- --benchmark finale[/]");
 }
 
 AnsiConsole.Write(
