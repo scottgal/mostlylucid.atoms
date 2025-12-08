@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Mostlylucid.Ephemeral.Demo</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Spectre.Console" Version="0.49.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+    <PackageReference Include="BenchmarkDotNet" Version="0.14.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj" />
+    <ProjectReference Include="..\..\src\mostlylucid.ephemeral.atoms.ratelimit\mostlylucid.ephemeral.atoms.ratelimit.csproj" />
+    <ProjectReference Include="..\..\src\mostlylucid.ephemeral.atoms.windowsize\mostlylucid.ephemeral.atoms.windowsize.csproj" />
+  </ItemGroup>
+
+</Project>

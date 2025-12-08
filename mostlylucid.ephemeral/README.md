@@ -26,6 +26,43 @@ Ephemeral provides **trackable, bounded, observable async execution**:
 - **Signal-based coordination** - Operations emit signals that influence execution
 - **Zero external dependencies** - Core package is dependency-free
 
+## Interactive Demo
+
+**New!** Try the interactive Spectre.Console demo to see the Ephemeral Signals pattern in action:
+
+### Download Pre-built Executable
+
+**No .NET required!** Download single-file executables from [Releases](https://github.com/scottgal/mostlylucid.atoms/releases):
+
+| Platform | Download |
+|----------|----------|
+| 🪟 Windows (x64) | `ephemeral-demo-win-x64.exe` |
+| 🪟 Windows (ARM64) | `ephemeral-demo-win-arm64.exe` |
+| 🐧 Linux (x64) | `ephemeral-demo-linux-x64` |
+| 🐧 Linux (ARM64) | `ephemeral-demo-linux-arm64` |
+| 🍎 macOS (Intel) | `ephemeral-demo-macos-x64` |
+| 🍎 macOS (Apple Silicon) | `ephemeral-demo-macos-arm64` |
+
+See [RELEASES.md](../../RELEASES.md) for installation instructions.
+
+### Run from Source
+
+```bash
+cd demos/mostlylucid.ephemeral.demo
+dotnet run
+```
+
+### What's Included
+
+The demo showcases 10 interactive scenarios plus benchmarks:
+- **Pattern Fundamentals**: Pure Notification, Context + Hint, Command Pattern
+- **Advanced Patterns**: Circuit Breaker, Backpressure, Metrics & Monitoring
+- **System Demos**: Multi-step pipelines, Signal chains, Dynamic rate adjustment
+- **Observability**: Live signal viewer with filtering
+- **Performance**: BenchmarkDotNet integration with memory diagnostics
+
+See [demos/mostlylucid.ephemeral.demo/README.md](demos/mostlylucid.ephemeral.demo/README.md) for details.
+
 ## Installation
 
 ```bash

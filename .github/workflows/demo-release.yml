@@ -1,0 +1,218 @@
+name: Build and Release Ephemeral Signals Demo
+
+on:
+  push:
+    tags:
+      - 'demo-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.0.0)'
+        required: true
+        default: '1.0.0'
+
+jobs:
+  build:
+    name: Build ${{ matrix.runtime }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # Windows
+          - os: windows-latest
+            runtime: win-x64
+            artifact: ephemeral-demo-win-x64.exe
+          - os: windows-latest
+            runtime: win-arm64
+            artifact: ephemeral-demo-win-arm64.exe
+
+          # Linux
+          - os: ubuntu-latest
+            runtime: linux-x64
+            artifact: ephemeral-demo-linux-x64
+          - os: ubuntu-latest
+            runtime: linux-arm64
+            artifact: ephemeral-demo-linux-arm64
+
+          # macOS
+          - os: macos-latest
+            runtime: osx-x64
+            artifact: ephemeral-demo-macos-x64
+          - os: macos-latest
+            runtime: osx-arm64
+            artifact: ephemeral-demo-macos-arm64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Get full history for changelog
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo/mostlylucid.ephemeral.demo.csproj
+
+      - name: Publish single-file executable
+        run: |
+          dotnet publish mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo/mostlylucid.ephemeral.demo.csproj \
+            -c Release \
+            -r ${{ matrix.runtime }} \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:PublishTrimmed=false \
+            -p:DebugType=None \
+            -p:DebugSymbols=false \
+            -o publish/${{ matrix.runtime }}
+
+      - name: Rename artifact (Windows)
+        if: startsWith(matrix.runtime, 'win')
+        shell: pwsh
+        run: |
+          Move-Item "publish/${{ matrix.runtime }}/mostlylucid.ephemeral.demo.exe" "publish/${{ matrix.artifact }}"
+
+      - name: Rename and chmod artifact (Unix)
+        if: "!startsWith(matrix.runtime, 'win')"
+        run: |
+          mv publish/${{ matrix.runtime }}/mostlylucid.ephemeral.demo publish/${{ matrix.artifact }}
+          chmod +x publish/${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: publish/${{ matrix.artifact }}
+          retention-days: 5
+
+  create-release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            echo "TAG=demo-v${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/demo-v}" >> $GITHUB_OUTPUT
+            echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get last release tag
+        id: last_release
+        run: |
+          LAST_TAG=$(git tag -l "demo-v*" --sort=-v:refname | head -n 2 | tail -n 1)
+          if [ -z "$LAST_TAG" ]; then
+            LAST_TAG=$(git rev-list --max-parents=0 HEAD)
+          fi
+          echo "LAST_TAG=$LAST_TAG" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          {
+            echo 'CHANGELOG<<EOF'
+            echo "# Ephemeral Signals Demo - Release ${{ steps.get_version.outputs.VERSION }}"
+            echo ""
+            echo "## What's New"
+            echo ""
+            echo "### Interactive Demos"
+            echo "- 🎯 **Pure Notification Pattern** - File save simulation"
+            echo "- 🔄 **Context + Hint Pattern** - Order processing with double-safe"
+            echo "- ⚙️ **Command Pattern** - Infrastructure control (WindowSizeAtom)"
+            echo "- 🔗 **Complex Pipeline** - Multi-step system with rate limiting"
+            echo "- ⛓️ **Signal Chains** - Cascading atoms (A→B→C)"
+            echo "- 🔴 **Circuit Breaker** - Failure detection and recovery"
+            echo "- 🚦 **Backpressure** - Queue overflow protection"
+            echo "- 📊 **Metrics & Monitoring** - Real-time statistics dashboard"
+            echo "- 🎚️ **Dynamic Rate Adjustment** - Adaptive throttling"
+            echo "- 👁️ **Live Signal Viewer** - Real-time signal visualization"
+            echo ""
+            echo "### Performance"
+            echo "- ⚡ **BenchmarkDotNet** integration"
+            echo "- 📈 Memory diagnostics and allocation tracking"
+            echo "- 🔍 GC pressure analysis"
+            echo ""
+            echo "## Changes Since Last Release"
+            echo ""
+            git log ${{ steps.last_release.outputs.LAST_TAG }}..HEAD --pretty=format:"- %s (%h)" --no-merges -- mostlylucid.ephemeral/demos/ mostlylucid.ephemeral/src/mostlylucid.ephemeral.atoms.*/ mostlylucid.ephemeral/src/mostlylucid.ephemeral/ | head -n 20
+            echo ""
+            echo ""
+            echo "## Installation"
+            echo ""
+            echo "Download the executable for your platform:"
+            echo ""
+            echo "| Platform | Architecture | File |"
+            echo "|----------|-------------|------|"
+            echo "| Windows | x64 | \`ephemeral-demo-win-x64.exe\` |"
+            echo "| Windows | ARM64 | \`ephemeral-demo-win-arm64.exe\` |"
+            echo "| Linux | x64 | \`ephemeral-demo-linux-x64\` |"
+            echo "| Linux | ARM64 | \`ephemeral-demo-linux-arm64\` |"
+            echo "| macOS | x64 (Intel) | \`ephemeral-demo-macos-x64\` |"
+            echo "| macOS | ARM64 (Apple Silicon) | \`ephemeral-demo-macos-arm64\` |"
+            echo ""
+            echo "### Running"
+            echo ""
+            echo "**Windows:**"
+            echo "\`\`\`cmd"
+            echo "ephemeral-demo-win-x64.exe"
+            echo "\`\`\`"
+            echo ""
+            echo "**Linux/macOS:**"
+            echo "\`\`\`bash"
+            echo "chmod +x ephemeral-demo-linux-x64"
+            echo "./ephemeral-demo-linux-x64"
+            echo "\`\`\`"
+            echo ""
+            echo "### Benchmark Mode"
+            echo ""
+            echo "Select option **B** from the menu to run comprehensive performance benchmarks."
+            echo ""
+            echo "## Requirements"
+            echo ""
+            echo "- **No .NET Runtime required** - Self-contained executables"
+            echo "- Terminal with ANSI color support (Windows Terminal, iTerm2, etc.)"
+            echo ""
+            echo "## Learn More"
+            echo ""
+            echo "- [Demo Documentation](https://github.com/scottgal/mostlylucid.atoms/tree/main/mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo)"
+            echo "- [Signals Pattern Guide](https://github.com/scottgal/mostlylucid.atoms/blob/main/mostlylucid.ephemeral/SIGNALS_PATTERN.md)"
+            echo "- [Main Repository](https://github.com/scottgal/mostlylucid.atoms)"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.TAG }}
+          name: Ephemeral Signals Demo v${{ steps.get_version.outputs.VERSION }}
+          body: ${{ steps.changelog.outputs.CHANGELOG }}
+          draft: false
+          prerelease: false
+          files: |
+            release-artifacts/ephemeral-demo-win-x64.exe/ephemeral-demo-win-x64.exe
+            release-artifacts/ephemeral-demo-win-arm64.exe/ephemeral-demo-win-arm64.exe
+            release-artifacts/ephemeral-demo-linux-x64/ephemeral-demo-linux-x64
+            release-artifacts/ephemeral-demo-linux-arm64/ephemeral-demo-linux-arm64
+            release-artifacts/ephemeral-demo-macos-x64/ephemeral-demo-macos-x64
+            release-artifacts/ephemeral-demo-macos-arm64/ephemeral-demo-macos-arm64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
