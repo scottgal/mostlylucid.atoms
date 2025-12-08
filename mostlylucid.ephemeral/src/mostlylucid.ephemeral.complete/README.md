@@ -25,6 +25,7 @@ section below.
     - [SignalAwareAtom](#signalawareatom)
     - [BatchingAtom](#batchingatom)
     - [RetryAtom](#retryatom)
+    - [Data Storage Atoms](#data-storage-atoms)
     - [MoleculeRunner & AtomTrigger](#moleculerunner--atomtrigger)
     - [SlidingCacheAtom](#slidingcacheatom)
     - [EphemeralLruCache](#ephemerallrucache)
@@ -66,6 +67,30 @@ await items.EphemeralForEachAsync(
     async (item, ct) => await ProcessAsync(item, ct),
     new EphemeralOptions { MaxConcurrency = 8 });
 ```
+
+### Service registration
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddCoordinator<WorkItem>(
+    async (item, ct) => await ProcessAsync(item, ct),
+    new EphemeralOptions { MaxConcurrency = 8, MaxTrackedOperations = 128 });
+
+builder.Services.AddEphemeralSignalJobRunner<LogWatcherJobs>();
+
+var app = builder.Build();
+app.MapPost("/", async ([FromServices] IEphemeralCoordinatorFactory<WorkItem> factory, WorkItem item) =>
+{
+    var coordinator = factory.CreateCoordinator();
+    await coordinator.EnqueueAsync(item);
+    return Results.Accepted();
+});
+
+await app.RunAsync();
+```
+
+The familiar `services.AddCoordinator<T>()` helpers and `AddEphemeralSignalJobRunner<T>()` keep service registration concise, let DI own the sink/runner, and make the new responsibility/cache/logging stories a single click away.
 
 ### Attribute-driven jobs
 
@@ -542,6 +567,37 @@ await atom.EnqueueAsync(new ApiRequest("https://api.example.com"));
 
 await atom.DrainAsync();
 ```
+
+---
+
+### Data Storage Atoms
+
+> **Package:** [mostlylucid.ephemeral.atoms.data](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.data)
+
+Shared configuration for storage atoms (`DataStorageConfig`, `IDataStorageAtom<TKey, TValue>`) plus the signal conventions that drive file, SQLite, and PostgreSQL adapters.
+
+```csharp
+using Mostlylucid.Ephemeral.Atoms.Data;
+using Mostlylucid.Ephemeral.Atoms.Data.File;
+
+var sink = new SignalSink();
+var config = new DataStorageConfig
+{
+    DatabaseName = "orders",
+    SignalPrefix = "save.data",
+    LoadSignalPrefix = "load.data",
+    DeleteSignalPrefix = "delete.data",
+    MaxConcurrency = 1
+};
+
+await using var storage = new FileDataStorageAtom<string, Order>(sink, config, "./orders");
+
+storage.EnqueueSave("order-123", new Order { Id = "order-123", Total = 42.00m });
+var loaded = await storage.LoadAsync("order-123");
+```
+
+Use the same `DataStorageConfig` with [`Mostlylucid.Ephemeral.Atoms.Data.Sqlite`](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.data.sqlite) or [`Mostlylucid.Ephemeral.Atoms.Data.Postgres`](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.data.postgres) implementations for durable, signal-driven persistence powered by SQLite/Postgres. Attribute jobs can subscribe to `saved.data.{dbname}` signals to kick off downstream work while `load.data.{dbname}` triggers hydrate caches.
+
 
 ---
 
