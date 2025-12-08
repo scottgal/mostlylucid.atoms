@@ -171,7 +171,7 @@ internal sealed class FixedConcurrencyGate : IConcurrencyGate
     public FixedConcurrencyGate(int limit)
     {
         if (limit <= 0) throw new ArgumentOutOfRangeException(nameof(limit));
-        _semaphore = new SemaphoreSlim(limit);
+        _semaphore = new SemaphoreSlim(limit, limit);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -45,9 +45,6 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
         _echoStore = _options.EnableOperationEcho
             ? new OperationEchoStore(_options.OperationEchoRetention, _options.OperationEchoCapacity)
             : null;
-        _echoStore = _options.EnableOperationEcho
-            ? new OperationEchoStore(_options.OperationEchoRetention, _options.OperationEchoCapacity)
-            : null;
 
         _channel = Channel.CreateBounded<TInput>(new BoundedChannelOptions(_options.MaxTrackedOperations)
         {
