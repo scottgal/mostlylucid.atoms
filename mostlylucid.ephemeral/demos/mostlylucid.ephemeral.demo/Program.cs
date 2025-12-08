@@ -26,7 +26,7 @@ if (args.Length > 0 && args[0] == "--benchmark")
 
         case "coordinators":
             AnsiConsole.MarkupLine("[cyan1]Running Coordinator benchmarks...[/]\n");
-            BenchmarkRunner.RunBenchmark("Coordinator|ForEach|Result");
+            BenchmarkRunner.RunBenchmark("WorkCoordinator|KeyedCoordinator|ForEachAsync|ResultCoordinator");
             return;
 
         case "parallelism":
