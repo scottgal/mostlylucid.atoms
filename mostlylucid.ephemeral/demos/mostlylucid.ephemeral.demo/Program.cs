@@ -136,18 +136,19 @@ while (true)
             .PageSize(10)
             .AddChoices(new[]
             {
-                "1. Pure Notification Pattern (File Save)",
-                "2. Context + Hint Pattern (Order Processing)",
-                "3. Command Pattern (Window Size Control)",
-                "4. Complex Multi-Step System (Rate Limiting Pipeline)",
-                "5. Signal Chain Demo (Cascading Atoms)",
-                "6. Circuit Breaker Pattern (Failure Handling)",
-                "7. Backpressure Demo (Queue Overflow Protection)",
-                "8. Metrics & Monitoring (Real-time Statistics)",
-                "9. Dynamic Rate Adjustment (Adaptive Throttling)",
-                "10. Live Signal Viewer",
-                "11. Image Processing Pipeline (ImageSharp Atoms)",
-                "12. Parallel Resize Demo (Nested Coordinator Pattern)",
+                "1. Image Processing Pipeline (ImageSharp Atoms)",
+                "2. Parallel Resize Demo (Nested Coordinator Pattern)",
+                "3. Continuous Resize Loop (Long-term Behavior Test)",
+                "4. Pure Notification Pattern (File Save)",
+                "5. Context + Hint Pattern (Order Processing)",
+                "6. Command Pattern (Window Size Control)",
+                "7. Complex Multi-Step System (Rate Limiting Pipeline)",
+                "8. Signal Chain Demo (Cascading Atoms)",
+                "9. Circuit Breaker Pattern (Failure Handling)",
+                "10. Backpressure Demo (Queue Overflow Protection)",
+                "11. Metrics & Monitoring (Real-time Statistics)",
+                "12. Dynamic Rate Adjustment (Adaptive Throttling)",
+                "13. Live Signal Viewer",
                 "B. Run Benchmarks (BenchmarkDotNet)",
                 "Exit"
             }));
@@ -167,40 +168,43 @@ while (true)
         switch (firstChar)
         {
             case "1":
-                await RunPureNotificationDemo();
-                break;
-            case "2":
-                await RunContextHintDemo();
-                break;
-            case "3":
-                await RunCommandPatternDemo();
-                break;
-            case "4":
-                await RunComplexPipelineDemo();
-                break;
-            case "5":
-                await RunSignalChainDemo();
-                break;
-            case "6":
-                await RunCircuitBreakerDemo();
-                break;
-            case "7":
-                await RunBackpressureDemo();
-                break;
-            case "8":
-                await RunMetricsMonitoringDemo();
-                break;
-            case "9":
-                await RunDynamicRateAdjustmentDemo();
-                break;
-            case "10":
-                await RunLiveSignalViewer();
-                break;
-            case "11":
                 await ImageProcessingDemo.RunAsync();
                 break;
+            case "2":
+                await ParallelResizeDemo.RunSingleAsync();
+                break;
+            case "3":
+                await ParallelResizeDemo.RunContinuousAsync();
+                break;
+            case "4":
+                await RunPureNotificationDemo();
+                break;
+            case "5":
+                await RunContextHintDemo();
+                break;
+            case "6":
+                await RunCommandPatternDemo();
+                break;
+            case "7":
+                await RunComplexPipelineDemo();
+                break;
+            case "8":
+                await RunSignalChainDemo();
+                break;
+            case "9":
+                await RunCircuitBreakerDemo();
+                break;
+            case "10":
+                await RunBackpressureDemo();
+                break;
+            case "11":
+                await RunMetricsMonitoringDemo();
+                break;
             case "12":
-                await ParallelResizeDemo.RunAsync();
+                await RunDynamicRateAdjustmentDemo();
+                break;
+            case "13":
+                await RunLiveSignalViewer();
                 break;
             case "B":
                 RunBenchmarks();
