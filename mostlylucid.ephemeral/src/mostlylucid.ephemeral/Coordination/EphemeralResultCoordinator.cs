@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
 namespace Mostlylucid.Ephemeral;
@@ -228,19 +229,25 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
         return _echoStore?.Snapshot() ?? Array.Empty<OperationEcho>();
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasSignal(string signalName)
     {
         foreach (var op in _recent)
         {
             if (op._signals is not { Count: > 0 }) continue;
-            foreach (var signal in op._signals)
-                if (signal == signalName)
+
+            // Manual loop for better performance
+            var signals = op._signals;
+            var count = signals.Count;
+            for (var i = 0; i < count; i++)
+                if (signals[i] == signalName)
                     return true;
         }
 
         return false;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int CountSignals()
     {
         var count = 0;

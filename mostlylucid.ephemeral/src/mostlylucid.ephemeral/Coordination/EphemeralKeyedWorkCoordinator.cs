@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
 namespace Mostlylucid.Ephemeral;
@@ -341,32 +342,43 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
         return results;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasSignal(string signalName)
     {
         foreach (var op in _recent)
         {
             if (op._signals is not { Count: > 0 }) continue;
-            foreach (var signal in op._signals)
-                if (signal == signalName)
+
+            // Manual loop for better performance
+            var signals = op._signals;
+            var count = signals.Count;
+            for (var i = 0; i < count; i++)
+                if (signals[i] == signalName)
                     return true;
         }
 
         return false;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasSignalMatching(string pattern)
     {
         foreach (var op in _recent)
         {
             if (op._signals is not { Count: > 0 }) continue;
-            foreach (var signal in op._signals)
-                if (StringPatternMatcher.Matches(signal, pattern))
+
+            // Manual loop for better performance
+            var signals = op._signals;
+            var count = signals.Count;
+            for (var i = 0; i < count; i++)
+                if (StringPatternMatcher.Matches(signals[i], pattern))
                     return true;
         }
 
         return false;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int CountSignals()
     {
         var count = 0;
