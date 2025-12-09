@@ -71,8 +71,18 @@ jobs:
         run: |
           cd mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo
 
-          # Find the latest results
-          RESULTS_DIR=$(find BenchmarkDotNet.Artifacts/results -name "*.json" -type f | head -1 | xargs dirname)
+          # Find the latest results (if they exist)
+          if [ -d "BenchmarkDotNet.Artifacts/results" ]; then
+            RESULTS_FILE=$(find BenchmarkDotNet.Artifacts/results -name "*.json" -type f | head -1)
+            if [ -n "$RESULTS_FILE" ]; then
+              RESULTS_DIR=$(dirname "$RESULTS_FILE")
+              echo "::notice::Found benchmark results in $RESULTS_DIR"
+            else
+              echo "::warning::No JSON results found in BenchmarkDotNet.Artifacts/results"
+            fi
+          else
+            echo "::warning::BenchmarkDotNet.Artifacts/results directory not found - benchmarks may have failed"
+          fi
 
           if [ -f "$GITHUB_WORKSPACE/baseline/benchmark-results.json" ]; then
             echo "::notice::Baseline found, performing comparison"
