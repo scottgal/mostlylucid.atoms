@@ -153,6 +153,144 @@ if (snapshot.HasResult)
     Console.WriteLine(snapshot.Result);
 ```
 
+### Cross-Operation Coordination via Signals
+
+**The core pattern**: One operation emits a signal → another operation reacts by finding that operation's state → processes it.
+
+This is how you build reactive pipelines where operations coordinate without direct coupling:
+
+```csharp
+using Mostlylucid.Ephemeral;
+
+// Shared signal sink coordinates all operations
+var signalSink = new SignalSink();
+
+// ══════════════════════════════════════════════════════════════════════════════
+// STEP 1: File processor emits "file.saved" signals with the operation ID
+// ══════════════════════════════════════════════════════════════════════════════
+
+await using var fileProcessor = new EphemeralWorkCoordinator<FileUpload>(
+    async (upload, op, ct) =>
+    {
+        // Save file to disk
+        var filePath = await SaveFileAsync(upload, ct);
+
+        // Store the file path in operation state (mutable Dictionary<string, object?>)
+        op.State["FilePath"] = filePath;
+        op.State["UploadedBy"] = upload.Username;
+        op.State["FileSize"] = upload.Data.Length;
+
+        // Signal completion - other operations can now react
+        op.Signal("file.saved");
+    },
+    new EphemeralOptions
+    {
+        MaxConcurrency = 8,
+        SharedSignalSink = signalSink  // Share signals globally
+    });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// STEP 2: Thumbnail generator reacts to "file.saved" signals
+// ══════════════════════════════════════════════════════════════════════════════
+
+await using var thumbnailGenerator = new EphemeralWorkCoordinator<long>(
+    async (sourceOpId, op, ct) =>
+    {
+        // Find the file operation by ID using the signal event
+        var fileOp = fileProcessor.TryGetOperation(sourceOpId);
+
+        if (fileOp == null)
+        {
+            op.Signal("error.source_not_found");
+            return;
+        }
+
+        // Access the source operation's state
+        var filePath = fileOp.State.GetValueOrDefault("FilePath") as string;
+        var uploadedBy = fileOp.State.GetValueOrDefault("UploadedBy") as string;
+
+        if (filePath == null)
+        {
+            op.Signal("error.no_file_path");
+            return;
+        }
+
+        op.Signal("thumbnail.generating");
+
+        // Generate thumbnail from the saved file
+        var thumbPath = await CreateThumbnailAsync(filePath, ct);
+
+        op.State["ThumbnailPath"] = thumbPath;
+        op.State["SourceFile"] = filePath;
+        op.State["ProcessedFor"] = uploadedBy;
+
+        op.Signal("thumbnail.complete");
+    },
+    new EphemeralOptions
+    {
+        MaxConcurrency = 4,
+        SharedSignalSink = signalSink
+    });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// STEP 3: Wire up the reactive flow - subscribe to signals
+// ══════════════════════════════════════════════════════════════════════════════
+
+signalSink.Subscribe(signal =>
+{
+    // When a file is saved, trigger thumbnail generation
+    if (signal.Is("file.saved"))
+    {
+        // Enqueue the source operation ID so thumbnail generator can find it
+        _ = thumbnailGenerator.EnqueueAsync(signal.OperationId);
+    }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// USAGE: Start the pipeline
+// ══════════════════════════════════════════════════════════════════════════════
+
+await fileProcessor.EnqueueAsync(new FileUpload
+{
+    Filename = "photo.jpg",
+    Data = imageBytes,
+    Username = "alice"
+});
+
+// The flow:
+// 1. fileProcessor saves file → stores path in op.State → signals "file.saved"
+// 2. Signal subscription triggers → thumbnailGenerator.EnqueueAsync(opId)
+// 3. thumbnailGenerator finds the file operation → reads State["FilePath"] → generates thumbnail
+```
+
+**Why this pattern matters:**
+
+- ✅ **Decoupled**: Operations don't reference each other directly
+- ✅ **Observable**: Every step emits signals for monitoring/debugging
+- ✅ **Stateful**: Operation state persists in the window for downstream access
+- ✅ **Reactive**: Signal subscriptions create automatic coordination
+- ✅ **Scalable**: Each coordinator has independent concurrency controls
+
+**Alternative: Using pattern matching for complex pipelines**
+
+```csharp
+signalSink.Subscribe(signal =>
+{
+    // Match multiple signal patterns
+    if (signal.Signal.StartsWith("file."))
+    {
+        if (signal.Is("file.saved"))
+            _ = thumbnailGenerator.EnqueueAsync(signal.OperationId);
+        else if (signal.Is("file.deleted"))
+            _ = cleanupCoordinator.EnqueueAsync(signal.OperationId);
+        else if (signal.Signal.StartsWith("file.error."))
+            _ = errorHandler.EnqueueAsync(signal.OperationId);
+    }
+});
+```
+
+See [examples/](Examples/) for complete multi-stage pipeline demonstrations.
+
 ## Registering in dependency injection
 
 The familiar `AddX` helpers make it easy to drop coordinators and attribute runners into ASP.NET Core without reshaping your hosting code:
