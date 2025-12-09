@@ -41,10 +41,14 @@ jobs:
       - name: Run Benchmarks (CI subset - fast benchmarks only)
         run: |
           cd mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo
-          # Run only fast, single-threaded benchmarks for CI (excludes Rate Limiter, parallel tests, and large coordinator tests)
-          dotnet run -c Release --no-build -- --benchmark signals --filter "*Signal Raise (no listeners*" --filter "*Pattern Matching*" --filter "*Command Parsing*"
+          # Run only 3 fastest benchmarks for CI (< 5 minutes total)
+          # EXPLICITLY EXCLUDE: Rate Limiter (26+ min), Parallel tests, Coordinator tests, Large Window tests
+          dotnet run -c Release --no-build -- --benchmark signals \
+            --filter "*Signal Raise (no listeners*" \
+            --filter "*Pattern Matching*" \
+            --filter "*Command Parsing*"
         continue-on-error: true
-        timeout-minutes: 15
+        timeout-minutes: 5
 
       - name: Store benchmark results
         uses: actions/upload-artifact@v4
