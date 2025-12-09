@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
 namespace Mostlylucid.Ephemeral;
@@ -441,6 +442,7 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPi
     ///     Checks if any operation has emitted a specific signal.
     ///     Short-circuits on first match for O(1) best case.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasSignal(string signalName)
     {
         foreach (var op in _recent)
@@ -448,8 +450,11 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPi
             if (op._signals is not { Count: > 0 })
                 continue;
 
-            foreach (var signal in op._signals)
-                if (signal == signalName)
+            // Manual loop for better performance
+            var signals = op._signals;
+            var count = signals.Count;
+            for (var i = 0; i < count; i++)
+                if (signals[i] == signalName)
                     return true;
         }
 
@@ -460,6 +465,7 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPi
     ///     Checks if any operation has emitted a signal matching the pattern.
     ///     Short-circuits on first match for O(1) best case.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasSignalMatching(string pattern)
     {
         foreach (var op in _recent)
@@ -467,8 +473,11 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPi
             if (op._signals is not { Count: > 0 })
                 continue;
 
-            foreach (var signal in op._signals)
-                if (StringPatternMatcher.Matches(signal, pattern))
+            // Manual loop for better performance
+            var signals = op._signals;
+            var count = signals.Count;
+            for (var i = 0; i < count; i++)
+                if (StringPatternMatcher.Matches(signals[i], pattern))
                     return true;
         }
 
@@ -479,6 +488,7 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPi
     ///     Counts all signals across all operations.
     ///     More efficient than GetSignals().Count as it doesn't allocate SignalEvent structs.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int CountSignals()
     {
         var count = 0;
@@ -492,6 +502,7 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPi
     ///     Counts signals matching a specific name.
     ///     More efficient than GetSignalsByName().Count.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int CountSignals(string signalName)
     {
         var count = 0;
@@ -500,8 +511,11 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPi
             if (op._signals is not { Count: > 0 })
                 continue;
 
-            foreach (var signal in op._signals)
-                if (signal == signalName)
+            // Manual loop for better performance
+            var signals = op._signals;
+            var signalCount = signals.Count;
+            for (var i = 0; i < signalCount; i++)
+                if (signals[i] == signalName)
                     count++;
         }
 
@@ -512,6 +526,7 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPi
     ///     Counts signals matching a pattern.
     ///     More efficient than GetSignalsByPattern().Count.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int CountSignalsMatching(string pattern)
     {
         var count = 0;
@@ -520,8 +535,11 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPi
             if (op._signals is not { Count: > 0 })
                 continue;
 
-            foreach (var signal in op._signals)
-                if (StringPatternMatcher.Matches(signal, pattern))
+            // Manual loop for better performance
+            var signals = op._signals;
+            var signalCount = signals.Count;
+            for (var i = 0; i < signalCount; i++)
+                if (StringPatternMatcher.Matches(signals[i], pattern))
                     count++;
         }
 
