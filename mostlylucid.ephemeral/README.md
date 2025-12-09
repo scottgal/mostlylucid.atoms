@@ -291,6 +291,160 @@ signalSink.Subscribe(signal =>
 
 See [examples/](Examples/) for complete multi-stage pipeline demonstrations.
 
+### Cross-Operation Coordination with Attribute Jobs
+
+The same reactive pattern works beautifully with attribute-driven jobs - even cleaner syntax:
+
+```csharp
+using Mostlylucid.Ephemeral;
+using Mostlylucid.Ephemeral.Attributes;
+
+public class FileProcessingPipeline
+{
+    private readonly SignalSink _signalSink;
+    private readonly EphemeralWorkCoordinator<FileUpload> _fileProcessor;
+
+    public FileProcessingPipeline(SignalSink signalSink)
+    {
+        _signalSink = signalSink;
+
+        // File processor stores state and emits signals
+        _fileProcessor = new EphemeralWorkCoordinator<FileUpload>(
+            async (upload, op, ct) =>
+            {
+                var filePath = await SaveFileAsync(upload, ct);
+
+                // Store state for downstream jobs
+                op.State["FilePath"] = filePath;
+                op.State["UploadedBy"] = upload.Username;
+                op.State["MimeType"] = upload.ContentType;
+
+                op.Signal("file.saved");  // Triggers attribute jobs
+            },
+            new EphemeralOptions
+            {
+                MaxConcurrency = 8,
+                SharedSignalSink = signalSink
+            });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Attribute jobs automatically react to signals and access source operation state
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    [EphemeralJob(
+        "file.saved",                    // React to this signal
+        MaxConcurrency = 4,              // Parallel thumbnail generation
+        EmitOnStart = "thumbnail.start",
+        EmitOnComplete = "thumbnail.complete")]
+    public async Task GenerateThumbnail(SignalEvent signal, EphemeralOperation op, CancellationToken ct)
+    {
+        // Find the source file operation using the signal's OperationId
+        var fileOp = _fileProcessor.TryGetOperation(signal.OperationId);
+
+        if (fileOp == null)
+        {
+            op.Signal("error.source_not_found");
+            return;
+        }
+
+        // Access the file operation's state
+        var filePath = fileOp.State.GetValueOrDefault("FilePath") as string;
+        var mimeType = fileOp.State.GetValueOrDefault("MimeType") as string;
+
+        if (filePath == null || !mimeType?.StartsWith("image/") == true)
+        {
+            op.Signal("skipped.not_image");
+            return;
+        }
+
+        // Generate thumbnail
+        var thumbPath = await CreateThumbnailAsync(filePath, ct);
+
+        // Store result in this operation's state
+        op.State["ThumbnailPath"] = thumbPath;
+        op.State["SourceFile"] = filePath;
+    }
+
+    [EphemeralJob(
+        "file.saved",
+        MaxConcurrency = 2,
+        EmitOnComplete = "virus_scan.complete")]
+    public async Task ScanForVirus(SignalEvent signal, EphemeralOperation op, CancellationToken ct)
+    {
+        var fileOp = _fileProcessor.TryGetOperation(signal.OperationId);
+        if (fileOp == null) return;
+
+        var filePath = fileOp.State.GetValueOrDefault("FilePath") as string;
+        if (filePath == null) return;
+
+        var isClean = await VirusScanAsync(filePath, ct);
+
+        if (!isClean)
+        {
+            op.Signal("virus.detected");
+            await DeleteFileAsync(filePath, ct);
+        }
+        else
+        {
+            op.Signal("virus.clean");
+        }
+
+        op.State["VirusScanResult"] = isClean ? "clean" : "infected";
+    }
+
+    [EphemeralJob(
+        "file.saved",
+        MaxConcurrency = 1,
+        Lane = "database",  // Serialize database writes
+        EmitOnComplete = "metadata.saved")]
+    public async Task SaveMetadata(SignalEvent signal, EphemeralOperation op, CancellationToken ct)
+    {
+        var fileOp = _fileProcessor.TryGetOperation(signal.OperationId);
+        if (fileOp == null) return;
+
+        await _database.SaveFileMetadataAsync(new FileMetadata
+        {
+            FilePath = fileOp.State.GetValueOrDefault("FilePath") as string,
+            UploadedBy = fileOp.State.GetValueOrDefault("UploadedBy") as string,
+            MimeType = fileOp.State.GetValueOrDefault("MimeType") as string,
+            UploadedAt = DateTimeOffset.UtcNow
+        }, ct);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Bootstrap the pipeline
+// ═══════════════════════════════════════════════════════════════════════════════
+
+var signalSink = new SignalSink();
+var pipeline = new FileProcessingPipeline(signalSink);
+
+// Register attribute jobs
+await using var runner = new EphemeralSignalJobRunner(signalSink, new[] { pipeline });
+
+// Upload a file - triggers the entire pipeline automatically
+await pipeline._fileProcessor.EnqueueAsync(new FileUpload
+{
+    Filename = "photo.jpg",
+    Data = imageBytes,
+    Username = "alice",
+    ContentType = "image/jpeg"
+});
+
+// All three jobs (thumbnail, virus scan, metadata) run in parallel automatically!
+```
+
+**Benefits of attribute jobs for cross-operation patterns:**
+
+- ✅ **Declarative**: Signal patterns, concurrency, and emissions defined in attributes
+- ✅ **Automatic wiring**: No manual `Subscribe()` calls - jobs auto-register
+- ✅ **Same state access**: Use `TryGetOperation(signal.OperationId)` just like coordinators
+- ✅ **Lanes**: Serialize specific jobs (like database writes) while others run in parallel
+- ✅ **Self-documenting**: Attributes show the reactive flow at a glance
+
+See [mostlylucid.ephemeral.attributes](src/mostlylucid.ephemeral.attributes/README.md) for complete attribute documentation.
+
 ## Registering in dependency injection
 
 The familiar `AddX` helpers make it easy to drop coordinators and attribute runners into ASP.NET Core without reshaping your hosting code:
