@@ -8,6 +8,8 @@ Collect items into batches by size or time interval before processing.
 dotnet add package mostlylucid.ephemeral.atoms.batching
 ```
 
+
+
 ## Quick Start
 
 ```csharp

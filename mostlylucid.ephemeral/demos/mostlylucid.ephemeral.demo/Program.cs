@@ -146,6 +146,8 @@ while (true)
                 "8. Metrics & Monitoring (Real-time Statistics)",
                 "9. Dynamic Rate Adjustment (Adaptive Throttling)",
                 "10. Live Signal Viewer",
+                "11. Image Processing Pipeline (ImageSharp Atoms)",
+                "12. Parallel Resize Demo (Nested Coordinator Pattern)",
                 "B. Run Benchmarks (BenchmarkDotNet)",
                 "Exit"
             }));
@@ -193,6 +195,12 @@ while (true)
                 break;
             case "10":
                 await RunLiveSignalViewer();
+                break;
+            case "11":
+                await ImageProcessingDemo.RunAsync();
+                break;
+            case "12":
+                await ParallelResizeDemo.RunAsync();
                 break;
             case "B":
                 RunBenchmarks();

@@ -21,4 +21,10 @@
     <ProjectReference Include="..\..\src\mostlylucid.ephemeral.atoms.imagesharp\mostlylucid.ephemeral.atoms.imagesharp.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="testdata\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

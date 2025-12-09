@@ -246,6 +246,131 @@ public sealed class ResizeOptions
 }
 
 /// <summary>
+/// Represents a single resize job
+/// </summary>
+public record ResizeJob(Image SourceImage, Size TargetSize, string SizeName, string OutputPath, int Quality);
+
+/// <summary>
+/// Parallel Resize Atom - Uses an internal coordinator to parallelize resize operations.
+/// Demonstrates the pattern of embedding a coordinator inside an atom for bounded parallel work.
+/// The coordinator lasts only for the scope of the resize operation and has a small window.
+/// </summary>
+public sealed class ParallelResizeImageAtom : IAsyncDisposable
+{
+    private readonly SignalSink _signals;
+    private readonly ParallelResizeOptions _options;
+
+    public ParallelResizeImageAtom(SignalSink signals, ParallelResizeOptions? options = null)
+    {
+        _signals = signals ?? throw new ArgumentNullException(nameof(signals));
+        _options = options ?? new ParallelResizeOptions();
+    }
+
+    /// <summary>
+    /// Resizes the image to multiple sizes in parallel using ParallelEphemeral pattern.
+    /// </summary>
+    public async Task<ImageProcessingContext> ResizeAsync(
+        ImageProcessingContext ctx,
+        CancellationToken ct = default)
+    {
+        ctx.Emit("resize.parallel.started");
+        _signals.Raise($"resize.count:{_options.Sizes.Count}");
+        _signals.Raise($"resize.parallelism:{_options.MaxParallelism}");
+
+        // Build list of resize jobs
+        var jobs = new List<ResizeJob>();
+        for (int i = 0; i < _options.Sizes.Count; i++)
+        {
+            var (size, sizeName) = _options.Sizes[i];
+
+            var outputPath = Path.Combine(
+                ctx.Job.OutputDir,
+                $"batch{ctx.Job.BatchNumber:D3}",
+                sizeName,
+                $"img{ctx.Job.ImageNumber:D4}_{sizeName}.jpg"
+            );
+
+            jobs.Add(new ResizeJob(
+                ctx.Image,
+                size,
+                sizeName,
+                outputPath,
+                _options.JpegQuality
+            ));
+        }
+
+        ctx.Emit("resize.parallel.enqueued");
+
+        // Use ParallelEphemeral to process resizes with bounded concurrency
+        // Each resize gets its own operation ID - signals propagate to main sink
+        await jobs.EphemeralForEachAsync(
+            async (job, resizeCt) =>
+            {
+                _signals.Raise($"resize.{job.SizeName}.started");
+
+                // Clone and resize
+                using var resized = job.SourceImage.Clone(imgCtx =>
+                {
+                    imgCtx.Resize(new SixLabors.ImageSharp.Processing.ResizeOptions
+                    {
+                        Size = job.TargetSize,
+                        Mode = ResizeMode.Max,
+                        Sampler = KnownResamplers.Lanczos3
+                    });
+                });
+
+                // Ensure directory exists
+                Directory.CreateDirectory(Path.GetDirectoryName(job.OutputPath)!);
+
+                // Save
+                await resized.SaveAsync(job.OutputPath, new JpegEncoder { Quality = job.Quality }, resizeCt);
+
+                _signals.Raise($"resize.{job.SizeName}.complete");
+                _signals.Raise($"file.saved:{job.OutputPath}");
+                _signals.Raise($"resize.size.bytes:{new FileInfo(job.OutputPath).Length}");
+
+                // Add output to context
+                ctx.AddOutput(job.SizeName, job.OutputPath);
+            },
+            new EphemeralOptions
+            {
+                MaxConcurrency = _options.MaxParallelism,
+                MaxTrackedOperations = _options.MaxParallelism * 3, // Small window
+                MaxOperationLifetime = TimeSpan.FromMinutes(1)
+            }
+        );
+
+        ctx.Emit("resize.parallel.complete");
+        _signals.Raise($"resize.total.operations:{jobs.Count}");
+
+        return ctx;
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+}
+
+/// <summary>
+/// Configuration for ParallelResizeImageAtom
+/// </summary>
+public sealed class ParallelResizeOptions
+{
+    public List<(Size Size, string Name)> Sizes { get; init; } = new()
+    {
+        (new Size(150, 150), "thumb"),
+        (new Size(800, 600), "medium"),
+        (new Size(1920, 1080), "large")
+    };
+
+    public int JpegQuality { get; init; } = 90;
+
+    /// <summary>
+    /// Maximum number of resize operations to run in parallel.
+    /// Coordinator window will be maxParallelism * 3.
+    /// </summary>
+    public int MaxParallelism { get; init; } = 3;
+}
+
+/// <summary>
 /// EXIF Atom - Adds metadata to images (copyright, description, keywords).
 /// Emits: exif.processing, exif.{size}.started, exif.{size}.complete, exif.complete
 /// </summary>
@@ -518,6 +643,7 @@ public sealed class ImagePipeline : IAsyncDisposable
     private readonly SignalSink _signals;
     private LoadImageAtom? _loader;
     private ResizeImageAtom? _resizer;
+    private ParallelResizeImageAtom? _parallelResizer;
     private ExifProcessingAtom? _exifProcessor;
     private WatermarkAtom? _watermarker;
     private ImageSharpCancellationHook? _cancellationHook;
@@ -550,11 +676,24 @@ public sealed class ImagePipeline : IAsyncDisposable
     }
 
     /// <summary>
-    /// Configures the resizer atom with custom options.
+    /// Configures the resizer atom with custom options (sequential processing).
     /// </summary>
     public ImagePipeline WithResize(ResizeOptions? options = null)
     {
         _resizer = new ResizeImageAtom(_signals, options);
+        _parallelResizer = null; // Clear parallel resizer
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the parallel resizer atom that uses an internal coordinator.
+    /// Demonstrates embedding a coordinator inside an atom for bounded parallel work.
+    /// The coordinator is scoped to each resize operation and has a small window (maxParallelism * 3).
+    /// </summary>
+    public ImagePipeline WithParallelResize(ParallelResizeOptions? options = null)
+    {
+        _parallelResizer = new ParallelResizeImageAtom(_signals, options);
+        _resizer = null; // Clear sequential resizer
         return this;
     }
 
@@ -602,10 +741,14 @@ public sealed class ImagePipeline : IAsyncDisposable
             // Load
             ctx = await _loader.LoadAsync(job, effectiveToken);
 
-            // Resize (if configured)
+            // Resize (if configured) - either sequential or parallel
             if (_resizer != null)
             {
                 ctx = await _resizer.ResizeAsync(ctx, effectiveToken);
+            }
+            else if (_parallelResizer != null)
+            {
+                ctx = await _parallelResizer.ResizeAsync(ctx, effectiveToken);
             }
 
             // EXIF (if configured)
@@ -643,6 +786,7 @@ public sealed class ImagePipeline : IAsyncDisposable
     {
         if (_loader != null) await _loader.DisposeAsync();
         if (_resizer != null) await _resizer.DisposeAsync();
+        if (_parallelResizer != null) await _parallelResizer.DisposeAsync();
         if (_exifProcessor != null) await _exifProcessor.DisposeAsync();
         if (_watermarker != null) await _watermarker.DisposeAsync();
         if (_cancellationHook != null) await _cancellationHook.DisposeAsync();

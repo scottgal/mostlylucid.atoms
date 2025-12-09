@@ -26,7 +26,7 @@ Loads images from disk with file I/O tracking.
 - `image.error:{message}` - Error details
 
 ### ResizeImageAtom
-Creates multiple sized variants (thumbnail, medium, large).
+Creates multiple sized variants (thumbnail, medium, large) sequentially.
 
 **Signals:**
 - `resize.started` - Pipeline begins
@@ -49,6 +49,34 @@ new ResizeOptions
     JpegQuality = 90
 }
 ```
+
+### ParallelResizeImageAtom
+**Nested Coordinator Pattern** - Creates multiple sized variants using bounded parallel execution. Demonstrates how an atom can internally use a coordinator to manage concurrent work while propagating operation-scoped signals.
+
+**Signals:**
+- `resize.parallel.started` - Parallel pipeline begins
+- `resize.parallelism:{n}` - Max parallel resizes
+- `resize.{size}.started` - Per-size start (with sub-operation ID)
+- `resize.{size}.complete` - Per-size completion (with sub-operation ID)
+- `file.saved:{path}` - File written (with sub-operation ID)
+- `resize.parallel.complete` - All sizes done
+
+**Configuration:**
+```csharp
+new ParallelResizeOptions
+{
+    Sizes = new List<(Size, string)>
+    {
+        (new Size(150, 150), "thumb"),
+        (new Size(800, 600), "medium"),
+        (new Size(1920, 1080), "large")
+    },
+    JpegQuality = 90,
+    MaxParallelism = 3  // Process 3 resizes concurrently
+}
+```
+
+**Pattern Highlight:** Each resize operation becomes a sub-operation with its own operation ID. The coordinator window is configured as `maxParallelism * 3` for short-lived operations. Signals from sub-operations propagate to the main SignalSink with proper operation IDs, enabling precise tracking and control.
 
 ### ExifProcessingAtom
 Adds EXIF metadata to images.
@@ -157,6 +185,43 @@ await using var pipeline = new ImagePipeline(sink)
         HorizontalAlignment = HorizontalAlignment.Right,
         VerticalAlignment = VerticalAlignment.Bottom
     });
+```
+
+### Parallel Resize (Nested Coordinator Pattern)
+
+```csharp
+var sink = new SignalSink();
+
+// Subscribe to see sub-operation signals
+sink.Subscribe(signal =>
+{
+    if (signal.Signal.StartsWith("resize."))
+    {
+        var opId = signal.OperationId.HasValue ? $"(op:{signal.OperationId})" : "";
+        Console.WriteLine($"{signal.Signal} {opId}");
+    }
+});
+
+await using var pipeline = new ImagePipeline(sink)
+    .WithLoader()
+    .WithParallelResize(new ParallelResizeOptions
+    {
+        Sizes = new List<(Size, string)>
+        {
+            (new Size(100, 100), "tiny"),
+            (new Size(200, 200), "small"),
+            (new Size(400, 400), "medium"),
+            (new Size(800, 800), "large"),
+            (new Size(1920, 1920), "xlarge")
+        },
+        MaxParallelism = 3,  // Process 3 resizes concurrently
+        JpegQuality = 90
+    });
+
+var result = await pipeline.ProcessAsync(job);
+
+// Each resize gets its own operation ID
+// Signals show: resize.tiny.started (op:123), resize.small.started (op:124), etc.
 ```
 
 ### Monitoring with Signals
