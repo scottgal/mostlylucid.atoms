@@ -43,10 +43,7 @@ jobs:
           cd mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo
           # Run only 3 fastest benchmarks for CI (< 5 minutes total)
           # EXPLICITLY EXCLUDE: Rate Limiter (26+ min), Parallel tests, Coordinator tests, Large Window tests
-          dotnet run -c Release --no-build -- --benchmark signals \
-            --filter "*Signal Raise (no listeners*" \
-            --filter "*Pattern Matching*" \
-            --filter "*Command Parsing*"
+          dotnet run -c Release --no-build -- --benchmark signals --filter "*Signal Raise (no listeners*|*Pattern Matching*|*Command Parsing*"
         continue-on-error: true
         timeout-minutes: 5
 

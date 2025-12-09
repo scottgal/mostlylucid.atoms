@@ -4,18 +4,33 @@ using BenchmarkDotNet.Exporters;
 using BenchmarkDotNet.Exporters.Csv;
 using BenchmarkDotNet.Exporters.Json;
 using BenchmarkDotNet.Running;
+using BenchmarkDotNet.Jobs;
+using BenchmarkDotNet.Configs;
+using BenchmarkDotNet.Toolchains.InProcess.Emit;
 using Mostlylucid.Ephemeral;
 using Mostlylucid.Ephemeral.Atoms.RateLimit;
 using Mostlylucid.Ephemeral.Atoms.WindowSize;
 
 namespace Mostlylucid.Ephemeral.Demo;
 
+public class BenchmarkConfig : ManualConfig
+{
+    public BenchmarkConfig()
+    {
+        AddJob(Job.Default
+            .WithToolchain(InProcessEmitToolchain.Instance)
+            .WithWarmupCount(3)
+            .WithIterationCount(5));
+
+        AddExporter(MarkdownExporter.GitHub);
+        AddExporter(CsvExporter.Default);
+        AddExporter(HtmlExporter.Default);
+        AddExporter(JsonExporter.FullCompressed);
+    }
+}
+
 [MemoryDiagnoser]
-[SimpleJob(warmupCount: 3, iterationCount: 5)]
-[MarkdownExporterAttribute.GitHub]
-[CsvExporter]
-[HtmlExporter]
-[JsonExporter]
+[Config(typeof(BenchmarkConfig))]
 public class SignalBenchmarks
 {
 
