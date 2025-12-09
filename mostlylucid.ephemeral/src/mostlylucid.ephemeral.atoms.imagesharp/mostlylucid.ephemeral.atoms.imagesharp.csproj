@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net6.0;net7.0;net8.0;net9.0;net10.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+
+    <!-- NuGet Package Metadata -->
+    <PackageId>mostlylucid.ephemeral.atoms.imagesharp</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Scott Galloway</Authors>
+    <Description>ImageSharp integration atoms for Mostlylucid.Ephemeral - signal-based image processing pipeline with load, resize, EXIF, and watermark atoms. Fluent API similar to ImageSharp.</Description>
+    <PackageTags>async;ephemeral;signals;imagesharp;image-processing;atoms;pipeline;resize;exif;watermark</PackageTags>
+    <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(MSBuildProjectDirectory)/ReleaseNotes.txt"))</PackageReleaseNotes>
+    <RepositoryUrl>https://github.com/scottgal/mostlylucid.atoms</RepositoryUrl>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.7" />
+    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.5" />
+    <ProjectReference Include="..\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\"/>
+    <None Include="icon.png" Pack="true" PackagePath="\"/>
+  </ItemGroup>
+</Project>

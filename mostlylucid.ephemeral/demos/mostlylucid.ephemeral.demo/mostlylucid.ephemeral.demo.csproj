@@ -18,6 +18,7 @@
     <ProjectReference Include="..\..\src\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj" />
     <ProjectReference Include="..\..\src\mostlylucid.ephemeral.atoms.ratelimit\mostlylucid.ephemeral.atoms.ratelimit.csproj" />
     <ProjectReference Include="..\..\src\mostlylucid.ephemeral.atoms.windowsize\mostlylucid.ephemeral.atoms.windowsize.csproj" />
+    <ProjectReference Include="..\..\src\mostlylucid.ephemeral.atoms.imagesharp\mostlylucid.ephemeral.atoms.imagesharp.csproj" />
   </ItemGroup>
 
 </Project>

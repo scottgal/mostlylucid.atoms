@@ -1,0 +1,12 @@
+1.0.0
+- Initial release
+- LoadImageAtom with file I/O tracking
+- ResizeImageAtom with configurable sizes
+- ExifProcessingAtom for metadata
+- WatermarkAtom with alignment options
+- ImagePipeline fluent builder
+- Full signal emission for observability
+- Production-ready resource management
+- ImageSharpCancellationHook for signal-based cancellation
+- Clean cancellation via 'imagesharp.stop' signal
+- Automatic resource cleanup on cancellation

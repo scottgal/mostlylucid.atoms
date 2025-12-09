@@ -1,0 +1,167 @@
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral\Signals\AdvancedCoordination.cs(224,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj::TargetFramework=net10.0]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral\Signals\ResponsibilitySignalManager.cs(26,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj::TargetFramework=net10.0]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral\Signals\ResponsibilitySignalManager.cs(36,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj::TargetFramework=net10.0]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral\Signals\AdvancedCoordination.cs(236,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj::TargetFramework=net10.0]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral\Signals\SignalOrchestration.cs(44,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj::TargetFramework=net10.0]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral\Signals\SignalOrchestration.cs(59,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj::TargetFramework=net10.0]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral\Signals\SignalOrchestration.cs(166,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj::TargetFramework=net10.0]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral\Signals\SignalOrchestration.cs(182,13): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj::TargetFramework=net10.0]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral.atoms.windowsize\WindowSizeAtom.cs(55,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral.atoms.windowsize\mostlylucid.ephemeral.atoms.windowsize.csproj::TargetFramework=net10.0]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral.atoms.windowsize\WindowSizeAtom.cs(175,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral.atoms.windowsize\mostlylucid.ephemeral.atoms.windowsize.csproj::TargetFramework=net10.0]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral.atoms.ratelimit\RateLimitAtom.cs(30,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral.atoms.ratelimit\mostlylucid.ephemeral.atoms.ratelimit.csproj::TargetFramework=net10.0]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral.atoms.ratelimit\RateLimitAtom.cs(133,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral.atoms.ratelimit\mostlylucid.ephemeral.atoms.ratelimit.csproj::TargetFramework=net10.0]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\SignalBenchmarks.cs(1033,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\SignalBenchmarks.cs(1047,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\TestAtom.cs(38,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\TestAtom.cs(104,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\ConsoleSignalLoggerAtom.cs(32,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\SignalBenchmarks.cs(198,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\SignalBenchmarks.cs(248,13): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\SignalBenchmarks.cs(267,13): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\SignalBenchmarks.cs(294,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\ConsoleSignalLoggerAtom.cs(229,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\SignalBenchmarks.cs(478,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\SignalBenchmarks.cs(493,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\SignalBenchmarks.cs(615,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\SignalBenchmarks.cs(662,9): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\SignalBenchmarks.cs(897,88): warning CS1998: This async method lacks 'await' operators and will run synchronously. Consider using the 'await' operator to await non-blocking API calls, or 'await Task.Run(...)' to do CPU-bound work on a background thread. [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\Program.cs(320,5): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\Program.cs(321,5): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\Program.cs(336,5): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\Program.cs(337,5): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\Program.cs(393,5): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\Program.cs(407,5): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\Program.cs(535,5): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\Program.cs(563,5): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\Program.cs(620,5): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\Program.cs(634,5): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\Program.cs(728,5): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\Program.cs(742,5): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\Program.cs(826,5): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\Program.cs(844,5): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\Program.cs(896,5): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\Program.cs(956,5): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\Program.cs(1016,5): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\Program.cs(1043,5): warning CS0618: 'SignalSink.SignalRaised' is obsolete: 'Use Subscribe() instead for better performance. This event will be removed in version 2.0.' [D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\mostlylucid.ephemeral.demo.csproj]
+[2J[3J[1;1H[38;5;8m──────────────────────────────── [0m[38;5;11mBenchmark Mode[0m[38;5;8m ────────────────────────────────[0m
+
+[38;5;51mRunning Signal Infrastructure benchmarks...[0m
+
+// Validating benchmarks:
+// ***** BenchmarkRunner: Start   *****
+// ***** Found 43 benchmark(s) in total *****
+// ***** Building 1 exe(s) in Parallel: Start   *****
+// start dotnet  restore /p:UseSharedCompilation=false /p:BuildInParallel=false /m:1 /p:Deterministic=true /p:Optimize=true /p:IntermediateOutputPath="D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\bin\Release\net10.0\6a1cf555-f2e5-4997-bb4d-4f95db3500ca\obj\Release\net9.0/" /p:OutDir="D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\bin\Release\net10.0\6a1cf555-f2e5-4997-bb4d-4f95db3500ca\bin\Release\net9.0/" /p:OutputPath="D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\bin\Release\net10.0\6a1cf555-f2e5-4997-bb4d-4f95db3500ca\bin\Release\net9.0/" in D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\bin\Release\net10.0\6a1cf555-f2e5-4997-bb4d-4f95db3500ca
+// command took 1.78 sec and exited with 1
+// ***** Done, took 00:00:01 (1.88 sec)   *****
+// Found 43 benchmarks:
+//   SignalBenchmarks.'Signal Raise (no listeners, 750K signals) - Pure signal overhead test': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Signal Raise (1 listener, 110K signals) - Listener invocation cost': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Pattern Matching (7M matches) - Glob wildcards (* and ?)': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Command Parsing (9.5M parses) - Extract command:payload using Span': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Rate Limiter (1.58M acquisitions) - Token bucket at 1000/sec': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'State Queries (56M total) - 4 methods × 14M iterations': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Window Commands (240K total) - Dynamic capacity adjustment': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Signal Chain (3 atoms, 156K chains) - Cascading propagation A→B→C': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Concurrent Signals (10 threads × 36K signals) - Multi-threaded stress': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Multi-Listener (5 listeners, 680K signals) - Fan-out scaling test': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Multi-Listener (10 listeners, 630K signals) - Linear scaling check': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Deep Chain (10 atoms, 39K chains) - Long pipeline propagation': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Complex Patterns (12.8M matches) - Multi-wildcard glob matching': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'High Frequency Burst (800K signals) - Sustained throughput test': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Window Overflow (614K ÷ 100 capacity) - Eviction mechanism stress': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Mixed Patterns (5.9M matches) - Variable depth glob complexity': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Large Window 10K - Capacity scaling baseline (122ns/signal)': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Large Window 50K - Linear scaling test (121ns/signal expected)': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Large Window 100K - Maximum capacity stress (131ns/signal)': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Dynamic Scaling (1K→10K→50K) - Multi-phase capacity growth': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Large Window + Listener 10K - Listener overhead at scale': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Large Window + Listener 50K - Sustained listener performance': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Eviction Stress (10K ÷ 1K window) - Continuous overflow handling': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Massive Burst 100K - Ultimate throughput test (134ns/signal)': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Parallel 2 Cores (2×325K signals) - Dual-core scaling': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Parallel 4 Cores (4×110K signals) - Quad-core scaling': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Parallel 8 Cores (8×54K signals) - Octa-core scaling': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Parallel 16 Cores (16×33K signals) - Full multi-core stress': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Parallel 16 Cores Heavy (16×26K signals) - Maximum contention test': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Parallel 16 Cores + Listener (16×29K) - Multi-core with fan-out': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Parallel Pattern Matching (16 cores × 75K matches) - Concurrent filtering': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Parallel Chain (16 cores × 6.8K chains) - Multi-threaded propagation': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Core Scaling Test (1→2→4→8→16) - Progressive parallelism': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Parallel 20 Cores (20×26K signals) - 20-core scaling': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Parallel 24 Cores (24×22K signals) - 24-core scaling': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Parallel 28 Cores (28×19K signals) - 28-core scaling': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'Parallel 32 Cores (32×16K signals) - Maximum 32-core stress': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'EphemeralWorkCoordinator Enqueue (100K items, 16 concurrency) - Queue throughput': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'EphemeralKeyedWorkCoordinator (10K keys × 10 items) - Per-key sequential processing': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'EphemeralForEachAsync (100K items, 16 concurrency) - Parallel collection processing': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'EphemeralForEachAsync (10K items, 32 concurrency) - Maximum parallelism': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'EphemeralResultCoordinator (50K items) - Result capture + retrieval overhead': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+//   SignalBenchmarks.'🔥 FINALE: Full System Stress (1→32 cores, 2M+ signals) - Ultimate scalability test': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+
+Setup power plan (GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c FriendlyName: High performance)
+// Build Error: Standard output: 
+  
+ Standard error: 
+   Determining projects to restore...
+D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\bin\Release\net10.0\6a1cf555-f2e5-4997-bb4d-4f95db3500ca\BenchmarkDotNet.Autogenerated.csproj : error NU1201: Project mostlylucid.ephemeral.demo is not compatible with net9.0 (.NETCoreApp,Version=v9.0). Project mostlylucid.ephemeral.demo supports: net10.0 (.NETCoreApp,Version=v10.0)
+  Failed to restore D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\bin\Release\net10.0\6a1cf555-f2e5-4997-bb4d-4f95db3500ca\BenchmarkDotNet.Autogenerated.csproj (in 647 ms).
+  4 of 5 projects are up-to-date for restore.
+
+// BenchmarkDotNet has failed to build the auto-generated boilerplate code.
+// It can be found in D:\Source\mostlylucid.atoms\mostlylucid.ephemeral\demos\mostlylucid.ephemeral.demo\bin\Release\net10.0\6a1cf555-f2e5-4997-bb4d-4f95db3500ca
+// Please follow the troubleshooting guide: https://benchmarkdotnet.org/articles/guides/troubleshooting.html
+
+// ** Remained 0 (0.0%) benchmark(s) to run. Estimated finish 2025-12-09 0:24 (0h 0m from now) **
+Successfully reverted power plan (GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c FriendlyName: High performance)
+// ***** BenchmarkRunner: Finish  *****
+
+// * Export *
+  BenchmarkDotNet.Artifacts\results\Mostlylucid.Ephemeral.Demo.SignalBenchmarks-report.csv
+  BenchmarkDotNet.Artifacts\results\Mostlylucid.Ephemeral.Demo.SignalBenchmarks-report-github.md
+  BenchmarkDotNet.Artifacts\results\Mostlylucid.Ephemeral.Demo.SignalBenchmarks-report.html
+  BenchmarkDotNet.Artifacts\results\Mostlylucid.Ephemeral.Demo.SignalBenchmarks-report.json
+
+// * Detailed results *
+SignalBenchmarks.'Signal Raise (no listeners, 750K signals) - Pure signal overhead test': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+Runtime = ; GC = 
+There are not any results runs
+
+// * Summary *
+
+BenchmarkDotNet v0.14.0, Windows 11 (10.0.26100.7171)
+Unknown processor
+.NET SDK 10.0.100-rc.1.25451.107
+  [Host] : .NET 10.0.0 (10.0.25.45207), X64 RyuJIT AVX-512F+CD+BW+DQ+VL+VBMI
+
+Toolchain=.NET 9.0  InvocationCount=1  IterationCount=5  
+UnrollFactor=1  WarmupCount=3  
+
+| Method                                                                  | Mean | Error |
+|------------------------------------------------------------------------ |-----:|------:|
+| 'Signal Raise (no listeners, 750K signals) - Pure signal overhead test' |   NA |    NA |
+
+Benchmarks with issues:
+  SignalBenchmarks.'Signal Raise (no listeners, 750K signals) - Pure signal overhead test': Job-PSHYZU(Toolchain=.NET 9.0, InvocationCount=1, IterationCount=5, UnrollFactor=1, WarmupCount=3)
+// * Config Issues *
+
+// * Warnings *
+Configuration
+  Summary -> The exporter MarkdownExporter-github is already present in configuration. There may be unexpected results.
+  Summary -> The exporter CsvExporter is already present in configuration. There may be unexpected results.
+  Summary -> The exporter HtmlExporter is already present in configuration. There may be unexpected results.
+
+// * Legends *
+  Mean  : Arithmetic mean of all measurements
+  Error : Half of 99.9% confidence interval
+  1 ns  : 1 Nanosecond (0.000000001 sec)
+
+// * Diagnostic Output - MemoryDiagnoser *
+
+
+// ***** BenchmarkRunner: End *****
+Run time: 00:00:00 (0.21 sec), executed benchmarks: 0
+
+Global total time: 00:00:02 (2.21 sec), executed benchmarks: 0
+// * Artifacts cleanup *
+Artifacts cleanup is finished

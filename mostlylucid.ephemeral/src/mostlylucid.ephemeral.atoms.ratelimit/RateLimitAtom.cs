@@ -33,18 +33,18 @@ public sealed class RateLimitAtom : IAsyncDisposable
     /// <summary>
     /// Current configured throughput (tokens per second).
     /// </summary>
-    public double RatePerSecond => Volatile.Read(ref _ratePerSecond);
+    public double RatePerSecond => System.Threading.Volatile.Read(ref _ratePerSecond);
 
     /// <summary>
     /// Current burst size (token bucket capacity).
     /// </summary>
-    public int Burst => Volatile.Read(ref _burst);
+    public int Burst => System.Threading.Volatile.Read(ref _burst);
 
     /// <summary>
     /// Acquires the requested tokens; await before starting work.
     /// </summary>
     public ValueTask<RateLimitLease> AcquireAsync(CancellationToken cancellationToken = default) =>
-        Volatile.Read(ref _limiter).AcquireAsync(1, cancellationToken);
+        System.Threading.Volatile.Read(ref _limiter).AcquireAsync(1, cancellationToken);
 
     private void OnSignal(SignalEvent signal)
     {
