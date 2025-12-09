@@ -18,13 +18,16 @@ public static class ParallelResizeDemo
         Console.WriteLine("💡 Press [ESC] during processing to cancel operations via signals\n");
 
         // Setup
-        var testDataDir = Path.Combine(AppContext.BaseDirectory, "testdata");
-        var sourceImage = Path.Combine(testDataDir, "logo.png");
+        var sourceImage = FindTestImage();
         var outputDir = Path.Combine(AppContext.BaseDirectory, "output", "parallel-resize");
 
-        if (!File.Exists(sourceImage))
+        if (sourceImage == null)
         {
-            Console.WriteLine($"Error: Source image not found at {sourceImage}");
+            Console.WriteLine($"Error: Could not find test image logo.png");
+            Console.WriteLine($"Tried locations:");
+            Console.WriteLine($"  - {{AppContext.BaseDirectory}}/testdata/logo.png");
+            Console.WriteLine($"  - {{CurrentDirectory}}/testdata/logo.png");
+            Console.WriteLine($"  - {{CurrentDirectory}}/../../testdata/logo.png (from build output)");
             return;
         }
 
@@ -36,31 +39,53 @@ public static class ParallelResizeDemo
         Console.WriteLine($"Source: {sourceImage}");
         Console.WriteLine($"Output: {outputDir}\n");
 
+        // Process MANY images to show cancellation working
+        const int imageCount = 50;
+
         // Create signal sink and subscribe to see nested operation pattern
         var sink = new SignalSink();
-        var signalLog = new List<(string Signal, long? OperationId, DateTimeOffset Timestamp)>();
+        var signalLog = new List<(string Signal, long OperationId, DateTimeOffset Timestamp)>();
+
+        // Live status tracking
+        var statusLock = new object();
+        var imagesCompleted = 0;
+        var currentlyResizing = new HashSet<string>();
+        var completedResizes = new HashSet<string>();
 
         sink.Subscribe(signal =>
         {
             signalLog.Add((signal.Signal, signal.OperationId, signal.Timestamp));
 
-            // Highlight different signal types with colors
-            var (prefix, color) = signal.Signal switch
+            // Update live status
+            lock (statusLock)
             {
-                var s when s.StartsWith("resize.parallel") => ("  [PARALLEL] ", "\u001b[96m"),   // Bright cyan
-                var s when s.StartsWith("resize.parallelism") => ("  [CONFIG]   ", "\u001b[93m"), // Bright yellow
-                var s when s.StartsWith("image.") => ("  [IMAGE]    ", "\u001b[36m"),             // Cyan
-                var s when s.Contains(".started") => ("    [START]  ", "\u001b[33m"),             // Yellow
-                var s when s.Contains(".complete") => ("    [DONE]   ", "\u001b[32m"),            // Green
-                var s when s.StartsWith("file.saved") => ("    [SAVED]  ", "\u001b[92m"),         // Bright green
-                _ => ("           ", "\u001b[90m")                                                 // Gray
-            };
+                if (signal.Signal.Contains(".started") && !signal.Signal.StartsWith("resize.parallel"))
+                {
+                    var sizeName = signal.Signal.Split('.')[1];
+                    currentlyResizing.Add(sizeName);
+                }
+                else if (signal.Signal.Contains(".complete") && !signal.Signal.StartsWith("resize.parallel"))
+                {
+                    var sizeName = signal.Signal.Split('.')[1];
+                    currentlyResizing.Remove(sizeName);
+                    completedResizes.Add(sizeName);
+                }
+                else if (signal.Signal == "resize.parallel.complete")
+                {
+                    imagesCompleted++;
+                    currentlyResizing.Clear();
+                }
 
-            var opIdStr = signal.OperationId != 0 ? $" [op:{signal.OperationId}]" : "";
-            Console.WriteLine($"{color}{prefix}{signal.Signal}{opIdStr}\u001b[0m");
+                // Show live status (overwrite previous line)
+                Console.Write($"\r\u001b[K"); // Clear line
+                Console.Write($"Images: {imagesCompleted}/{imageCount} | ");
+                Console.Write($"Resizing: {string.Join(", ", currentlyResizing.Take(3))}");
+                if (currentlyResizing.Count > 3) Console.Write($" +{currentlyResizing.Count - 3} more");
+                Console.Write($" | Completed: {completedResizes.Count} sizes");
+            }
         });
 
-        Console.WriteLine("\nSignal Stream (real-time):");
+        Console.WriteLine("Live Progress:");
         Console.WriteLine("────────────────────────────────────────────────────────────────");
 
         // Configure custom resize sizes - 6 different sizes for demo
@@ -76,14 +101,12 @@ public static class ParallelResizeDemo
                 (new Size(1920, 1920), "xxlarge")
             },
             JpegQuality = 90,
-            MaxParallelism = 3 // Process 3 resizes concurrently
+            MaxParallelism = Environment.ProcessorCount // Max speed - use all processors
         };
 
-        // Process MANY images (50) to show cancellation working
-        const int imageCount = 50;
         Console.WriteLine($"Processing {imageCount} images (each with {resizeOptions.Sizes.Count} sizes)");
         Console.WriteLine($"Total resize operations: {imageCount * resizeOptions.Sizes.Count} operations");
-        Console.WriteLine($"Max parallelism: {resizeOptions.MaxParallelism} concurrent resizes\n");
+        Console.WriteLine($"Max parallelism: {resizeOptions.MaxParallelism} concurrent resizes ({Environment.ProcessorCount} processors)\n");
         Console.WriteLine("Watch for operation IDs - each resize is a sub-operation");
         Console.WriteLine("Press [ESC] to cancel all in-progress operations\n");
 
@@ -226,6 +249,29 @@ public static class ParallelResizeDemo
         Console.WriteLine($"   ✓ Bounded parallelism: {resizeOptions.MaxParallelism} concurrent resizes");
         Console.WriteLine($"   ✓ Signal-based cancellation via [ESC] → 'imagesharp.stop'");
         Console.WriteLine($"   ✓ Nested coordinators propagate operation IDs automatically");
+    }
+
+    private static string? FindTestImage()
+    {
+        // Try multiple possible locations for the test image
+        var possiblePaths = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "testdata", "logo.png"),
+            Path.Combine(Directory.GetCurrentDirectory(), "testdata", "logo.png"),
+            Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "testdata", "logo.png"),
+            Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "testdata", "logo.png"),
+        };
+
+        foreach (var path in possiblePaths)
+        {
+            var fullPath = Path.GetFullPath(path);
+            if (File.Exists(fullPath))
+            {
+                return fullPath;
+            }
+        }
+
+        return null;
     }
 
     private static string FormatBytes(long bytes)

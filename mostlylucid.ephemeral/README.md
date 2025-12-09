@@ -1,5 +1,9 @@
 # Mostlylucid.Ephemeral
 
+**The engine behind Styloflow - an ephemeral workflow solution. (And Stylobot, the learning forensic semantic firewall)**
+
+<img src="demos/mostlylucid.ephemeral.demo/testdata/logo.png" width="120" height="120">
+
 **Fire... and Don't *Quite* Forget.**
 
 A lightweight .NET library for bounded, observable, self-cleaning async execution with signal-based coordination. Targets .NET 6.0, 7.0, 8.0, 9.0, and 10.0.
@@ -622,6 +626,41 @@ var options = new EphemeralOptions
 };
 ```
 
+### Operation-Scoped Signal Emission
+
+When using `EphemeralForEachAsync` with the operation-exposing overload, you can emit signals that are automatically scoped to the current operation ID. This ensures all signals from a single operation share the same ID for proper correlation:
+
+```csharp
+var sink = new SignalSink();
+
+// Process jobs with operation-scoped signals
+await jobs.EphemeralForEachAsync(async (job, op) =>
+{
+    // All signals from this operation will share the same operation ID
+    op.Signal($"resize.{job.SizeName}.started");
+
+    // ... do work ...
+
+    op.Signal($"resize.{job.SizeName}.complete");
+    op.Signal($"file.saved:{outputPath}");
+},
+new EphemeralOptions { MaxConcurrency = Environment.ProcessorCount },
+sink);
+
+// Query signals by operation ID (shortcut method)
+var signalsForOp = sink.GetOpSignals(targetOpId);
+
+// Or filter by pattern too
+var resizeSignals = sink.GetOpSignals(targetOpId, "resize.*");
+```
+
+**Key Benefits:**
+- **Automatic correlation**: All signals from one operation share the same operation ID
+- **Nested coordinators**: Sub-operations get unique IDs while maintaining parent relationship
+- **Signal-based stats**: Derive metrics directly from signal history instead of separate counters
+
+See [PARALLEL_RESIZE_DEMO.md](demos/mostlylucid.ephemeral.demo/PARALLEL_RESIZE_DEMO.md) for a complete example of nested coordinators with operation-scoped signals.
+
 ### Signal Orchestration Helpers
 
 - Typed payload signals: `var typed = new TypedSignalSink<BotEvidence>(); typed.Raise("bot.evidence", payload);` (mirrors to the untyped `SignalSink` for compatibility)
@@ -901,7 +940,8 @@ Small, opinionated wrappers for common patterns:
 | `mostlylucid.ephemeral.atoms.windowsize` | Signals can grow/shrink the signal window/retention (window size atom) |
 | `mostlylucid.ephemeral.atoms.molecules` | Molecules/atom-trigger helpers for signal-driven workflows |
 | `mostlylucid.ephemeral.atoms.scheduledtasks` | Cron/JSON-driven durable tasks using `DurableTaskAtom` + `ScheduledTasksAtom` |
-| `mostlylucid.ephemeral.atoms.echo` | Capture typed “last words” payloads via `OperationEchoMaker` and persist them with `OperationEchoAtom` |
+| `mostlylucid.ephemeral.atoms.echo` | Capture typed "last words" payloads via `OperationEchoMaker` and persist them with `OperationEchoAtom` |
+| `mostlylucid.ephemeral.atoms.ratelimit` | Token bucket and GCRA rate limiting with signal integration - [GCRA docs](src/mostlylucid.ephemeral.atoms.ratelimit/GCRA.md) |
 
 ### Scheduled tasks
 

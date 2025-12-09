@@ -3,9 +3,10 @@ using System.Runtime.CompilerServices;
 namespace Mostlylucid.Ephemeral;
 
 /// <summary>
-///     Internal operation tracking for non-result-returning work.
+///     Operation tracking for non-result-returning work.
+///     Exposed publicly to enable signal emission with correct operation IDs in parallel work.
 /// </summary>
-internal sealed class EphemeralOperation : ISignalEmitter
+public sealed class EphemeralOperation : ISignalEmitter
 {
     private readonly SignalConstraints? _constraints;
     private readonly Action<SignalEvent>? _onSignal;

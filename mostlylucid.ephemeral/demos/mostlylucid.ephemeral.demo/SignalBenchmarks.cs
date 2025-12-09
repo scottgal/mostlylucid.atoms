@@ -856,14 +856,14 @@ public class SignalBenchmarks
         var processedCount = 0;
 
         // EphemeralForEachAsync already waits for completion
-        await items.EphemeralForEachAsync(async (item, op) =>
+        await items.EphemeralForEachAsync(async (item, ct) =>
         {
             Interlocked.Increment(ref processedCount);
             await Task.CompletedTask;
         }, new EphemeralOptions
         {
             MaxConcurrency = 16
-        });
+        }, default(CancellationToken));
 
         // Verify all processed
         if (processedCount != 100_000)
@@ -876,14 +876,14 @@ public class SignalBenchmarks
         var items = Enumerable.Range(0, 10_000).ToList();
         var processedCount = 0;
 
-        await items.EphemeralForEachAsync(async (item, op) =>
+        await items.EphemeralForEachAsync(async (item, ct) =>
         {
             Interlocked.Increment(ref processedCount);
             await Task.CompletedTask;
         }, new EphemeralOptions
         {
             MaxConcurrency = 32
-        });
+        }, default(CancellationToken));
 
         if (processedCount != 10_000)
             throw new InvalidOperationException($"Expected 10K, got {processedCount}");

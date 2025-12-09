@@ -62,6 +62,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution", "Solution", "{F4
 		..\.github\workflows\publish-all.yml = ..\.github\workflows\publish-all.yml
 		..\.github\workflows\publish-nuget.yml = ..\.github\workflows\publish-nuget.yml
 		..\.github\workflows\build.yml = ..\.github\workflows\build.yml
+		README.md = README.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "mostlylucid.ephemeral.sqlite.singlewriter.tests", "tests\mostlylucid.ephemeral.sqlite.singlewriter.tests\mostlylucid.ephemeral.sqlite.singlewriter.tests.csproj", "{C99C59F0-36FA-4DA3-86F7-5E99B401906A}"

@@ -301,44 +301,43 @@ public sealed class ParallelResizeImageAtom : IAsyncDisposable
 
         ctx.Emit("resize.parallel.enqueued");
 
-        // Use ParallelEphemeral to process resizes with bounded concurrency
-        // Each resize gets its own operation ID - signals propagate to main sink
-        await jobs.EphemeralForEachAsync(
-            async (job, resizeCt) =>
-            {
-                _signals.Raise($"resize.{job.SizeName}.started");
+        // Use EphemeralForEachAsync to get access to operation context for proper signal scoping
+        await jobs.EphemeralForEachAsync(async (job, op) =>
+        {
+            // Use operation context to emit signals with proper operation ID
+            op.Signal($"resize.{job.SizeName}.started");
 
-                // Clone and resize
-                using var resized = job.SourceImage.Clone(imgCtx =>
+            // Clone and resize
+            using var resized = job.SourceImage.Clone(imgCtx =>
+            {
+                imgCtx.Resize(new SixLabors.ImageSharp.Processing.ResizeOptions
                 {
-                    imgCtx.Resize(new SixLabors.ImageSharp.Processing.ResizeOptions
-                    {
-                        Size = job.TargetSize,
-                        Mode = ResizeMode.Max,
-                        Sampler = KnownResamplers.Lanczos3
-                    });
+                    Size = job.TargetSize,
+                    Mode = ResizeMode.Max,
+                    Sampler = KnownResamplers.Lanczos3
                 });
+            });
 
-                // Ensure directory exists
-                Directory.CreateDirectory(Path.GetDirectoryName(job.OutputPath)!);
+            // Ensure directory exists
+            Directory.CreateDirectory(Path.GetDirectoryName(job.OutputPath)!);
 
-                // Save
-                await resized.SaveAsync(job.OutputPath, new JpegEncoder { Quality = job.Quality }, resizeCt);
+            // Save
+            await resized.SaveAsync(job.OutputPath, new JpegEncoder { Quality = job.Quality }, ct);
 
-                _signals.Raise($"resize.{job.SizeName}.complete");
-                _signals.Raise($"file.saved:{job.OutputPath}");
-                _signals.Raise($"resize.size.bytes:{new FileInfo(job.OutputPath).Length}");
+            op.Signal($"resize.{job.SizeName}.complete");
+            op.Signal($"file.saved:{job.OutputPath}");
+            op.Signal($"resize.size.bytes:{new FileInfo(job.OutputPath).Length}");
 
-                // Add output to context
-                ctx.AddOutput(job.SizeName, job.OutputPath);
-            },
-            new EphemeralOptions
-            {
-                MaxConcurrency = _options.MaxParallelism,
-                MaxTrackedOperations = _options.MaxParallelism * 3, // Small window
-                MaxOperationLifetime = TimeSpan.FromMinutes(1)
-            }
-        );
+            // Add output to context
+            ctx.AddOutput(job.SizeName, job.OutputPath);
+        },
+        new EphemeralOptions
+        {
+            MaxConcurrency = _options.MaxParallelism,
+            MaxTrackedOperations = _options.MaxParallelism * 3, // Small window
+            MaxOperationLifetime = TimeSpan.FromMinutes(1)
+        },
+        _signals);
 
         ctx.Emit("resize.parallel.complete");
         _signals.Raise($"resize.total.operations:{jobs.Count}");

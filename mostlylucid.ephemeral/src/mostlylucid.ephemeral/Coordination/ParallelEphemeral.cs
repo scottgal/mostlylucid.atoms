@@ -53,6 +53,76 @@ public static class ParallelEphemeral
     }
 
     /// <summary>
+    ///     Ephemeral parallel foreach with operation context exposed:
+    ///     - Bounded concurrency
+    ///     - Keeps a small rolling window of recent operations
+    ///     - Exposes operation for signal emission with correct operation ID
+    /// </summary>
+    public static async Task EphemeralForEachAsync<T>(
+        this IEnumerable<T> source,
+        Func<T, EphemeralOperation, Task> body,
+        EphemeralOptions? options = null,
+        SignalSink? signals = null,
+        CancellationToken cancellationToken = default)
+    {
+        options ??= new EphemeralOptions();
+
+        // If a signal sink is provided, create operation with it
+        var effectiveSignals = signals ?? options.Signals;
+
+        using var concurrency = new SemaphoreSlim(options.MaxConcurrency, options.MaxConcurrency);
+        var recent = new ConcurrentQueue<EphemeralOperation>();
+
+        var running = new List<Task>();
+
+        if (source is ICollection<T> coll)
+        {
+            running.Capacity = Math.Min(coll.Count, options.MaxConcurrency * 2);
+        }
+
+        foreach (var item in source)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await concurrency.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+            var op = new EphemeralOperation(effectiveSignals, options.OnSignal, options.OnSignalRetracted,
+                options.SignalConstraints);
+            EnqueueEphemeral(op, recent, options);
+
+            var task = ExecuteWithOpAsync(item, body, op, recent, options, cancellationToken, concurrency);
+            running.Add(task);
+        }
+
+        await Task.WhenAll(running).ConfigureAwait(false);
+    }
+
+    private static async Task ExecuteWithOpAsync<T>(
+        T item,
+        Func<T, EphemeralOperation, Task> body,
+        EphemeralOperation op,
+        ConcurrentQueue<EphemeralOperation> recent,
+        EphemeralOptions options,
+        CancellationToken cancellationToken,
+        SemaphoreSlim semaphore)
+    {
+        try
+        {
+            await body(item, op).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            op.Error = ex;
+        }
+        finally
+        {
+            op.Completed = DateTimeOffset.UtcNow;
+            semaphore.Release();
+            CleanupWindow(recent, options);
+            SampleIfRequested(recent, options);
+        }
+    }
+
+    /// <summary>
     ///     Keyed version:
     ///     - Overall concurrency bounded by MaxConcurrency
     ///     - Per-key concurrency bounded by MaxConcurrencyPerKey (default 1 = sequential pipelines per key)

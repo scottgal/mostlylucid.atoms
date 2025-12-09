@@ -23,13 +23,15 @@ public static class ImageProcessingDemo
         }
         Directory.CreateDirectory(outputDir);
 
-        // Find source image
-        var testDataDir = Path.Combine(AppContext.BaseDirectory, "testdata");
-        var sourceImage = Path.Combine(testDataDir, "logo.png");
-
-        if (!File.Exists(sourceImage))
+        // Find source image - try multiple locations
+        var sourceImage = FindTestImage();
+        if (sourceImage == null)
         {
-            Console.WriteLine($"Error: Source image not found at {sourceImage}");
+            Console.WriteLine($"Error: Could not find test image logo.png");
+            Console.WriteLine($"Tried locations:");
+            Console.WriteLine($"  - {{AppContext.BaseDirectory}}/testdata/logo.png");
+            Console.WriteLine($"  - {{CurrentDirectory}}/testdata/logo.png");
+            Console.WriteLine($"  - {{CurrentDirectory}}/../../testdata/logo.png (from build output)");
             return;
         }
 
@@ -63,6 +65,7 @@ public static class ImageProcessingDemo
         sink.Subscribe(signal =>
         {
             signalCount++;
+            var timestamp = signal.Timestamp.ToString("HH:mm:ss.fff");
             var opId = signal.OperationId != 0 ? $" [op:{signal.OperationId}]" : "";
             var color = signal.Signal switch
             {
@@ -75,7 +78,7 @@ public static class ImageProcessingDemo
                 var s when s.Contains("complete") => "\u001b[92m",             // Bright green
                 _ => "\u001b[90m"                                               // Gray
             };
-            Console.WriteLine($"{color}  {signal.Signal}{opId}\u001b[0m");
+            Console.WriteLine($"\u001b[90m[{timestamp}]\u001b[0m {color}{signal.Signal}{opId}\u001b[0m");
         });
 
         Console.WriteLine("Signal Stream (real-time):");
@@ -187,6 +190,29 @@ public static class ImageProcessingDemo
         {
             Console.WriteLine("No images were processed (all cancelled).");
         }
+    }
+
+    private static string? FindTestImage()
+    {
+        // Try multiple possible locations for the test image
+        var possiblePaths = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "testdata", "logo.png"),
+            Path.Combine(Directory.GetCurrentDirectory(), "testdata", "logo.png"),
+            Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "testdata", "logo.png"),
+            Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "testdata", "logo.png"),
+        };
+
+        foreach (var path in possiblePaths)
+        {
+            var fullPath = Path.GetFullPath(path);
+            if (File.Exists(fullPath))
+            {
+                return fullPath;
+            }
+        }
+
+        return null;
     }
 
     private static string FormatBytes(long bytes)

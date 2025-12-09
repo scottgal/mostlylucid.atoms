@@ -452,6 +452,44 @@ public sealed class SignalSink
     }
 
     /// <summary>
+    ///     Get signals for a specific operation ID.
+    ///     Convenience method for: Sense(s => s.OperationId == operationId)
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public IReadOnlyList<SignalEvent> GetOpSignals(long operationId)
+    {
+        return Sense(s => s.OperationId == operationId);
+    }
+
+    /// <summary>
+    ///     Get signals for a specific operation ID matching a pattern.
+    ///     Convenience method for: Sense(s => s.OperationId == operationId && matches(pattern))
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public IReadOnlyList<SignalEvent> GetOpSignals(long operationId, string pattern)
+    {
+        return Sense(s => s.OperationId == operationId && StringPatternMatcher.Matches(s.Signal, pattern));
+    }
+
+    /// <summary>
+    ///     Get operation summary from signals. Returns null if no signals found for this operation.
+    ///     Convenience method that aggregates signal history for an operation.
+    /// </summary>
+    public OperationSignalSummary? GetOp(long operationId)
+    {
+        var signals = GetOpSignals(operationId);
+        if (signals.Count == 0)
+            return null;
+
+        return new OperationSignalSummary(
+            operationId,
+            signals[0].Key,
+            signals[0].Timestamp,
+            signals[^1].Timestamp,
+            signals);
+    }
+
+    /// <summary>
     ///     Detect any signals matching predicate.
     ///     Short-circuits on first match for O(1) best case.
     /// </summary>
@@ -716,4 +754,43 @@ public sealed class AsyncSignalProcessor : IAsyncDisposable
             _concurrencyGate.Release();
         }
     }
+}
+
+/// <summary>
+/// Summary of an operation derived from its signal history.
+/// Provides a lightweight view of operation lifecycle without accessing coordinator state.
+/// </summary>
+public sealed record OperationSignalSummary(
+    long OperationId,
+    string? Key,
+    DateTimeOffset FirstSignalTime,
+    DateTimeOffset LastSignalTime,
+    IReadOnlyList<SignalEvent> Signals)
+{
+    /// <summary>
+    /// Duration between first and last signal.
+    /// </summary>
+    public TimeSpan Duration => LastSignalTime - FirstSignalTime;
+
+    /// <summary>
+    /// Total number of signals emitted by this operation.
+    /// </summary>
+    public int SignalCount => Signals.Count;
+
+    /// <summary>
+    /// Check if operation has a specific signal.
+    /// </summary>
+    public bool HasSignal(string signal) => Signals.Any(s => s.Signal == signal);
+
+    /// <summary>
+    /// Check if operation has signals matching a pattern.
+    /// </summary>
+    public bool HasSignalPattern(string pattern) =>
+        Signals.Any(s => StringPatternMatcher.Matches(s.Signal, pattern));
+
+    /// <summary>
+    /// Get all signals matching a pattern.
+    /// </summary>
+    public IEnumerable<SignalEvent> GetSignals(string pattern) =>
+        Signals.Where(s => StringPatternMatcher.Matches(s.Signal, pattern));
 }
