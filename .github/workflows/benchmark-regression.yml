@@ -38,14 +38,14 @@ jobs:
       - name: Build Release
         run: dotnet build mostlylucid.ephemeral/mostlylucid.ephemeral.sln -c Release --no-restore
 
-      - name: Run Benchmarks (CI subset - fast benchmarks only)
+      - name: Run Benchmarks (All tests with InProcess toolchain)
         run: |
           cd mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo
-          # Run only 3 fastest benchmarks for CI (< 5 minutes total)
-          # EXPLICITLY EXCLUDE: Rate Limiter (26+ min), Parallel tests, Coordinator tests, Large Window tests
-          dotnet run -c Release --no-build -- --benchmark signals --filter "*Signal Raise (no listeners*|*Pattern Matching*|*Command Parsing*"
+          # Run all benchmarks with InProcessEmit toolchain (avoids .NET 9→10 TFM issues)
+          # Note: Rate Limiter takes 26+ min due to real-world 1000 tokens/sec throttling
+          dotnet run -c Release --no-build -- --benchmark signals
         continue-on-error: true
-        timeout-minutes: 5
+        timeout-minutes: 45
 
       - name: Store benchmark results
         uses: actions/upload-artifact@v4
