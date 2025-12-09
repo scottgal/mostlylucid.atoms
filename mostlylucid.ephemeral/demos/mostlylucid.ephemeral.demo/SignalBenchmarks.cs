@@ -18,6 +18,7 @@ namespace Mostlylucid.Ephemeral.Demo;
 [JsonExporter]
 public class SignalBenchmarks
 {
+
     private SignalSink _sink = null!;
     private TestAtom _atom = null!;
     private WindowSizeAtom _windowAtom = null!;
