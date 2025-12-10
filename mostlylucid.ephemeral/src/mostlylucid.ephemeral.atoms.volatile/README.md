@@ -2,6 +2,9 @@
 
 Remove completed operations the moment they emit a kill signal so your window stays tiny and every operation is truly ephemeral.
 
+> 🚨🚨 WARNING 🚨🚨 - Though in the 1.x range of version THINGS WILL STILL BREAK. This is the lab for developing this concept when stabilized it'll becoe the first *stylo*flow release 🚨🚨🚨
+
+
 Every `EphemeralWorkCoordinator` now implements `IOperationEvictor.TryKill(long)` so you can ask it to drop an operation immediately. `VolatileOperationAtom` hooks a shared `SignalSink`, listens for a configurable kill pattern (default `kill.*`), and evicts the matching operation as soon as its kill signal arrives. Combine with `EphemeralOptions.EnableOperationEcho` / `OperationEchoMaker` if you still need a trimmed copy of the final signal wave.
 
 ```csharp

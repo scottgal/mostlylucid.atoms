@@ -2,6 +2,9 @@
 
 [![NuGet](https://img.shields.io/nuget/v/mostlylucid.ephemeral.patterns.controlledfanout.svg)](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.controlledfanout)
 
+> 🚨🚨 WARNING 🚨🚨 - Though in the 1.x range of version THINGS WILL STILL BREAK. This is the lab for developing this concept when stabilized it'll becoe the first *stylo*flow release 🚨🚨🚨
+
+
 Global gate bounds total concurrency while per-key ordering is preserved.
 
 ```bash

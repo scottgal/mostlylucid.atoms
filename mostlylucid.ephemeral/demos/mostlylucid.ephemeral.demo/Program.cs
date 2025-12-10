@@ -34,6 +34,11 @@ if (args.Length > 0 && args[0] == "--benchmark")
             BenchmarkRunner.RunBenchmark("Parallel|Core");
             return;
 
+        case "scoped":
+            AnsiConsole.MarkupLine("[cyan1]Running Scoped Signal Architecture benchmarks...[/]\n");
+            BenchmarkRunner.RunBenchmark("Scoped");
+            return;
+
         case "finale":
             AnsiConsole.MarkupLine("[cyan1]Running FINALE benchmark...[/]\n");
             BenchmarkRunner.RunBenchmark("FINALE");
@@ -111,6 +116,7 @@ void ListBenchmarks()
     AnsiConsole.MarkupLine($"  [cyan1]signals[/]      - Signal infrastructure only ({signalBenchmarks.Count} benchmarks)");
     AnsiConsole.MarkupLine($"  [cyan1]coordinators[/] - Coordinator benchmarks only ({coordinatorBenchmarks.Count} benchmarks)");
     AnsiConsole.MarkupLine($"  [cyan1]parallelism[/]  - Parallelism benchmarks only ({parallelismBenchmarks.Count} benchmarks)");
+    AnsiConsole.MarkupLine("  [cyan1]scoped[/]       - Scoped signal architecture benchmarks");
     AnsiConsole.MarkupLine($"  [cyan1]finale[/]       - FINALE benchmark only ({finaleBenchmark.Count} benchmark)");
     AnsiConsole.MarkupLine("  [cyan1]list[/]         - Show this list\n");
 
@@ -118,6 +124,7 @@ void ListBenchmarks()
     AnsiConsole.MarkupLine("  [grey]dotnet run -c Release -- --benchmark all[/]");
     AnsiConsole.MarkupLine("  [grey]dotnet run -c Release -- --benchmark signals[/]");
     AnsiConsole.MarkupLine("  [grey]dotnet run -c Release -- --benchmark coordinators[/]");
+    AnsiConsole.MarkupLine("  [grey]dotnet run -c Release -- --benchmark scoped[/]");
     AnsiConsole.MarkupLine("  [grey]dotnet run -c Release -- --benchmark finale[/]");
 }
 

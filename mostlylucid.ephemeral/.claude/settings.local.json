@@ -3,7 +3,14 @@
     "allow": [
       "Bash(Select-String -Pattern \"(Error|succeeded|failed)\")",
       "Bash(Select-Object -Last 20)",
-      "Bash(dotnet run:*)"
+      "Bash(dotnet run:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File add-warning.ps1)",
+      "Bash(Select-String -Pattern \"(BenchmarkDotNet|Running|Mean|Allocated)\")",
+      "Bash(Select-Object -First 50)",
+      "Bash(timeout 300 dotnet run:*)",
+      "Bash(move:*)",
+      "Bash(Select-String -Pattern \"(error|succeeded|Scoped)\")",
+      "Bash(timeout 600 dotnet run:*)"
     ],
     "deny": [],
     "ask": []

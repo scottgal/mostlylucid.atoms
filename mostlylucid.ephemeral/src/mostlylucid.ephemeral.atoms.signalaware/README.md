@@ -2,6 +2,9 @@
 
 [![NuGet](https://img.shields.io/nuget/v/mostlylucid.ephemeral.atoms.signalaware.svg)](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.signalaware)
 
+> 🚨🚨 WARNING 🚨🚨 - Though in the 1.x range of version THINGS WILL STILL BREAK. This is the lab for developing this concept when stabilized it'll becoe the first *stylo*flow release 🚨🚨🚨
+
+
 Pause or cancel intake based on ambient signals. Circuit-breaker and backpressure patterns.
 
 ```bash

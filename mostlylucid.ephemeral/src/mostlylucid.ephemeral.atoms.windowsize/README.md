@@ -2,6 +2,9 @@
 
 **Dynamic window sizing atom that adjusts SignalSink capacity and retention at runtime via signals.**
 
+> 🚨🚨 WARNING 🚨🚨 - Though in the 1.x range of version THINGS WILL STILL BREAK. This is the lab for developing this concept when stabilized it'll becoe the first *stylo*flow release 🚨🚨🚨
+
+
 ## Overview
 
 WindowSizeAtom listens for command signals and dynamically tunes `SignalSink` parameters without requiring service restarts. This enables adaptive memory management, debug modes, circuit breaker integration, and runtime configuration tuning.

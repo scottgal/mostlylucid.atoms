@@ -2,6 +2,9 @@
 
 [![NuGet](https://img.shields.io/nuget/v/mostlylucid.ephemeral.atoms.slidingcache.svg)](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.slidingcache)
 
+> 🚨🚨 WARNING 🚨🚨 - Though in the 1.x range of version THINGS WILL STILL BREAK. This is the lab for developing this concept when stabilized it'll becoe the first *stylo*flow release 🚨🚨🚨
+
+
 Caches work results with sliding expiration - accessing a result resets its TTL. Results that haven't been accessed
 expire and are recomputed on next request.
 

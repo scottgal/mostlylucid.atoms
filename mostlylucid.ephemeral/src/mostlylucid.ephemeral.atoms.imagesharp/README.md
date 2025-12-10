@@ -2,6 +2,9 @@
 
 **ImageSharp integration atoms for signal-based image processing pipelines**
 
+> 🚨🚨 WARNING 🚨🚨 - Though in the 1.x range of version THINGS WILL STILL BREAK. This is the lab for developing this concept when stabilized it'll becoe the first *stylo*flow release 🚨🚨🚨
+
+
 This package provides production-ready atoms for image processing using ImageSharp with Ephemeral's signal-based coordination.
 
 ## Features

@@ -10,7 +10,7 @@ namespace Mostlylucid.Ephemeral;
 ///     Unlike EphemeralForEachAsync (which processes a collection), this stays alive
 ///     and lets you enqueue items over time, inspect operations, and gracefully shutdown.
 /// </summary>
-public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPinning, IOperationFinalization, IOperationEvictor
+public sealed class EphemeralWorkCoordinator<T> : IEphemeralCoordinator, IOperationPinning, IOperationFinalization, IOperationEvictor
 {
     private readonly Func<T, CancellationToken, Task> _body;
 
@@ -729,6 +729,12 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPi
                 // Wait if paused
                 _pauseGate.Wait(_cts.Token);
 
+                // Signal-reactive: check if we should clear the sink
+                CheckClearSignals();
+
+                // Signal-reactive: check if we should begin draining
+                CheckDrainSignals();
+
                 // Signal-reactive: check if we should skip this item
                 if (ShouldCancelDueToSignals())
                 {
@@ -764,6 +770,100 @@ public sealed class EphemeralWorkCoordinator<T> : IAsyncDisposable, IOperationPi
         {
             // Expected on cancellation
             _drainTcs.TrySetCanceled();
+        }
+    }
+
+    private void CheckClearSignals()
+    {
+        if (_options.ClearOnSignals is not { Count: > 0 })
+            return;
+
+        if (_options.Signals is null)
+            return;
+
+        // Check if any clear signals are present in the window
+        foreach (var op in _recent)
+        {
+            if (op._signals is not { Count: > 0 })
+                continue;
+
+            foreach (var signal in op._signals)
+            {
+                if (StringPatternMatcher.MatchesAny(signal, _options.ClearOnSignals))
+                {
+                    // Found a clear signal - clear the sink
+                    if (_options.ClearOnSignalsUsePattern)
+                    {
+                        // Extract pattern from signal name (e.g., "clear.errors" → "error.*")
+                        // Simple heuristic: if signal is "clear.X", clear signals matching "X.*"
+                        var parts = signal.Split('.');
+                        if (parts.Length > 1 && parts[0] == "clear")
+                        {
+                            var pattern = string.Join(".", parts.Skip(1)) + ".*";
+                            _options.Signals.ClearPattern(pattern);
+                        }
+                        else
+                        {
+                            // Fallback: clear all
+                            _options.Signals.Clear();
+                        }
+                    }
+                    else
+                    {
+                        // Clear entire sink
+                        _options.Signals.Clear();
+                    }
+                    return;  // Only clear once per check
+                }
+            }
+        }
+    }
+
+    private void CheckDrainSignals()
+    {
+        if (_options.DrainOnSignals is not { Count: > 0 })
+            return;
+
+        if (_options.Signals is null)
+            return;
+
+        // Already completed? Don't check again
+        if (_completed)
+            return;
+
+        // Check if any drain signals are present in the global signal window
+        var recentSignals = _options.Signals.Sense();
+
+        foreach (var signalEvent in recentSignals)
+        {
+            if (StringPatternMatcher.MatchesAny(signalEvent.Signal, _options.DrainOnSignals))
+            {
+                // Check if this drain signal applies to us
+                if (signalEvent.Signal == "coordinator.drain.all")
+                {
+                    // Global drain - applies to everyone
+                    Complete();
+                    return;
+                }
+                else if (signalEvent.Signal == "coordinator.drain.id" && _options.CoordinatorId != null)
+                {
+                    // Targeted drain by ID
+                    if (signalEvent.Key == _options.CoordinatorId)
+                    {
+                        Complete();
+                        return;
+                    }
+                }
+                else if (signalEvent.Signal == "coordinator.drain.pattern" && _options.CoordinatorId != null)
+                {
+                    // Pattern-based drain
+                    if (signalEvent.Key != null && StringPatternMatcher.Matches(_options.CoordinatorId, signalEvent.Key))
+                    {
+                        Complete();
+                        return;
+                    }
+                }
+            }
         }
     }
 

@@ -2,6 +2,9 @@
 
 [![NuGet](https://img.shields.io/nuget/v/mostlylucid.ephemeral.atoms.retry.svg)](https://www.nuget.org/packages/mostlylucid.ephemeral.atoms.retry)
 
+> 🚨🚨 WARNING 🚨🚨 - Though in the 1.x range of version THINGS WILL STILL BREAK. This is the lab for developing this concept when stabilized it'll becoe the first *stylo*flow release 🚨🚨🚨
+
+
 Exponential backoff retry for transient failures.
 
 ```bash

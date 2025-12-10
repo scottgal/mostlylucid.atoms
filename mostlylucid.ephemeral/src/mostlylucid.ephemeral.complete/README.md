@@ -2,6 +2,9 @@
 
 [![NuGet](https://img.shields.io/nuget/v/mostlylucid.ephemeral.complete.svg)](https://www.nuget.org/packages/mostlylucid.ephemeral.complete)
 
+> 🚨🚨 WARNING 🚨🚨 - Though in the 1.x range of version THINGS WILL STILL BREAK. This is the lab for developing this concept when stabilized it'll becoe the first *stylo*flow release 🚨🚨🚨
+
+
 **All of Mostlylucid.Ephemeral in a single DLL** - bounded async execution with signal-based coordination.
 
 ```bash

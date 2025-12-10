@@ -107,6 +107,13 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "mostlylucid.ephemeral.atoms.imagesharp", "src\mostlylucid.ephemeral.atoms.imagesharp\mostlylucid.ephemeral.atoms.imagesharp.csproj", "{C8CCDC99-F59B-4AA3-8E2F-123D2B29FE83}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{4F2F92C7-A020-41B5-9DA4-F4015277E540}"
+	ProjectSection(SolutionItems) = preProject
+		docs\Correlation-Architecture.md = docs\Correlation-Architecture.md
+		docs\Services.md = docs\Services.md
+		docs\SignalSink-Lifetime.md = docs\SignalSink-Lifetime.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

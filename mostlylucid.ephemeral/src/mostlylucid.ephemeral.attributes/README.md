@@ -2,6 +2,9 @@
 
 Attribute-driven, signal-aware jobs that wire themselves into an `EphemeralWorkCoordinator`.
 
+> 🚨🚨 WARNING 🚨🚨 - Though in the 1.x range of version THINGS WILL STILL BREAK. This is the lab for developing this concept when stabilized it'll becoe the first *stylo*flow release 🚨🚨🚨
+
+
 This package exposes:
 
 | API                                | What it does                                                                                                                                                       |

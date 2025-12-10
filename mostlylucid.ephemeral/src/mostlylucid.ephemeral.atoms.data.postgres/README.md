@@ -3,6 +3,9 @@
 PostgreSQL data storage atom for signal-driven persistence. Provides key-value storage with native JSONB support for
 efficient querying.
 
+> 🚨🚨 WARNING 🚨🚨 - Though in the 1.x range of version THINGS WILL STILL BREAK. This is the lab for developing this concept when stabilized it'll becoe the first *stylo*flow release 🚨🚨🚨
+
+
 ## Installation
 
 ```bash

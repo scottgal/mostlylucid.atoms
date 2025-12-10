@@ -2,6 +2,9 @@
 
 Bounded rate limiting for coordinators with signal-driven control.
 
+> 🚨🚨 WARNING 🚨🚨 - Though in the 1.x range of version THINGS WILL STILL BREAK. This is the lab for developing this concept when stabilized it'll becoe the first *stylo*flow release 🚨🚨🚨
+
+
 ## Key ideas
 
 - `RateLimitAtom` wraps a token-bucket limiter and emits signals whenever the configuration changes.

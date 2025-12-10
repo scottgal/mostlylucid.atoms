@@ -1060,6 +1060,14 @@ public static class BenchmarkRunner
 
     public static void RunBenchmark(string benchmarkName)
     {
-        BenchmarkDotNet.Running.BenchmarkRunner.Run<SignalBenchmarks>(args: new[] { $"--filter=*{benchmarkName}*" });
+        if (benchmarkName.Equals("Scoped", StringComparison.OrdinalIgnoreCase))
+        {
+            // Run scoped signal benchmarks from separate class
+            BenchmarkDotNet.Running.BenchmarkRunner.Run<ScopedSignalBenchmarks>();
+        }
+        else
+        {
+            BenchmarkDotNet.Running.BenchmarkRunner.Run<SignalBenchmarks>(args: new[] { $"--filter=*{benchmarkName}*" });
+        }
     }
 }

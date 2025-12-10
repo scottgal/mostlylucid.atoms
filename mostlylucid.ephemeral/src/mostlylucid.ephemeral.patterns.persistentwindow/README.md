@@ -2,6 +2,9 @@
 
 [![NuGet](https://img.shields.io/nuget/v/mostlylucid.ephemeral.patterns.persistentwindow.svg)](https://www.nuget.org/packages/mostlylucid.ephemeral.patterns.persistentwindow)
 
+> 🚨🚨 WARNING 🚨🚨 - Though in the 1.x range of version THINGS WILL STILL BREAK. This is the lab for developing this concept when stabilized it'll becoe the first *stylo*flow release 🚨🚨🚨
+
+
 Signal window that periodically persists to SQLite and restores on restart. Survives process restarts while maintaining
 in-memory performance.
 

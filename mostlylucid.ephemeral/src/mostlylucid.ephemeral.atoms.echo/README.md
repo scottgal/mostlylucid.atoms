@@ -2,6 +2,9 @@
 
 Type-aware echoes for the important operations that survive just long enough to tell their story.
 
+> 🚨🚨 WARNING 🚨🚨 - Though in the 1.x range of version THINGS WILL STILL BREAK. This is the lab for developing this concept when stabilized it'll becoe the first *stylo*flow release 🚨🚨🚨
+
+
 This atom watches the same operation window that the coordinators expose, listens for typed signals (via
 `TypedSignalSink<TPayload>`), and when the coordinator trims an operation it builds a compact
 `OperationEchoEntry<TPayload>` that you can persist through an `OperationEchoAtom<TPayload>` or inspect in-process. It

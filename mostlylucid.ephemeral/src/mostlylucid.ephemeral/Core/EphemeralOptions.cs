@@ -160,4 +160,38 @@ public sealed class EphemeralOptions
     ///     Default: 50 (5 seconds at 100ms intervals).
     /// </summary>
     public int MaxDeferAttempts { get; init; } = 50;
+
+    /// <summary>
+    ///     Signals that trigger immediate clearing of the signal window.
+    ///     When any of these signals are raised, the sink's window is cleared.
+    ///     Use for explicit state reset: ["reset", "clear", "restart"].
+    ///     Pattern matching supported (e.g., "clear.*" matches "clear.all", "clear.errors").
+    /// </summary>
+    public IReadOnlySet<string>? ClearOnSignals { get; init; }
+
+    /// <summary>
+    ///     Whether to clear the entire sink or only signals matching the clear signal pattern.
+    ///     Default: false (clear entire sink).
+    ///     When true: "clear.errors" will only clear signals matching "error.*".
+    /// </summary>
+    public bool ClearOnSignalsUsePattern { get; init; } = false;
+
+    /// <summary>
+    ///     Signals that trigger this coordinator to complete intake and begin draining.
+    ///     Default: ["coordinator.drain.all", "coordinator.drain.id"] (listens for global and targeted drain requests).
+    ///     Pattern matching supported - coordinator will drain if any signal in the window matches these patterns.
+    ///     Set to empty/null to disable signal-based draining.
+    /// </summary>
+    public IReadOnlySet<string>? DrainOnSignals { get; init; } = new HashSet<string>
+    {
+        "coordinator.drain.all",
+        "coordinator.drain.id"
+    };
+
+    /// <summary>
+    ///     Unique identifier for this coordinator used in drain signal matching.
+    ///     When set, coordinator responds to "coordinator.drain.id" signals with Key matching this ID.
+    ///     If null, coordinator only responds to "coordinator.drain.all".
+    /// </summary>
+    public string? CoordinatorId { get; init; }
 }
