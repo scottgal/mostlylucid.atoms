@@ -1,25 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(Select-String -Pattern \"(Error|succeeded|failed)\")",
-      "Bash(Select-Object -Last 20)",
-      "Bash(dotnet run:*)",
-      "Bash(powershell -ExecutionPolicy Bypass -File add-warning.ps1)",
-      "Bash(Select-String -Pattern \"(BenchmarkDotNet|Running|Mean|Allocated)\")",
-      "Bash(Select-Object -First 50)",
-      "Bash(timeout 300 dotnet run:*)",
-      "Bash(move:*)",
-      "Bash(Select-String -Pattern \"(error|succeeded|Scoped)\")",
-      "Bash(timeout 600 dotnet run:*)",
-      "Bash(dotnet pack:*)",
-      "Bash(del \"D:\\Source\\mostlylucid.atoms\\mostlylucid.ephemeral\\demos\\mostlylucid.ephemeral.demo\\RunQuickTest.cs\")",
-      "Bash(Select-String -Pattern \"(Build succeeded|Build FAILED|error)\")",
-      "Bash(dotnet sln:*)",
-      "Bash(for dir in mostlylucid.ephemeral.atoms.*)",
-      "Bash(do if [ ! -f \"$dir/$dir.csproj\" ])",
-      "Bash(then echo \"MISSING: $dir\")",
-      "Bash(fi)",
-      "Bash(done)"
+      "Bash(dotnet sln:*)"
     ],
     "deny": [],
     "ask": []

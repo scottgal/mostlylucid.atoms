@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFrameworks>net6.0;net7.0;net8.0;net9.0;net10.0</TargetFrameworks>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <PackageId>Mostlylucid.Ephemeral.Atoms.TimeSeriesAnomaly</PackageId>
+        <Version>1.0.0</Version>
+        <Authors>Scott Galloway</Authors>
+        <Description>Time-series anomaly detection using Z-score statistical analysis. Detects outliers >3σ from mean with sliding window analysis.</Description>
+        <PackageTags>async;anomaly;timeseries;statistics;zscore;atom</PackageTags>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageIcon>icon.png</PackageIcon>
+        <RepositoryUrl>https://github.com/scottgal/mostlylucid.atoms</RepositoryUrl>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj"/>
+    </ItemGroup>
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\"/>
+        <None Include="icon.png" Pack="true" PackagePath="\"/>
+    </ItemGroup>
+</Project>

@@ -55,6 +55,12 @@
         <Compile Include="..\mostlylucid.ephemeral.atoms.slidingcache\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
         <Compile Include="..\mostlylucid.ephemeral.atoms.volatile\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
         <Compile Include="..\mostlylucid.ephemeral.atoms.windowsize\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.atoms.waveorchestrator\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.atoms.entropyanalysis\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.atoms.timeseriesanomaly\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.atoms.burstdetection\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.atoms.smtp\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.atoms.razortemplate\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
     </ItemGroup>
 
     <!-- Data Atom source files -->
@@ -100,6 +106,8 @@
         <PackageReference Include="Cronos" Version="0.11.1"/>
         <PackageReference Include="SixLabors.ImageSharp" Version="3.1.7"/>
         <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.5"/>
+        <PackageReference Include="MailKit" Version="4.9.0"/>
+        <PackageReference Include="RazorLight" Version="2.3.1"/>
     </ItemGroup>
 
     <ItemGroup>

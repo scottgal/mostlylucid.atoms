@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFrameworks>net6.0;net7.0;net8.0;net9.0;net10.0</TargetFrameworks>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <PackageId>Mostlylucid.Ephemeral.Atoms.Smtp</PackageId>
+        <Version>1.0.0</Version>
+        <Authors>Scott Galloway</Authors>
+        <Description>SMTP email sending atom with MailKit. Supports persistent connections, attachments, and signal-based tracking.</Description>
+        <PackageTags>async;email;smtp;mailkit;messaging;atom</PackageTags>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageIcon>icon.png</PackageIcon>
+        <RepositoryUrl>https://github.com/scottgal/mostlylucid.atoms</RepositoryUrl>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj"/>
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="MailKit" Version="4.9.0"/>
+    </ItemGroup>
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\"/>
+        <None Include="icon.png" Pack="true" PackagePath="\"/>
+    </ItemGroup>
+</Project>
