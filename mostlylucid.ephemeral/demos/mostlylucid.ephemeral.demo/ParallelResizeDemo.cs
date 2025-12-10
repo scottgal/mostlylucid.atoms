@@ -1,6 +1,8 @@
 using Mostlylucid.Ephemeral;
 using Mostlylucid.Ephemeral.Atoms.ImageSharp;
-using SixLabors.ImageSharp;
+using ImageSharpSize = SixLabors.ImageSharp.Size;
+using SpectreColor = Spectre.Console.Color;
+using Spectre.Console;
 using System.Diagnostics;
 
 namespace Mostlylucid.Ephemeral.Demo;
@@ -54,14 +56,14 @@ public static class ParallelResizeDemo
         // Configure custom resize sizes - 6 different sizes for demo
         var resizeOptions = new ParallelResizeOptions
         {
-            Sizes = new List<(Size, string)>
+            Sizes = new List<(ImageSharpSize, string)>
             {
-                (new Size(100, 100), "tiny"),
-                (new Size(200, 200), "small"),
-                (new Size(400, 400), "medium"),
-                (new Size(800, 800), "large"),
-                (new Size(1200, 1200), "xlarge"),
-                (new Size(1920, 1920), "xxlarge")
+                (new ImageSharpSize(100, 100), "tiny"),
+                (new ImageSharpSize(200, 200), "small"),
+                (new ImageSharpSize(400, 400), "medium"),
+                (new ImageSharpSize(800, 800), "large"),
+                (new ImageSharpSize(1200, 1200), "xlarge"),
+                (new ImageSharpSize(1920, 1920), "xxlarge")
             },
             JpegQuality = 90,
             MaxParallelism = Environment.ProcessorCount // Max speed - use all processors
@@ -293,15 +295,16 @@ public static class ParallelResizeDemo
 
         var outputDir = Path.Combine(AppContext.BaseDirectory, "output", "parallel-resize-continuous");
 
-        var sink = new SignalSink(maxCapacity: 500, maxAge: TimeSpan.FromSeconds(30)); // Smaller window for continuous mode
+        // Window sized for ~2 batches: 80 images × 3 sizes × 6 signals × 2 batches = ~2880 signals
+        var sink = new SignalSink(maxCapacity: 3000, maxAge: TimeSpan.FromSeconds(30));
 
         var resizeOptions = new ParallelResizeOptions
         {
-            Sizes = new List<(Size, string)>
+            Sizes = new List<(ImageSharpSize, string)>
             {
-                (new Size(200, 200), "small"),
-                (new Size(400, 400), "medium"),
-                (new Size(800, 800), "large")
+                (new ImageSharpSize(200, 200), "small"),
+                (new ImageSharpSize(400, 400), "medium"),
+                (new ImageSharpSize(800, 800), "large")
             },
             JpegQuality = 85,
             MaxParallelism = Environment.ProcessorCount
@@ -339,10 +342,14 @@ public static class ParallelResizeDemo
         var completedResizes = 0;
         var currentBatch = 0;
 
-        Console.WriteLine($"Processing {imagesPerBatch} images/batch × {resizeOptions.Sizes.Count} sizes = {imagesPerBatch * resizeOptions.Sizes.Count} resizes/batch");
-        Console.WriteLine($"Max parallelism: {resizeOptions.MaxParallelism} concurrent resize operations");
-        Console.WriteLine($"Signal window: {sink.MaxCapacity} events, {sink.MaxAge.TotalSeconds}s retention\n");
-        Console.WriteLine("📊 Live metrics updated from signals...\n");
+        // Track metrics history for sparklines/charts
+        var throughputHistory = new List<double>();
+        var memoryHistory = new List<double>();
+        var maxHistoryPoints = 20;
+
+        AnsiConsole.WriteLine($"Processing {imagesPerBatch} images/batch × {resizeOptions.Sizes.Count} sizes = {imagesPerBatch * resizeOptions.Sizes.Count} resizes/batch");
+        AnsiConsole.WriteLine($"Max parallelism: {resizeOptions.MaxParallelism} concurrent resize operations");
+        AnsiConsole.WriteLine($"Signal window: {sink.MaxCapacity} events, {sink.MaxAge.TotalSeconds}s retention\n");
 
         // Subscribe to signals for LIVE updates
         sink.Subscribe(signal =>
@@ -353,28 +360,15 @@ public static class ParallelResizeDemo
                 {
                     completedResizes++;
                     totalProcessed++;
-
-                    // Throttle display updates to ~10/sec
-                    var now = DateTimeOffset.UtcNow;
-                    if ((now - lastUpdateTime).TotalMilliseconds > 100 || completedResizes % 10 == 0)
-                    {
-                        lastUpdateTime = now;
-                        var uptime = now - startTime;
-                        var throughput = totalProcessed / uptime.TotalSeconds;
-                        var memoryMB = GC.GetTotalMemory(forceFullCollection: false) / (1024.0 * 1024.0);
-                        var signalCount = sink.Count;
-
-                        Console.Write($"\r\u001b[K"); // Clear line
-                        Console.Write($"Batch: {currentBatch} | ");
-                        Console.Write($"Total: {totalProcessed} resizes | ");
-                        Console.Write($"Throughput: {throughput:F1}/s | ");
-                        Console.Write($"Memory: {memoryMB:F1} MB | ");
-                        Console.Write($"Signals: {totalProcessed} total ({signalCount} live in window) | ");
-                        Console.Write($"Uptime: {uptime.TotalSeconds:F0}s");
-                    }
+                    lastUpdateTime = DateTimeOffset.UtcNow;
                 }
             }
         });
+
+        // Track previous values for trend arrows
+        double prevThroughput = 0;
+        double prevMemory = 0;
+        int prevSignals = 0;
 
         try
         {
@@ -382,55 +376,151 @@ public static class ParallelResizeDemo
                 .WithLoader()
                 .WithParallelResize(resizeOptions);
 
-            while (!cts.Token.IsCancellationRequested)
-            {
-                iteration++;
-                currentBatch = iteration;
-
-                // Clean output directory each iteration
-                if (Directory.Exists(outputDir))
-                    Directory.Delete(outputDir, true);
-                Directory.CreateDirectory(outputDir);
-
-                completedResizes = 0;
-
-                // Safety check: verify source image still exists (may be deleted by external build clean)
-                if (!File.Exists(sourceImage))
+            await AnsiConsole.Live(new Panel("Starting..."))
+                .StartAsync(async ctx =>
                 {
-                    Console.WriteLine($"\n\n⚠️  Source image disappeared (external build clean?) - stopping gracefully");
-                    break;
-                }
+                    while (!cts.Token.IsCancellationRequested)
+                    {
+                        iteration++;
+                        currentBatch = iteration;
 
-                // Process batch - metrics update LIVE via signals
-                for (int i = 0; i < imagesPerBatch && !cts.Token.IsCancellationRequested; i++)
-                {
-                    var job = new ImageJob(sourceImage, outputDir, 0, i);
-                    await pipeline.ProcessAsync(job, cts.Token);
-                }
+                        // Clean output directory each iteration
+                        if (Directory.Exists(outputDir))
+                            Directory.Delete(outputDir, true);
+                        Directory.CreateDirectory(outputDir);
 
-                // Occasional detailed report
-                if (iteration % 10 == 0)
-                {
-                    var uptime = DateTimeOffset.UtcNow - startTime;
-                    var throughput = totalProcessed / uptime.TotalSeconds;
-                    var memoryMB = GC.GetTotalMemory(forceFullCollection: false) / (1024.0 * 1024.0);
-                    var signalCount = sink.Count;
+                        completedResizes = 0;
 
-                    Console.WriteLine($"\n");
-                    Console.WriteLine($"  ═══ Checkpoint at batch {iteration} ═══");
-                    Console.WriteLine($"  Total resizes:     {totalProcessed:N0}");
-                    Console.WriteLine($"  Avg throughput:    {throughput:F1} resizes/sec");
-                    Console.WriteLine($"  Memory usage:      {memoryMB:F1} MB");
-                    Console.WriteLine($"  Signal window:     {signalCount} / {sink.MaxCapacity} live ({totalProcessed:N0} total this run)");
-                    Console.WriteLine($"  GC collections:    Gen0={GC.CollectionCount(0)}, Gen1={GC.CollectionCount(1)}, Gen2={GC.CollectionCount(2)}");
-                    Console.WriteLine($"  Uptime:            {uptime:hh\\:mm\\:ss}");
-                    Console.WriteLine($"  Status:            Throughput and memory flat → no leak detected so far");
-                    Console.WriteLine();
-                }
+                        // Safety check: verify source image still exists
+                        if (!File.Exists(sourceImage))
+                        {
+                            ctx.UpdateTarget(new Markup("[red]⚠️  Source image disappeared - stopping gracefully[/]"));
+                            await Task.Delay(2000);
+                            break;
+                        }
 
-                // Small delay between batches
-                await Task.Delay(100, cts.Token);
-            }
+                        // Process batch - metrics update LIVE via signals
+                        for (int i = 0; i < imagesPerBatch && !cts.Token.IsCancellationRequested; i++)
+                        {
+                            var job = new ImageJob(sourceImage, outputDir, 0, i);
+                            await pipeline.ProcessAsync(job, cts.Token);
+
+                            // Update dashboard every ~200ms
+                            if ((DateTimeOffset.UtcNow - lastUpdateTime).TotalMilliseconds > 200)
+                            {
+                                lock (statusLock)
+                                {
+                                    var uptime = DateTimeOffset.UtcNow - startTime;
+                                    var throughput = totalProcessed / uptime.TotalSeconds;
+                                    var memoryMB = GC.GetTotalMemory(forceFullCollection: false) / (1024.0 * 1024.0);
+                                    var signalCount = sink.Count;
+
+                                    // Track history
+                                    throughputHistory.Add(throughput);
+                                    memoryHistory.Add(memoryMB);
+                                    if (throughputHistory.Count > maxHistoryPoints)
+                                    {
+                                        throughputHistory.RemoveAt(0);
+                                        memoryHistory.RemoveAt(0);
+                                    }
+
+                                    // Calculate trends
+                                    var throughputTrend = GetTrendArrow(throughput, prevThroughput);
+                                    var memoryTrend = GetTrendArrow(memoryMB, prevMemory);
+                                    var signalTrend = GetTrendArrow(signalCount, prevSignals);
+
+                                    // Build live dashboard
+                                    var dashboard = new Table()
+                                        .Border(TableBorder.Rounded)
+                                        .BorderColor(Color.Grey)
+                                        .Title("[cyan1]📊 Live Signal-Driven Metrics Dashboard[/]");
+
+                                    dashboard.AddColumn(new TableColumn("[bold]Metric[/]").Width(18));
+                                    dashboard.AddColumn(new TableColumn("[bold]Value[/]").Width(20));
+                                    dashboard.AddColumn(new TableColumn("[bold]Trend[/]").Width(8).Centered());
+                                    dashboard.AddColumn(new TableColumn("[bold]History (20 samples)[/]").Width(35));
+
+                                    dashboard.AddRow(
+                                        "[yellow]Batch[/]",
+                                        $"[yellow]{currentBatch}[/]",
+                                        "",
+                                        ""
+                                    );
+
+                                    dashboard.AddRow(
+                                        "[green]Throughput[/]",
+                                        $"[green]{throughput:F1}/s[/]",
+                                        throughputTrend,
+                                        throughputHistory.Count > 1 ? GenerateSparkline(throughputHistory, Color.Green) : "[grey]collecting...[/]"
+                                    );
+
+                                    dashboard.AddRow(
+                                        "[blue]Memory[/]",
+                                        $"[blue]{memoryMB:F1} MB[/]",
+                                        memoryTrend,
+                                        memoryHistory.Count > 1 ? GenerateSparkline(memoryHistory, Color.Blue) : "[grey]collecting...[/]"
+                                    );
+
+                                    var signalPercent = (int)((signalCount / (double)sink.MaxCapacity) * 100);
+                                    dashboard.AddRow(
+                                        "[grey]Signals[/]",
+                                        $"[grey]{signalCount}/{sink.MaxCapacity}[/]",
+                                        signalTrend,
+                                        $"[grey]{signalPercent}% capacity[/]"
+                                    );
+
+                                    dashboard.AddRow(
+                                        "[grey]Total Processed[/]",
+                                        $"[grey]{totalProcessed:N0}[/]",
+                                        "",
+                                        $"[grey]{uptime.TotalSeconds:F0}s uptime[/]"
+                                    );
+
+                                    ctx.UpdateTarget(dashboard);
+                                    lastUpdateTime = DateTimeOffset.UtcNow;
+
+                                    // Update previous values for next comparison
+                                    prevThroughput = throughput;
+                                    prevMemory = memoryMB;
+                                    prevSignals = signalCount;
+                                }
+                            }
+                        }
+
+                        // Occasional detailed checkpoint (pause live display)
+                        if (iteration % 10 == 0)
+                        {
+                            Panel checkpoint;
+                            lock (statusLock)
+                            {
+                                var uptime = DateTimeOffset.UtcNow - startTime;
+                                var throughput = totalProcessed / uptime.TotalSeconds;
+                                var memoryMB = GC.GetTotalMemory(forceFullCollection: false) / (1024.0 * 1024.0);
+                                var signalCount = sink.Count;
+
+                                // Show checkpoint panel
+                                checkpoint = new Panel(
+                                    new Markup($"[cyan1]Total resizes:[/] {totalProcessed:N0}\n" +
+                                              $"[cyan1]Avg throughput:[/] {throughput:F1} resizes/sec\n" +
+                                              $"[cyan1]Memory usage:[/] {memoryMB:F1} MB\n" +
+                                              $"[cyan1]Signal window:[/] {signalCount} / {sink.MaxCapacity} live ({totalProcessed:N0} total)\n" +
+                                              $"[cyan1]GC collections:[/] Gen0={GC.CollectionCount(0)}, Gen1={GC.CollectionCount(1)}, Gen2={GC.CollectionCount(2)}\n" +
+                                              $"[cyan1]Uptime:[/] {uptime:hh\\:mm\\:ss}\n" +
+                                              $"[green]✓ Status:[/] Throughput and memory flat → no leak detected so far"))
+                                {
+                                    Header = new PanelHeader($"[yellow]═══ Checkpoint at Batch {iteration} ═══[/]"),
+                                    Border = BoxBorder.Double,
+                                    BorderStyle = new Style(Color.Yellow)
+                                };
+                            }
+                            ctx.UpdateTarget(checkpoint);
+                            await Task.Delay(2000, cts.Token); // Show checkpoint for 2 seconds
+                        }
+
+                        // Small delay between batches
+                        await Task.Delay(100, cts.Token);
+                    }
+                });
         }
         catch (OperationCanceledException)
         {
@@ -457,6 +547,52 @@ public static class ParallelResizeDemo
         Console.WriteLine($"   • LIVE metrics driven by signals");
         Console.WriteLine($"\nAll metrics above are driven purely from Ephemeral signals (no extra tracing code).");
         Console.WriteLine($"\n(Note: If exit code is non-zero, this indicates manual ESC termination of the continuous loop.)");
+    }
+
+    private static string GetTrendArrow(double current, double previous)
+    {
+        if (previous == 0) return "[grey]—[/]";
+
+        var change = ((current - previous) / previous) * 100;
+
+        if (Math.Abs(change) < 1.0)
+            return "[grey]→[/]"; // Stable (< 1% change)
+        else if (change > 0)
+            return "[green]↑[/]"; // Increasing
+        else
+            return "[red]↓[/]"; // Decreasing
+    }
+
+    private static string GenerateSparkline(List<double> values, Spectre.Console.Color color)
+    {
+        if (values.Count < 2) return "";
+
+        // Unicode block characters for sparkline (smooth gradient)
+        var chars = new[] { "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█" };
+
+        var min = values.Min();
+        var max = values.Max();
+        var range = max - min;
+
+        // If values are stable (range < 5% of max), show flat line
+        if (range < max * 0.05)
+        {
+            return $"[{color}]" + string.Concat(Enumerable.Repeat("▄", values.Count)) + " (stable)[/]";
+        }
+
+        var sparkline = new System.Text.StringBuilder();
+        sparkline.Append($"[{color}]");
+
+        foreach (var value in values)
+        {
+            var normalized = range > 0 ? (value - min) / range : 0.5;
+            var index = (int)(normalized * (chars.Length - 1));
+            index = Math.Clamp(index, 0, chars.Length - 1);
+            sparkline.Append(chars[index]);
+        }
+
+        sparkline.Append("[/]");
+        return sparkline.ToString();
     }
 
     private static string? FindTestImage()

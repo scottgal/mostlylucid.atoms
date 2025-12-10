@@ -3,7 +3,9 @@
     "allow": [
       "Bash(dotnet clean:*)",
       "Bash(dotnet sln:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(dotnet run:*)",
+      "Bash(pkill:*)"
     ],
     "deny": [],
     "ask": []

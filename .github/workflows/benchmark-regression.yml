@@ -41,12 +41,11 @@ jobs:
       - name: Run Benchmarks (Exclude Rate Limiter - too slow for CI)
         run: |
           cd mostlylucid.ephemeral/demos/mostlylucid.ephemeral.demo
-          # Run all benchmarks EXCEPT Rate Limiter (takes 26+ min with real-world throttling)
+          # Run benchmarks EXCEPT Rate Limiter (takes 26+ min with real-world throttling)
           # Using InProcessEmit toolchain (avoids .NET 9→10 TFM issues)
-          # Note: BenchmarkDotNet doesn't support negative filters, so we timeout Rate Limiter
-          timeout 10m dotnet run -c Release --no-build -- --benchmark signals 2>&1 | tee benchmark_run.log || true
-          # If Rate Limiter started, it will timeout after 10 min - that's expected
-          echo "Benchmark run completed (Rate Limiter timeout is expected)"
+          # BenchmarkDotNet filter: Include signals category but exclude RateLimiter_Acquire method
+          dotnet run -c Release --no-build -- --benchmark signals --filter "*" --exclude "*RateLimiter*" 2>&1 | tee benchmark_run.log || true
+          echo "Benchmark run completed"
         continue-on-error: true
 
       - name: Store benchmark results
