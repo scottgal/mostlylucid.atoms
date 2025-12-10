@@ -247,47 +247,88 @@ public sealed class EphemeralWorkCoordinator<T> : IEphemeralCoordinator, IOperat
 
     /// <summary>
     ///     Gets a snapshot of recent operations (both running and completed).
+    ///     Optimized: Manual loop avoids LINQ allocation overhead.
     /// </summary>
     public IReadOnlyCollection<EphemeralOperationSnapshot> GetSnapshot()
     {
         MaybeCleanupForRead();
-        return _recent.Select(x => x.ToSnapshot()).ToArray();
+
+        // Pre-allocate array with exact capacity
+        var count = _recent.Count;
+        var result = new EphemeralOperationSnapshot[count];
+        var index = 0;
+
+        foreach (var op in _recent)
+        {
+            if (index < count)
+                result[index++] = op.ToSnapshot();
+        }
+
+        // Handle race condition where count changed during enumeration
+        if (index < count)
+            Array.Resize(ref result, index);
+
+        return result;
     }
 
     /// <summary>
     ///     Gets only the currently running operations.
+    ///     Optimized: Manual loop with List pre-sizing avoids LINQ overhead.
     /// </summary>
     public IReadOnlyCollection<EphemeralOperationSnapshot> GetRunning()
     {
         MaybeCleanupForRead();
-        return _recent
-            .Where(x => x.Completed is null)
-            .Select(x => x.ToSnapshot())
-            .ToArray();
+
+        // Use List with capacity hint to reduce allocations
+        var result = new List<EphemeralOperationSnapshot>(_recent.Count / 2); // Heuristic: ~50% running
+
+        foreach (var op in _recent)
+        {
+            if (op.Completed is null)
+                result.Add(op.ToSnapshot());
+        }
+
+        return result;
     }
 
     /// <summary>
     ///     Gets only the completed operations (success or failure).
+    ///     Optimized: Manual loop with List pre-sizing avoids LINQ overhead.
     /// </summary>
     public IReadOnlyCollection<EphemeralOperationSnapshot> GetCompleted()
     {
         MaybeCleanupForRead();
-        return _recent
-            .Where(x => x.Completed is not null)
-            .Select(x => x.ToSnapshot())
-            .ToArray();
+
+        // Use List with capacity hint to reduce allocations
+        var result = new List<EphemeralOperationSnapshot>(_recent.Count / 2); // Heuristic: ~50% completed
+
+        foreach (var op in _recent)
+        {
+            if (op.Completed is not null)
+                result.Add(op.ToSnapshot());
+        }
+
+        return result;
     }
 
     /// <summary>
     ///     Gets only the failed operations.
+    ///     Optimized: Manual loop with List pre-sizing avoids LINQ overhead.
     /// </summary>
     public IReadOnlyCollection<EphemeralOperationSnapshot> GetFailed()
     {
         MaybeCleanupForRead();
-        return _recent
-            .Where(x => x.Error is not null)
-            .Select(x => x.ToSnapshot())
-            .ToArray();
+
+        // Use List with small capacity hint (failures should be rare)
+        var result = new List<EphemeralOperationSnapshot>(_recent.Count / 10); // Heuristic: ~10% failed
+
+        foreach (var op in _recent)
+        {
+            if (op.Error is not null)
+                result.Add(op.ToSnapshot());
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -795,11 +836,11 @@ public sealed class EphemeralWorkCoordinator<T> : IEphemeralCoordinator, IOperat
                     if (_options.ClearOnSignalsUsePattern)
                     {
                         // Extract pattern from signal name (e.g., "clear.errors" → "error.*")
-                        // Simple heuristic: if signal is "clear.X", clear signals matching "X.*"
-                        var parts = signal.Split('.');
-                        if (parts.Length > 1 && parts[0] == "clear")
+                        // Optimized: Use span-based parsing to avoid String.Split() allocation
+                        var firstDot = signal.IndexOf('.');
+                        if (firstDot > 0 && signal.AsSpan(0, firstDot).SequenceEqual("clear"))
                         {
-                            var pattern = string.Join(".", parts.Skip(1)) + ".*";
+                            var pattern = signal.Substring(firstDot + 1) + ".*";
                             _options.Signals.ClearPattern(pattern);
                         }
                         else
