@@ -1320,6 +1320,26 @@ SignalSink (shared state)
 CancelOnSignals / DeferOnSignals (affects intake)
 ```
 
+## Documentation
+
+### Best Practices Guide
+
+**NEW**: See [BEST_PRACTICES.md](BEST_PRACTICES.md) for comprehensive guidance on building signal-based systems:
+
+- **Signal Architecture**: Three-level hierarchical scoping (Sink → Coordinator → Atom)
+- **Coordinator Patterns**: Avoiding common anti-patterns (shared sinks, name collisions)
+- **Atom Development**: Lifecycle management, composition strategies
+- **Performance Optimization**: Hot path considerations, memory management, span-based parsing
+- **Testing**: Unit and integration test patterns
+- **Common Pitfalls**: Operation ID filtering, subscription disposal, blocking handlers
+
+### Additional Resources
+
+- [SIGNALS_PATTERN.md](SIGNALS_PATTERN.md) - Deep dive into the three signal models (Pure Notification, Context+Hint, Command)
+- [CLAUDE.md](CLAUDE.md) - Project architecture and build instructions
+- [demos/mostlylucid.ephemeral.demo/README.md](demos/mostlylucid.ephemeral.demo/README.md) - Interactive demo documentation
+- [REVIEW_FINDINGS.md](REVIEW_FINDINGS.md) - Recent code review results and recommendations
+
 ## Performance Considerations
 
 - **Hot path optimized**: Core coordinator avoids allocations in steady-state

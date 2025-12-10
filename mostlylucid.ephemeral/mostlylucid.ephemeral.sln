@@ -114,6 +114,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{4F2F92C7-A
 		docs\SignalSink-Lifetime.md = docs\SignalSink-Lifetime.md
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "future", "future", "{672BB883-9955-46CC-A385-F006AA134FDF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "mostlylucid.ephemeral.atoms.priorityprocessor", "src\mostlylucid.ephemeral.atoms.priorityprocessor\mostlylucid.ephemeral.atoms.priorityprocessor.csproj", "{CA16AB00-411D-411C-9E97-0C048A8EB0A0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -604,6 +608,18 @@ Global
 		{C8CCDC99-F59B-4AA3-8E2F-123D2B29FE83}.Release|x64.Build.0 = Release|Any CPU
 		{C8CCDC99-F59B-4AA3-8E2F-123D2B29FE83}.Release|x86.ActiveCfg = Release|Any CPU
 		{C8CCDC99-F59B-4AA3-8E2F-123D2B29FE83}.Release|x86.Build.0 = Release|Any CPU
+		{CA16AB00-411D-411C-9E97-0C048A8EB0A0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CA16AB00-411D-411C-9E97-0C048A8EB0A0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CA16AB00-411D-411C-9E97-0C048A8EB0A0}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{CA16AB00-411D-411C-9E97-0C048A8EB0A0}.Debug|x64.Build.0 = Debug|Any CPU
+		{CA16AB00-411D-411C-9E97-0C048A8EB0A0}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{CA16AB00-411D-411C-9E97-0C048A8EB0A0}.Debug|x86.Build.0 = Debug|Any CPU
+		{CA16AB00-411D-411C-9E97-0C048A8EB0A0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CA16AB00-411D-411C-9E97-0C048A8EB0A0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CA16AB00-411D-411C-9E97-0C048A8EB0A0}.Release|x64.ActiveCfg = Release|Any CPU
+		{CA16AB00-411D-411C-9E97-0C048A8EB0A0}.Release|x64.Build.0 = Release|Any CPU
+		{CA16AB00-411D-411C-9E97-0C048A8EB0A0}.Release|x86.ActiveCfg = Release|Any CPU
+		{CA16AB00-411D-411C-9E97-0C048A8EB0A0}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -650,5 +666,7 @@ Global
 		{6A648482-3064-4581-8D67-BA7078D50E85} = {A1B2C3D4-0002-0002-0002-000000000002}
 		{17AA4F90-1225-4729-ADF2-5B3B7BF92D2B} = {FA8A28C8-4B59-8028-2ACF-626D05B08DB7}
 		{C8CCDC99-F59B-4AA3-8E2F-123D2B29FE83} = {A1B2C3D4-0002-0002-0002-000000000002}
+		{672BB883-9955-46CC-A385-F006AA134FDF} = {4F2F92C7-A020-41B5-9DA4-F4015277E540}
+		{CA16AB00-411D-411C-9E97-0C048A8EB0A0} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

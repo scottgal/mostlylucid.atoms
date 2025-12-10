@@ -44,8 +44,10 @@
         <Compile Include="..\mostlylucid.ephemeral.atoms.batching\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
         <Compile Include="..\mostlylucid.ephemeral.atoms.echo\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
         <Compile Include="..\mostlylucid.ephemeral.atoms.fixedwork\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.atoms.imagesharp\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
         <Compile Include="..\mostlylucid.ephemeral.atoms.keyedsequential\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
         <Compile Include="..\mostlylucid.ephemeral.atoms.molecules\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
+        <Compile Include="..\mostlylucid.ephemeral.atoms.priorityprocessor\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
         <Compile Include="..\mostlylucid.ephemeral.atoms.ratelimit\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
         <Compile Include="..\mostlylucid.ephemeral.atoms.retry\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
         <Compile Include="..\mostlylucid.ephemeral.atoms.scheduledtasks\*.cs" Link="Atoms\%(Filename)%(Extension)"/>
@@ -96,6 +98,8 @@
         <PackageReference Include="Npgsql" Version="8.0.0"/>
         <PackageReference Include="System.Threading.RateLimiting" Version="8.0.0"/>
         <PackageReference Include="Cronos" Version="0.11.1"/>
+        <PackageReference Include="SixLabors.ImageSharp" Version="3.1.7"/>
+        <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.5"/>
     </ItemGroup>
 
     <ItemGroup>

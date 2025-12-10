@@ -548,6 +548,55 @@ public sealed class SignalSink
     }
 
     /// <summary>
+    ///     Count signals matching a prefix pattern within a time window.
+    ///     Optimized for health-check pattern: count recent failures.
+    ///     Uses StartsWith instead of Contains for better performance.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public int CountRecentByPrefix(string prefix, DateTimeOffset since)
+    {
+        int count = 0;
+        foreach (var s in _window)
+        {
+            if (s.Timestamp >= since && s.Signal.StartsWith(prefix, StringComparison.Ordinal))
+                count++;
+        }
+        return count;
+    }
+
+    /// <summary>
+    ///     Count signals containing a substring within a time window.
+    ///     Use CountRecentByPrefix if possible - it's faster.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public int CountRecentByContains(string substring, DateTimeOffset since)
+    {
+        int count = 0;
+        foreach (var s in _window)
+        {
+            if (s.Timestamp >= since && s.Signal.Contains(substring))
+                count++;
+        }
+        return count;
+    }
+
+    /// <summary>
+    ///     Count exact signal matches within a time window.
+    ///     Fastest option for exact signal name queries.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public int CountRecentExact(string signalName, DateTimeOffset since)
+    {
+        int count = 0;
+        foreach (var s in _window)
+        {
+            if (s.Timestamp >= since && string.Equals(s.Signal, signalName, StringComparison.Ordinal))
+                count++;
+        }
+        return count;
+    }
+
+    /// <summary>
     ///     Subscribe to signal events with optimal lock-free performance.
     ///     Preferred over SignalRaised event.
     /// </summary>

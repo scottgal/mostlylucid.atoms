@@ -10,7 +10,16 @@
       "Bash(timeout 300 dotnet run:*)",
       "Bash(move:*)",
       "Bash(Select-String -Pattern \"(error|succeeded|Scoped)\")",
-      "Bash(timeout 600 dotnet run:*)"
+      "Bash(timeout 600 dotnet run:*)",
+      "Bash(dotnet pack:*)",
+      "Bash(del \"D:\\Source\\mostlylucid.atoms\\mostlylucid.ephemeral\\demos\\mostlylucid.ephemeral.demo\\RunQuickTest.cs\")",
+      "Bash(Select-String -Pattern \"(Build succeeded|Build FAILED|error)\")",
+      "Bash(dotnet sln:*)",
+      "Bash(for dir in mostlylucid.ephemeral.atoms.*)",
+      "Bash(do if [ ! -f \"$dir/$dir.csproj\" ])",
+      "Bash(then echo \"MISSING: $dir\")",
+      "Bash(fi)",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []

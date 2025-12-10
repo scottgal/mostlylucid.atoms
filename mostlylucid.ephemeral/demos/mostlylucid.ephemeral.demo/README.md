@@ -476,10 +476,27 @@ Signal Flow:
 
 ## Related Documentation
 
-- [SIGNALS_PATTERN.md](../../SIGNALS_PATTERN.md) - Full pattern documentation
-- [WindowSizeAtom README](../../src/mostlylucid.ephemeral.atoms.windowsize/README.md)
-- [RateLimitAtom](../../src/mostlylucid.ephemeral.atoms.ratelimit/)
+### Essential Reading
+
+- **[BEST_PRACTICES.md](../../BEST_PRACTICES.md)** ⭐ - Comprehensive best practices guide for production signal-based systems
+- **[SIGNALS_PATTERN.md](../../SIGNALS_PATTERN.md)** - Deep dive into the three signal models
+
+### Additional Resources
+
+- [WindowSizeAtom README](../../src/mostlylucid.ephemeral.atoms.windowsize/README.md) - Infrastructure control example
+- [RateLimitAtom](../../src/mostlylucid.ephemeral.atoms.ratelimit/) - Rate limiting atom
+- [CLAUDE.md](../../CLAUDE.md) - Project architecture and build instructions
+- [REVIEW_FINDINGS.md](../../REVIEW_FINDINGS.md) - Code review and recommendations
 - [CHANGELOG.md](../../CHANGELOG.md) - Recent updates
+
+### Note About Demo Code
+
+⚠️ **The demos use simplified patterns for educational clarity:**
+- Flat signal names (not hierarchical scoped signals)
+- No operation ID filtering (acceptable for single-operation demos)
+- Manual subscription cleanup (Subscribe() pattern is safer)
+
+For production-ready code following v1.6.8+ best practices, see **[BEST_PRACTICES.md](../../BEST_PRACTICES.md)**.
 
 ## License
 

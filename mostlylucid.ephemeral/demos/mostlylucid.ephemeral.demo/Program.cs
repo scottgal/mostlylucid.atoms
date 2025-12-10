@@ -5,6 +5,12 @@ using Mostlylucid.Ephemeral.Atoms.WindowSize;
 using Spectre.Console;
 
 // Check for command-line arguments
+if (args.Length > 0 && args[0] == "--quick-perf")
+{
+    await QuickDynamicWorkflowTest.RunAsync();
+    return;
+}
+
 if (args.Length > 0 && args[0] == "--benchmark")
 {
     var category = args.Length > 1 ? args[1] : "all";
@@ -156,6 +162,8 @@ while (true)
                 "11. Metrics & Monitoring (Real-time Statistics)",
                 "12. Dynamic Rate Adjustment (Adaptive Throttling)",
                 "13. Live Signal Viewer",
+                "14. Dynamic Adaptive Workflow (Priority Failover + Self-Healing)",
+                "15. Quick Dynamic Workflow Perf Test (Hotspot Analysis)",
                 "B. Run Benchmarks (BenchmarkDotNet)",
                 "Exit"
             }));
@@ -212,6 +220,12 @@ while (true)
                 break;
             case "13":
                 await RunLiveSignalViewer();
+                break;
+            case "14":
+                await DynamicWorkflowDemo.RunAsync();
+                break;
+            case "15":
+                await QuickDynamicWorkflowTest.RunAsync();
                 break;
             case "B":
                 RunBenchmarks();

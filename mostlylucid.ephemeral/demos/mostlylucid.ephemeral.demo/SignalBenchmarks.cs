@@ -1051,6 +1051,167 @@ public class BenchmarkChainAtom : IAsyncDisposable
     }
 }
 
+/// <summary>
+/// Benchmarks for multi-coordinator Dynamic Adaptive Workflow pattern.
+/// Tests hotspots in priority-based failover with shared signal sink.
+/// </summary>
+[MemoryDiagnoser]
+[Config(typeof(BenchmarkConfig))]
+public class DynamicWorkflowBenchmarks
+{
+    private SignalSink _globalSink = null!;
+    private EphemeralWorkCoordinator<string> _router = null!;
+    private EphemeralWorkCoordinator<string> _processor1 = null!;
+    private EphemeralWorkCoordinator<string> _processor2 = null!;
+    private volatile bool _proc1Healthy = true;
+
+    [GlobalSetup]
+    public async Task Setup()
+    {
+        _globalSink = new SignalSink(maxCapacity: 5000);
+
+        // Primary processor (simulates 30% failure rate)
+        _processor1 = new EphemeralWorkCoordinator<string>(
+            async (widgetId, ct) =>
+            {
+                _globalSink.Raise($"processing.started:pri1:{widgetId}");
+                await Task.Delay(1, ct); // Minimal delay
+                var success = Random.Shared.NextDouble() > 0.3;
+
+                if (success)
+                {
+                    _proc1Healthy = true;
+                    _globalSink.Raise($"processing.complete:pri1:{widgetId}");
+                }
+                else
+                {
+                    _globalSink.Raise($"processing.failed:pri1:{widgetId}");
+                    var recentFailures = _globalSink.Sense(s =>
+                        s.Signal.Contains("processing.failed:pri1") &&
+                        s.Timestamp > DateTimeOffset.UtcNow.AddSeconds(-10)).Count;
+
+                    if (recentFailures >= 3)
+                    {
+                        _proc1Healthy = false;
+                        _globalSink.Raise("failover.triggered:pri1→pri2");
+                    }
+                }
+            },
+            new EphemeralOptions { MaxConcurrency = 4, Signals = _globalSink }
+        );
+
+        // Backup processor (5% failure rate)
+        _processor2 = new EphemeralWorkCoordinator<string>(
+            async (widgetId, ct) =>
+            {
+                _globalSink.Raise($"processing.started:pri2:{widgetId}");
+                await Task.Delay(2, ct); // Slightly slower
+                var success = Random.Shared.NextDouble() > 0.05;
+
+                if (success)
+                {
+                    _globalSink.Raise($"processing.complete:pri2:{widgetId}");
+                }
+                else
+                {
+                    _globalSink.Raise($"processing.failed:pri2:{widgetId}");
+                }
+            },
+            new EphemeralOptions { MaxConcurrency = 4, Signals = _globalSink }
+        );
+
+        // Router coordinator
+        _router = new EphemeralWorkCoordinator<string>(
+            async (widgetId, ct) =>
+            {
+                var targetPriority = _proc1Healthy ? 1 : 2;
+                _globalSink.Raise($"route.assigned:pri{targetPriority}:{widgetId}");
+
+                if (targetPriority == 1)
+                    await _processor1.EnqueueAsync(widgetId);
+                else
+                    await _processor2.EnqueueAsync(widgetId);
+            },
+            new EphemeralOptions { MaxConcurrency = 16, Signals = _globalSink }
+        );
+
+        await Task.CompletedTask;
+    }
+
+    [GlobalCleanup]
+    public async Task Cleanup()
+    {
+        _router?.Complete();
+        _processor1?.Complete();
+        _processor2?.Complete();
+
+        if (_router != null) await _router.DrainAsync();
+        if (_processor1 != null) await _processor1.DrainAsync();
+        if (_processor2 != null) await _processor2.DrainAsync();
+
+        await _router.DisposeAsync();
+        await _processor1.DisposeAsync();
+        await _processor2.DisposeAsync();
+    }
+
+    [Benchmark(Description = "Route 100 widgets through dynamic failover workflow")]
+    [BenchmarkCategory("DynamicWorkflow")]
+    public async Task RouteAndProcess100Widgets()
+    {
+        for (int i = 0; i < 100; i++)
+        {
+            await _router.EnqueueAsync($"WIDGET-{i}");
+        }
+
+        // Wait for all work to complete
+        await Task.Delay(500); // Allow time for processing
+    }
+
+    [Benchmark(Description = "Signal raising hotspot - 1000 signals to shared sink")]
+    [BenchmarkCategory("DynamicWorkflow")]
+    public void SharedSinkRaise1000Signals()
+    {
+        for (int i = 0; i < 1000; i++)
+        {
+            _globalSink.Raise($"test.signal:{i}");
+        }
+    }
+
+    [Benchmark(Description = "Signal sensing hotspot - query last 100 signals")]
+    [BenchmarkCategory("DynamicWorkflow")]
+    public void SignalSenseQuery()
+    {
+        var results = _globalSink.Sense(s =>
+            s.Signal.Contains("processing") &&
+            s.Timestamp > DateTimeOffset.UtcNow.AddSeconds(-60));
+
+        var count = results.Count; // Materialize
+    }
+
+    [Benchmark(Description = "Health check pattern - detect failures via signal query")]
+    [BenchmarkCategory("DynamicWorkflow")]
+    public void HealthCheckViaSignals()
+    {
+        var recentFailures = _globalSink.Sense(s =>
+            s.Signal.Contains("processing.failed") &&
+            s.Timestamp > DateTimeOffset.UtcNow.AddSeconds(-10)).Count;
+
+        var isHealthy = recentFailures < 3;
+    }
+
+    [Benchmark(Description = "Concurrent signal raising from 4 coordinators")]
+    [BenchmarkCategory("DynamicWorkflow")]
+    public async Task ConcurrentSignalRaisingFrom4Coordinators()
+    {
+        await Task.WhenAll(
+            Task.Run(() => { for (int i = 0; i < 100; i++) _globalSink.Raise($"coord1:signal:{i}"); }),
+            Task.Run(() => { for (int i = 0; i < 100; i++) _globalSink.Raise($"coord2:signal:{i}"); }),
+            Task.Run(() => { for (int i = 0; i < 100; i++) _globalSink.Raise($"coord3:signal:{i}"); }),
+            Task.Run(() => { for (int i = 0; i < 100; i++) _globalSink.Raise($"coord4:signal:{i}"); })
+        );
+    }
+}
+
 public static class BenchmarkRunner
 {
     public static void RunBenchmarks()
@@ -1064,6 +1225,11 @@ public static class BenchmarkRunner
         {
             // Run scoped signal benchmarks from separate class
             BenchmarkDotNet.Running.BenchmarkRunner.Run<ScopedSignalBenchmarks>();
+        }
+        else if (benchmarkName.Equals("DynamicWorkflow", StringComparison.OrdinalIgnoreCase))
+        {
+            // Run dynamic workflow benchmarks
+            BenchmarkDotNet.Running.BenchmarkRunner.Run<DynamicWorkflowBenchmarks>();
         }
         else
         {
