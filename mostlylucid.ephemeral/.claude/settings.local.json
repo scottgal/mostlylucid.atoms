@@ -1,13 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git commit:*)",
-      "Bash(dotnet list:*)",
-      "Bash(dotnet add package:*)",
-      "Bash(git add:*)",
-      "Bash(dotnet run:*)",
-      "Bash(pkill:*)",
-      "Bash(data when I see its signal?\"\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(Select-String -Pattern \"(Error|succeeded|failed)\")",
+      "Bash(Select-Object -Last 20)",
+      "Bash(dotnet run:*)"
     ],
     "deny": [],
     "ask": []
