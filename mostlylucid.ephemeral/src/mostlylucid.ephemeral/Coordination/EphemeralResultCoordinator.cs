@@ -305,6 +305,27 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
         Interlocked.Increment(ref _totalEnqueued);
     }
 
+    /// <summary>
+    ///     Enqueue multiple items for processing in bulk. More efficient than individual enqueues.
+    ///     Useful for preloading work with deferred execution (via DeferOnSignals).
+    /// </summary>
+    public async ValueTask<int> EnqueueManyAsync(IEnumerable<TInput> items, CancellationToken cancellationToken = default)
+    {
+        if (_completed)
+            throw new InvalidOperationException("Coordinator has been completed; no new items accepted.");
+
+        var count = 0;
+        foreach (var item in items)
+        {
+            await _channel.Writer.WriteAsync(item, cancellationToken).ConfigureAwait(false);
+            Interlocked.Increment(ref _pendingCount);
+            Interlocked.Increment(ref _totalEnqueued);
+            count++;
+        }
+
+        return count;
+    }
+
     public bool TryEnqueue(TInput item)
     {
         if (_completed) return false;
@@ -434,22 +455,30 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
     private async Task WaitForDeferSignalsAsync(CancellationToken ct)
     {
         if (_options.DeferOnSignals is not { Count: > 0 }) return;
+        if (_options.Signals is null) return;
+
         for (var attempt = 0; attempt < _options.MaxDeferAttempts; attempt++)
         {
             var hasDeferSignal = false;
-            foreach (var op in _recent)
-            {
-                if (op._signals is not { Count: > 0 }) continue;
-                foreach (var signal in op._signals)
-                    if (StringPatternMatcher.MatchesAny(signal, _options.DeferOnSignals))
-                    {
-                        hasDeferSignal = true;
-                        break;
-                    }
+            var hasResumeSignal = false;
 
-                if (hasDeferSignal) break;
+            var recentSignals = _options.Signals.Sense();
+            foreach (var signalEvent in recentSignals)
+            {
+                var signal = signalEvent.Signal;
+                if (_options.ResumeOnSignals is { Count: > 0 } &&
+                    StringPatternMatcher.MatchesAny(signal, _options.ResumeOnSignals))
+                {
+                    hasResumeSignal = true;
+                    break;
+                }
+                if (StringPatternMatcher.MatchesAny(signal, _options.DeferOnSignals))
+                {
+                    hasDeferSignal = true;
+                }
             }
 
+            if (hasResumeSignal) return;
             if (!hasDeferSignal) return;
             await Task.Delay(_options.DeferCheckInterval, ct).ConfigureAwait(false);
         }

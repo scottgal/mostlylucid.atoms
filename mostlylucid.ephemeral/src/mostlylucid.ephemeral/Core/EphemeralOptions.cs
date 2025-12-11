@@ -19,6 +19,14 @@ public sealed class EphemeralOptions
     /// <summary>
     ///     Max number of operations to retain in the in-memory window.
     ///     Oldest entries are dropped first (LRU-style).
+    ///
+    ///     IMPORTANT: This also controls the internal channel capacity for pending work.
+    ///     When using DeferOnSignals or bulk enqueuing with EnqueueManyAsync, ensure this
+    ///     value is >= the number of items you plan to enqueue while deferred. If the channel
+    ///     fills up while the consumer is deferred, EnqueueAsync/EnqueueManyAsync will block.
+    ///
+    ///     Example: If preloading 1000 jobs with DeferOnSignals, set MaxTrackedOperations to
+    ///     at least 1000 to prevent blocking during bulk enqueue.
     /// </summary>
     public int MaxTrackedOperations { get; init; } = 200;
 
@@ -144,10 +152,26 @@ public sealed class EphemeralOptions
 
     /// <summary>
     ///     Signals that cause pending items to wait before starting.
-    ///     When present, items are delayed until the signal ages out of the window.
+    ///     When present, items are delayed until the signal ages out of the window OR a ResumeOnSignals signal is raised.
     ///     Use for backpressure: ["backpressure", "slow-downstream"].
     /// </summary>
     public IReadOnlySet<string>? DeferOnSignals { get; init; }
+
+    /// <summary>
+    ///     Signals that cancel/override active defer signals and immediately resume processing.
+    ///     When any of these signals are raised, DeferOnSignals are ignored and processing resumes.
+    ///     Use for explicit triggers: ["batch.ready", "system.resume", "load.complete"].
+    ///     Pattern matching supported (e.g., "batch.*" matches "batch.ready", "batch.complete").
+    ///
+    ///     PATTERN: Preload and Trigger
+    ///     1. Raise defer signal: signals.Raise("batch.loading")
+    ///     2. Set DeferOnSignals = ["batch.loading"], ResumeOnSignals = ["batch.ready"]
+    ///     3. Bulk enqueue: await coordinator.EnqueueManyAsync(jobs) // Jobs won't process yet
+    ///     4. Trigger: signals.Raise("batch.ready") // Processing starts immediately
+    ///
+    ///     NOTE: Ensure MaxTrackedOperations >= number of jobs to prevent blocking during enqueue.
+    /// </summary>
+    public IReadOnlySet<string>? ResumeOnSignals { get; init; }
 
     /// <summary>
     ///     How long to wait when DeferOnSignals are present before rechecking.

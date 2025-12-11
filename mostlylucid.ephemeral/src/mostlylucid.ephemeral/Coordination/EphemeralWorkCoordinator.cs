@@ -663,6 +663,27 @@ public sealed class EphemeralWorkCoordinator<T> : IEphemeralCoordinator, IOperat
     }
 
     /// <summary>
+    ///     Enqueue multiple items for processing in bulk. More efficient than individual enqueues.
+    ///     Useful for preloading work with deferred execution (via DeferOnSignals).
+    /// </summary>
+    public async ValueTask<int> EnqueueManyAsync(IEnumerable<T> items, CancellationToken cancellationToken = default)
+    {
+        if (_completed)
+            throw new InvalidOperationException("Coordinator has been completed; no new items accepted.");
+
+        var count = 0;
+        foreach (var item in items)
+        {
+            await _channel.Writer.WriteAsync(new WorkItem(item, null), cancellationToken).ConfigureAwait(false);
+            Interlocked.Increment(ref _pendingCount);
+            Interlocked.Increment(ref _totalEnqueued);
+            count++;
+        }
+
+        return count;
+    }
+
+    /// <summary>
     ///     Try to enqueue without blocking. Returns false if at capacity.
     /// </summary>
     public bool TryEnqueue(T item)
@@ -931,23 +952,37 @@ public sealed class EphemeralWorkCoordinator<T> : IEphemeralCoordinator, IOperat
         if (_options.DeferOnSignals is not { Count: > 0 })
             return;
 
+        if (_options.Signals is null)
+            return; // No SignalSink, can't defer
+
         for (var attempt = 0; attempt < _options.MaxDeferAttempts; attempt++)
         {
             var hasDeferSignal = false;
-            foreach (var op in _recent)
+            var hasResumeSignal = false;
+
+            // Check SignalSink for active signals (not operation signals)
+            var recentSignals = _options.Signals.Sense();
+            foreach (var signalEvent in recentSignals)
             {
-                if (op._signals is not { Count: > 0 })
-                    continue;
+                var signal = signalEvent.Signal;
 
-                foreach (var signal in op._signals)
-                    if (StringPatternMatcher.MatchesAny(signal, _options.DeferOnSignals))
-                    {
-                        hasDeferSignal = true;
-                        break;
-                    }
+                // Check for resume signals first - they override defer
+                if (_options.ResumeOnSignals is { Count: > 0 } &&
+                    StringPatternMatcher.MatchesAny(signal, _options.ResumeOnSignals))
+                {
+                    hasResumeSignal = true;
+                    break;
+                }
 
-                if (hasDeferSignal) break;
+                if (StringPatternMatcher.MatchesAny(signal, _options.DeferOnSignals))
+                {
+                    hasDeferSignal = true;
+                }
             }
+
+            // Resume signal overrides defer
+            if (hasResumeSignal)
+                return; // Resume signal present, proceed immediately
 
             if (!hasDeferSignal)
                 return; // No defer signals present, proceed

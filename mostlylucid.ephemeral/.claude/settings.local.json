@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dotnet sln:*)"
+      "Bash(dotnet sln:*)",
+      "Bash(timeout 10 dotnet run:*)",
+      "Bash(timeout 5 dotnet run:*)"
     ],
     "deny": [],
     "ask": []

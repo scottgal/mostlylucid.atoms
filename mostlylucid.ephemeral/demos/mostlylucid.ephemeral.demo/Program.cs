@@ -146,7 +146,7 @@ while (true)
     var choice = AnsiConsole.Prompt(
         new SelectionPrompt<string>()
             .Title("[cyan1]Select a demo:[/]")
-            .PageSize(10)
+            .PageSize(20) // Show all menu items without scrolling
             .AddChoices(new[]
             {
                 "1. Image Processing Pipeline (ImageSharp Atoms)",
@@ -164,6 +164,7 @@ while (true)
                 "13. Live Signal Viewer",
                 "14. Dynamic Adaptive Workflow (Priority Failover + Self-Healing)",
                 "15. Quick Dynamic Workflow Perf Test (Hotspot Analysis)",
+                "16. Preload and Trigger Demo (Bulk Enqueue + Signal Trigger)",
                 "B. Run Benchmarks (BenchmarkDotNet)",
                 "Exit"
             }));
@@ -227,6 +228,9 @@ while (true)
             case "15":
                 await QuickDynamicWorkflowTest.RunAsync();
                 break;
+            case "16":
+                await PreloadDemo.RunAsync();
+                break;
             case "B":
                 RunBenchmarks();
                 return; // Exit after benchmarks
@@ -281,16 +285,31 @@ void RunBenchmarks()
     AnsiConsole.MarkupLine("[grey]This will compile and run benchmarks with memory diagnostics.[/]");
     AnsiConsole.MarkupLine("[grey]Results will show allocations, GC pressure, and performance.[/]\n");
 
-    AnsiConsole.MarkupLine("[cyan1]Benchmarks:[/]");
-    AnsiConsole.MarkupLine("[grey]- Signal Raise (no listeners)[/]");
-    AnsiConsole.MarkupLine("[grey]- Signal Raise (1 listener)[/]");
-    AnsiConsole.MarkupLine("[grey]- Signal Pattern Matching[/]");
-    AnsiConsole.MarkupLine("[grey]- SignalCommandMatch Parsing[/]");
-    AnsiConsole.MarkupLine("[grey]- Rate Limiter Acquire[/]");
-    AnsiConsole.MarkupLine("[grey]- TestAtom State Query[/]");
-    AnsiConsole.MarkupLine("[grey]- WindowSizeAtom Command[/]");
-    AnsiConsole.MarkupLine("[grey]- Signal Chain (3 atoms)[/]");
-    AnsiConsole.MarkupLine("[grey]- Concurrent Signal Raising[/]\n");
+    // Get benchmark descriptions dynamically via reflection
+    var benchmarkType = typeof(SignalBenchmarks);
+    var methods = benchmarkType.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+
+    var allBenchmarks = new List<string>();
+    foreach (var method in methods)
+    {
+        var benchmarkAttr = method.GetCustomAttributes(typeof(BenchmarkDotNet.Attributes.BenchmarkAttribute), false)
+            .FirstOrDefault() as BenchmarkDotNet.Attributes.BenchmarkAttribute;
+
+        if (benchmarkAttr != null && !string.IsNullOrEmpty(benchmarkAttr.Description))
+        {
+            allBenchmarks.Add(benchmarkAttr.Description);
+        }
+    }
+
+    if (allBenchmarks.Count > 0)
+    {
+        AnsiConsole.MarkupLine($"[cyan1]Benchmarks ({allBenchmarks.Count} total):[/]");
+        foreach (var benchmark in allBenchmarks)
+        {
+            AnsiConsole.MarkupLine($"[grey]- {Markup.Escape(benchmark)}[/]");
+        }
+        AnsiConsole.WriteLine();
+    }
 
     AnsiConsole.MarkupLine("[yellow]Press any key to start benchmarks...[/]");
     Console.ReadKey(true);
