@@ -136,9 +136,7 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
 
     private void NotifyOperationFinalized(EphemeralOperation<TResult> op)
     {
-        // Clear this operation's signals from the sink - coordinator manages signal lifetime
-        _options.Signals?.ClearOperation(op.Id);
-
+        // Operations own their signals - no manual cleanup needed
         OperationFinalized?.Invoke(op.ToBaseSnapshot());
         RecordEcho(op);
     }
@@ -243,7 +241,7 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
             var signals = op._signals;
             var count = signals.Count;
             for (var i = 0; i < count; i++)
-                if (signals[i] == signalName)
+                if (signals[i].Signal == signalName)
                     return true;
         }
 
@@ -267,9 +265,8 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
         {
             if (op._signals is not { Count: > 0 }) continue;
             if (predicate != null && !predicate(op.ToBaseSnapshot())) continue;
-            var timestamp = op.Completed ?? op.Started;
-            foreach (var signal in op._signals)
-                results.Add(new SignalEvent(signal, op.Id, op.Key, timestamp));
+            foreach (var signalEvt in op._signals)
+                results.Add(signalEvt);
         }
 
         return results;
@@ -447,8 +444,8 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
         foreach (var op in _recent)
         {
             if (op._signals is not { Count: > 0 }) continue;
-            foreach (var signal in op._signals)
-                if (StringPatternMatcher.MatchesAny(signal, _options.CancelOnSignals))
+            foreach (var signalEvt in op._signals)
+                if (StringPatternMatcher.MatchesAny(signalEvt.Signal, _options.CancelOnSignals))
                     return true;
         }
 
@@ -489,6 +486,9 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
 
     private async Task ExecuteItemAsync(TInput item, EphemeralOperation<TResult> op)
     {
+        // Emit automatic lifecycle start signal
+        op.Signal("atom.start");
+
         try
         {
             var result = await _body(item, _cts.Token).ConfigureAwait(false);
@@ -499,11 +499,16 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
         catch (Exception ex) when (!_cts.Token.IsCancellationRequested)
         {
             op.Error = ex;
+            // Store exception in errorstate for easy access
+            op.SetState("errorstate", ex);
             Interlocked.Increment(ref _totalFailed);
         }
         finally
         {
             op.Completed = DateTimeOffset.UtcNow;
+            // Emit automatic lifecycle stop signal
+            op.Signal("atom.stop");
+
             _concurrency.Release();
             CleanupWindow();
             SampleIfRequested();

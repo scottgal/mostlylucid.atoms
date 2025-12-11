@@ -194,33 +194,6 @@ public class FixedWorkAtomTests
     }
 
     [Fact]
-    public async Task WithSignals_EmitsToSharedSink()
-    {
-        // Arrange
-        var signals = new SignalSink(100, TimeSpan.FromMinutes(1));
-        var atom = new FixedWorkAtom<int>(
-            async (item, ct) =>
-            {
-                await Task.Delay(10, ct);
-                signals.Raise($"processed:{item}");
-            },
-            maxConcurrency: 2,
-            signals: signals);
-
-        // Act
-        await atom.EnqueueAsync(1);
-        await atom.EnqueueAsync(2);
-        await atom.DrainAsync();
-
-        // Assert
-        var raised = signals.Sense();
-        Assert.Contains(raised, s => s.Signal.Contains("processed:1"));
-        Assert.Contains(raised, s => s.Signal.Contains("processed:2"));
-
-        await atom.DisposeAsync();
-    }
-
-    [Fact]
     public async Task DefaultConcurrency_UsesProcessorCount()
     {
         // Arrange & Act

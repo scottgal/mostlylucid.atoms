@@ -15,7 +15,7 @@ public abstract class CoordinatorBase(EphemeralOptions? options) : IAsyncDisposa
         ? new OperationEchoStore((options ?? new EphemeralOptions()).OperationEchoRetention,
             (options ?? new EphemeralOptions()).OperationEchoCapacity)
         : null;
-    protected readonly EphemeralOptions _options = options ?? new EphemeralOptions();
+    protected readonly EphemeralOptions _options = InitializeOptions(options, null!);
     protected readonly ManualResetEventSlim _pauseGate = new(true);
     protected readonly ConcurrentQueue<EphemeralOperation> _recent = new();
     protected readonly object _windowLock = new();
@@ -30,6 +30,14 @@ public abstract class CoordinatorBase(EphemeralOptions? options) : IAsyncDisposa
     protected int _totalCompleted;
     protected int _totalEnqueued;
     protected int _totalFailed;
+
+    // Initialize options and register with sink
+    private static EphemeralOptions InitializeOptions(EphemeralOptions? options, CoordinatorBase coordinator)
+    {
+        var opts = options ?? new EphemeralOptions();
+        opts.Signals?.RegisterCoordinator(coordinator);
+        return opts;
+    }
 
     /// <summary>
     ///     Gets current metrics snapshot with thread-safe volatile reads.
@@ -175,9 +183,7 @@ public abstract class CoordinatorBase(EphemeralOptions? options) : IAsyncDisposa
                 continue;
             if (op.Key != key)
                 continue;
-            var timestamp = op.Completed ?? op.Started;
-            foreach (var signal in op._signals)
-                results.Add(new SignalEvent(signal, op.Id, op.Key, timestamp));
+            results.AddRange(op._signals);
         }
         return results;
     }
@@ -192,10 +198,9 @@ public abstract class CoordinatorBase(EphemeralOptions? options) : IAsyncDisposa
         {
             if (op._signals is not { Count: > 0 })
                 continue;
-            var timestamp = op.Completed ?? op.Started;
-            foreach (var signal in op._signals)
-                if (StringPatternMatcher.Matches(signal, pattern))
-                    results.Add(new SignalEvent(signal, op.Id, op.Key, timestamp));
+            foreach (var evt in op._signals)
+                if (StringPatternMatcher.Matches(evt.Signal, pattern))
+                    results.Add(evt);
         }
         return results;
     }
@@ -212,7 +217,7 @@ public abstract class CoordinatorBase(EphemeralOptions? options) : IAsyncDisposa
             var signals = op._signals;
             var count = signals.Count;
             for (var i = 0; i < count; i++)
-                if (signals[i] == signalName)
+                if (signals[i].Signal == signalName)
                     return true;
         }
         return false;
@@ -230,7 +235,7 @@ public abstract class CoordinatorBase(EphemeralOptions? options) : IAsyncDisposa
             var signals = op._signals;
             var count = signals.Count;
             for (var i = 0; i < count; i++)
-                if (StringPatternMatcher.Matches(signals[i], pattern))
+                if (StringPatternMatcher.Matches(signals[i].Signal, pattern))
                     return true;
         }
         return false;
@@ -248,6 +253,42 @@ public abstract class CoordinatorBase(EphemeralOptions? options) : IAsyncDisposa
         return count;
     }
 
+    /// <summary>
+    ///     Cleans up signals older than the specified age across all operations.
+    ///     Operations manage their own signals - this just iterates and asks each to clean up.
+    /// </summary>
+    public int CleanupSignals(TimeSpan olderThan)
+    {
+        var removed = 0;
+        foreach (var op in _recent)
+            removed += op.CleanupSignals(olderThan);
+        return removed;
+    }
+
+    /// <summary>
+    ///     Cleans up the oldest N signals from each operation.
+    ///     Operations manage their own signals - this just iterates and asks each to clean up.
+    /// </summary>
+    public int CleanupSignals(int keepCount)
+    {
+        var removed = 0;
+        foreach (var op in _recent)
+            removed += op.CleanupSignals(keepCount);
+        return removed;
+    }
+
+    /// <summary>
+    ///     Cleans up signals matching the pattern across all operations.
+    ///     Operations manage their own signals - this just iterates and asks each to clean up.
+    /// </summary>
+    public int CleanupSignals(string pattern)
+    {
+        var removed = 0;
+        foreach (var op in _recent)
+            removed += op.CleanupSignals(pattern);
+        return removed;
+    }
+
     protected IReadOnlyList<SignalEvent> GetSignalsCore(Func<EphemeralOperationSnapshot, bool>? predicate)
     {
         var results = new List<SignalEvent>();
@@ -257,18 +298,14 @@ public abstract class CoordinatorBase(EphemeralOptions? options) : IAsyncDisposa
                 continue;
             if (predicate != null && !predicate(op.ToSnapshot()))
                 continue;
-            var timestamp = op.Completed ?? op.Started;
-            foreach (var signal in op._signals)
-                results.Add(new SignalEvent(signal, op.Id, op.Key, timestamp));
+            results.AddRange(op._signals);
         }
         return results;
     }
 
     protected void NotifyOperationFinalized(EphemeralOperation op)
     {
-        // Clear this operation's signals from the sink - coordinator manages signal lifetime
-        _options.Signals?.ClearOperation(op.Id);
-
+        // Operations own their signals - no manual cleanup needed
         OperationFinalized?.Invoke(op.ToSnapshot());
         RecordEcho(op);
     }

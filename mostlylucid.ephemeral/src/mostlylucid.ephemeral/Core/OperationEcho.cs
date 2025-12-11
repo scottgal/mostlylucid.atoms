@@ -6,5 +6,5 @@ namespace Mostlylucid.Ephemeral;
 public sealed record OperationEcho(
     long OperationId,
     string? Key,
-    IReadOnlyList<string>? Signals,
+    IReadOnlyList<SignalEvent>? Signals,
     DateTimeOffset FinalizedAt);

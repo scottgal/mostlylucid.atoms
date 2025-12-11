@@ -4,7 +4,9 @@
       "Bash(dotnet sln:*)",
       "Bash(timeout 10 dotnet run:*)",
       "Bash(timeout 5 dotnet run:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(dotnet run:*)",
+      "Bash(taskkill:*)"
     ],
     "deny": [],
     "ask": []

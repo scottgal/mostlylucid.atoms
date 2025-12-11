@@ -348,8 +348,7 @@ public static class ParallelResizeDemo
         var maxHistoryPoints = 20;
 
         AnsiConsole.WriteLine($"Processing {imagesPerBatch} images/batch × {resizeOptions.Sizes.Count} sizes = {imagesPerBatch * resizeOptions.Sizes.Count} resizes/batch");
-        AnsiConsole.WriteLine($"Max parallelism: {resizeOptions.MaxParallelism} concurrent resize operations");
-        AnsiConsole.WriteLine($"Signal window: {sink.MaxCapacity} events, {sink.MaxAge.TotalSeconds}s retention\n");
+        AnsiConsole.WriteLine($"Max parallelism: {resizeOptions.MaxParallelism} concurrent resize operations\n");
 
         // Subscribe to signals for LIVE updates
         sink.Subscribe(signal =>
@@ -368,7 +367,6 @@ public static class ParallelResizeDemo
         // Track previous values for trend arrows
         double prevThroughput = 0;
         double prevMemory = 0;
-        int prevSignals = 0;
 
         try
         {
@@ -413,7 +411,6 @@ public static class ParallelResizeDemo
                                     var uptime = DateTimeOffset.UtcNow - startTime;
                                     var throughput = totalProcessed / uptime.TotalSeconds;
                                     var memoryMB = GC.GetTotalMemory(forceFullCollection: false) / (1024.0 * 1024.0);
-                                    var signalCount = sink.Count;
 
                                     // Track history
                                     throughputHistory.Add(throughput);
@@ -427,7 +424,6 @@ public static class ParallelResizeDemo
                                     // Calculate trends
                                     var throughputTrend = GetTrendArrow(throughput, prevThroughput);
                                     var memoryTrend = GetTrendArrow(memoryMB, prevMemory);
-                                    var signalTrend = GetTrendArrow(signalCount, prevSignals);
 
                                     // Build live dashboard
                                     var dashboard = new Table()
@@ -461,14 +457,6 @@ public static class ParallelResizeDemo
                                         memoryHistory.Count > 1 ? GenerateSparkline(memoryHistory, Color.Blue) : "[grey]collecting...[/]"
                                     );
 
-                                    var signalPercent = (int)((signalCount / (double)sink.MaxCapacity) * 100);
-                                    dashboard.AddRow(
-                                        "[grey]Signals[/]",
-                                        $"[grey]{signalCount}/{sink.MaxCapacity}[/]",
-                                        signalTrend,
-                                        $"[grey]{signalPercent}% capacity[/]"
-                                    );
-
                                     dashboard.AddRow(
                                         "[grey]Total Processed[/]",
                                         $"[grey]{totalProcessed:N0}[/]",
@@ -482,7 +470,6 @@ public static class ParallelResizeDemo
                                     // Update previous values for next comparison
                                     prevThroughput = throughput;
                                     prevMemory = memoryMB;
-                                    prevSignals = signalCount;
                                 }
                             }
                         }
@@ -496,14 +483,12 @@ public static class ParallelResizeDemo
                                 var uptime = DateTimeOffset.UtcNow - startTime;
                                 var throughput = totalProcessed / uptime.TotalSeconds;
                                 var memoryMB = GC.GetTotalMemory(forceFullCollection: false) / (1024.0 * 1024.0);
-                                var signalCount = sink.Count;
 
                                 // Show checkpoint panel
                                 checkpoint = new Panel(
                                     new Markup($"[cyan1]Total resizes:[/] {totalProcessed:N0}\n" +
                                               $"[cyan1]Avg throughput:[/] {throughput:F1} resizes/sec\n" +
                                               $"[cyan1]Memory usage:[/] {memoryMB:F1} MB\n" +
-                                              $"[cyan1]Signal window:[/] {signalCount} / {sink.MaxCapacity} live ({totalProcessed:N0} total)\n" +
                                               $"[cyan1]GC collections:[/] Gen0={GC.CollectionCount(0)}, Gen1={GC.CollectionCount(1)}, Gen2={GC.CollectionCount(2)}\n" +
                                               $"[cyan1]Uptime:[/] {uptime:hh\\:mm\\:ss}\n" +
                                               $"[green]✓ Status:[/] Throughput and memory flat → no leak detected so far"))

@@ -11,7 +11,7 @@ public sealed record EphemeralOperationSnapshot(
     bool IsFaulted,
     Exception? Error,
     TimeSpan? Duration,
-    IReadOnlyList<string>? Signals = null,
+    IReadOnlyList<SignalEvent>? Signals = null,
     bool IsPinned = false)
 {
     /// <summary>
@@ -24,7 +24,11 @@ public sealed record EphemeralOperationSnapshot(
     /// </summary>
     public bool HasSignal(string signal)
     {
-        return Signals?.Contains(signal) == true;
+        if (Signals is null) return false;
+        foreach (var evt in Signals)
+            if (evt.Signal == signal)
+                return true;
+        return false;
     }
 }
 
@@ -41,7 +45,7 @@ public sealed record EphemeralOperationSnapshot<TResult>(
     TimeSpan? Duration,
     TResult? Result,
     bool HasResult,
-    IReadOnlyList<string>? Signals = null,
+    IReadOnlyList<SignalEvent>? Signals = null,
     bool IsPinned = false)
 {
     /// <summary>
@@ -54,6 +58,10 @@ public sealed record EphemeralOperationSnapshot<TResult>(
     /// </summary>
     public bool HasSignal(string signal)
     {
-        return Signals?.Contains(signal) == true;
+        if (Signals is null) return false;
+        foreach (var evt in Signals)
+            if (evt.Signal == signal)
+                return true;
+        return false;
     }
 }

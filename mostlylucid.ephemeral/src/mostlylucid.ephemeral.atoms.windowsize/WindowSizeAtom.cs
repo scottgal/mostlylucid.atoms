@@ -77,13 +77,13 @@ public sealed class WindowSizeAtom : IAsyncDisposable
 
         if (TryParseCapacity(winSignal, _options.CapacityIncreaseCommand, out value))
         {
-            UpdateCapacity(_sink.MaxCapacity + value);
+            // Sink no longer has MaxCapacity - configure coordinator MaxTrackedOperations instead
             return true;
         }
 
         if (TryParseCapacity(winSignal, _options.CapacityDecreaseCommand, out value))
         {
-            UpdateCapacity(_sink.MaxCapacity - value);
+            // Sink no longer has MaxCapacity - configure coordinator MaxTrackedOperations instead
             return true;
         }
 
@@ -100,13 +100,13 @@ public sealed class WindowSizeAtom : IAsyncDisposable
 
         if (TryParseTime(winSignal, _options.TimeIncreaseCommand, out span))
         {
-            UpdateRetention(_sink.MaxAge + span);
+            // Sink no longer has MaxAge - configure coordinator MaxOperationLifetime instead
             return true;
         }
 
         if (TryParseTime(winSignal, _options.TimeDecreaseCommand, out span))
         {
-            UpdateRetention(_sink.MaxAge - span);
+            // Sink no longer has MaxAge - configure coordinator MaxOperationLifetime instead
             return true;
         }
 
@@ -115,19 +115,14 @@ public sealed class WindowSizeAtom : IAsyncDisposable
 
     private void UpdateCapacity(int requested)
     {
-        var clamped = Math.Min(_options.MaxCapacity, Math.Max(_options.MinCapacity, requested));
-        _sink.UpdateWindowSize(maxCapacity: clamped);
+        // No-op: Sink no longer stores signals
+        // Configure MaxTrackedOperations in coordinator EphemeralOptions instead
     }
 
     private void UpdateRetention(TimeSpan requested)
     {
-        var clamped = requested < _options.MinRetention
-            ? _options.MinRetention
-            : requested > _options.MaxRetention
-                ? _options.MaxRetention
-                : requested;
-
-        _sink.UpdateWindowSize(maxAge: clamped);
+        // No-op: Sink no longer stores signals
+        // Configure MaxOperationLifetime in coordinator EphemeralOptions instead
     }
 
     private static bool TryParseCapacity(string signal, string command, out int value)

@@ -321,8 +321,8 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : CoordinatorBase
         foreach (var op in _recent)
         {
             if (op._signals is not { Count: > 0 }) continue;
-            foreach (var signal in op._signals)
-                if (StringPatternMatcher.MatchesAny(signal, _options.CancelOnSignals))
+            foreach (var signalEvt in op._signals)
+                if (StringPatternMatcher.MatchesAny(signalEvt.Signal, _options.CancelOnSignals))
                     return true;
         }
 
@@ -363,6 +363,9 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : CoordinatorBase
 
     private async Task ExecuteItemAsync(T item, TKey key, EphemeralOperation op, KeyLock keyLock)
     {
+        // Emit automatic lifecycle start signal
+        op.Signal("atom.start");
+
         try
         {
             await _body(item, _cts.Token).ConfigureAwait(false);
@@ -371,11 +374,16 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : CoordinatorBase
         catch (Exception ex) when (!_cts.Token.IsCancellationRequested)
         {
             op.Error = ex;
+            // Store exception in errorstate for easy access
+            op.SetState("errorstate", ex);
             Interlocked.Increment(ref _totalFailed);
         }
         finally
         {
             op.Completed = DateTimeOffset.UtcNow;
+            // Emit automatic lifecycle stop signal
+            op.Signal("atom.stop");
+
             keyLock.Gate.Release();
             keyLock.Touch();
             _globalConcurrency.Release();

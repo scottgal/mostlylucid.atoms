@@ -12,7 +12,8 @@ public sealed class EphemeralOperation : ISignalEmitter
     private readonly Action<SignalEvent>? _onSignal;
     private readonly Action<SignalRetractedEvent>? _onSignalRetracted;
     private readonly SignalSink? _sink;
-    internal List<string>? _signals;
+    internal List<SignalEvent>? _signals;
+    private Dictionary<string, object>? _state;
 
     public EphemeralOperation(
         SignalSink? sink = null,
@@ -112,14 +113,17 @@ public sealed class EphemeralOperation : ISignalEmitter
             }
         }
 
-        _signals ??= new List<string>();
-        _signals.Add(signal);
-
         // Build propagation chain: extend from cause, or start new if leaf/null
         SignalPropagation? propagation = null;
         if (_constraints?.IsLeaf(signal) != true) propagation = cause?.Extend(signal) ?? SignalPropagation.Root(signal);
 
         var evt = new SignalEvent(signal, Id, Key, DateTimeOffset.UtcNow, propagation);
+
+        // Store full event on operation (single source of truth)
+        _signals ??= new List<SignalEvent>();
+        _signals.Add(evt);
+
+        // Notify sink for live subscribers (sink doesn't own storage)
         _sink?.Raise(evt);
 
         if (_onSignal is not null)
@@ -142,10 +146,22 @@ public sealed class EphemeralOperation : ISignalEmitter
     public bool Retract(string signal)
     {
         if (_signals is null) return false;
-        if (!_signals.Remove(signal)) return false;
 
-        NotifyRetracted(signal, false, null);
-        return true;
+        var removed = false;
+        for (int i = _signals.Count - 1; i >= 0; i--)
+        {
+            if (_signals[i].Signal == signal)
+            {
+                _signals.RemoveAt(i);
+                removed = true;
+                break; // Remove first match only
+            }
+        }
+
+        if (removed)
+            NotifyRetracted(signal, false, null);
+
+        return removed;
     }
 
     /// <summary>
@@ -157,11 +173,11 @@ public sealed class EphemeralOperation : ISignalEmitter
         if (_signals is null) return 0;
 
         var removed = new List<string>();
-        _signals.RemoveAll(s =>
+        _signals.RemoveAll(evt =>
         {
-            if (StringPatternMatcher.Matches(s, pattern))
+            if (StringPatternMatcher.Matches(evt.Signal, pattern))
             {
-                removed.Add(s);
+                removed.Add(evt.Signal);
                 return true;
             }
 
@@ -193,7 +209,85 @@ public sealed class EphemeralOperation : ISignalEmitter
     /// </summary>
     public bool HasSignal(string signal)
     {
-        return _signals?.Contains(signal) == true;
+        if (_signals is null) return false;
+        foreach (var evt in _signals)
+            if (evt.Signal == signal)
+                return true;
+        return false;
+    }
+
+    /// <summary>
+    ///     Remove signals older than the specified age from this operation.
+    ///     Operations manage their own signals - no coordinator involvement needed.
+    /// </summary>
+    /// <param name="olderThan">Remove signals older than this timespan from now.</param>
+    /// <returns>Number of signals removed.</returns>
+    public int CleanupSignals(TimeSpan olderThan)
+    {
+        if (_signals is null) return 0;
+        var cutoff = DateTimeOffset.UtcNow - olderThan;
+        return _signals.RemoveAll(s => s.Timestamp < cutoff);
+    }
+
+    /// <summary>
+    ///     Remove the oldest signals, keeping only the most recent N.
+    ///     Operations manage their own signals - no coordinator involvement needed.
+    /// </summary>
+    /// <param name="keepCount">Number of most recent signals to keep.</param>
+    /// <returns>Number of signals removed.</returns>
+    public int CleanupSignals(int keepCount)
+    {
+        if (_signals is null || _signals.Count <= keepCount) return 0;
+        var toRemove = _signals.Count - keepCount;
+        _signals.RemoveRange(0, toRemove);
+        return toRemove;
+    }
+
+    /// <summary>
+    ///     Remove signals matching the specified pattern from this operation.
+    ///     Operations manage their own signals - no coordinator involvement needed.
+    /// </summary>
+    /// <param name="pattern">Pattern to match signal names (e.g., "error.*", "api.*.timeout").</param>
+    /// <returns>Number of signals removed.</returns>
+    public int CleanupSignals(string pattern)
+    {
+        if (_signals is null) return 0;
+        return _signals.RemoveAll(evt => StringPatternMatcher.Matches(evt.Signal, pattern));
+    }
+
+    /// <summary>
+    ///     Set a state value for this operation. All operations have state storage available.
+    /// </summary>
+    public void SetState(string key, object value)
+    {
+        _state ??= new Dictionary<string, object>();
+        _state[key] = value;
+    }
+
+    /// <summary>
+    ///     Get a state value from this operation, or null if not found.
+    /// </summary>
+    public object? GetState(string key)
+    {
+        if (_state is null) return null;
+        return _state.TryGetValue(key, out var value) ? value : null;
+    }
+
+    /// <summary>
+    ///     Get a strongly-typed state value, or default if not found or wrong type.
+    /// </summary>
+    public T? GetState<T>(string key)
+    {
+        var value = GetState(key);
+        return value is T typed ? typed : default;
+    }
+
+    /// <summary>
+    ///     Check if a state key exists.
+    /// </summary>
+    public bool HasState(string key)
+    {
+        return _state?.ContainsKey(key) ?? false;
     }
 
     public EphemeralOperationSnapshot ToSnapshot()
@@ -212,7 +306,8 @@ internal sealed class EphemeralOperation<TResult> : ISignalEmitter
     private readonly Action<SignalEvent>? _onSignal;
     private readonly Action<SignalRetractedEvent>? _onSignalRetracted;
     private readonly SignalSink? _sink;
-    internal List<string>? _signals;
+    internal List<SignalEvent>? _signals;
+    private Dictionary<string, object>? _state;
 
     public EphemeralOperation(
         SignalSink? sink = null,
@@ -316,14 +411,17 @@ internal sealed class EphemeralOperation<TResult> : ISignalEmitter
             }
         }
 
-        _signals ??= new List<string>();
-        _signals.Add(signal);
-
         // Build propagation chain: extend from cause, or start new if leaf/null
         SignalPropagation? propagation = null;
         if (_constraints?.IsLeaf(signal) != true) propagation = cause?.Extend(signal) ?? SignalPropagation.Root(signal);
 
         var evt = new SignalEvent(signal, Id, Key, DateTimeOffset.UtcNow, propagation);
+
+        // Store full event on operation (single source of truth)
+        _signals ??= new List<SignalEvent>();
+        _signals.Add(evt);
+
+        // Notify sink for live subscribers (sink doesn't own storage)
         _sink?.Raise(evt);
 
         if (_onSignal is not null)
@@ -346,10 +444,22 @@ internal sealed class EphemeralOperation<TResult> : ISignalEmitter
     public bool Retract(string signal)
     {
         if (_signals is null) return false;
-        if (!_signals.Remove(signal)) return false;
 
-        NotifyRetracted(signal, false, null);
-        return true;
+        var removed = false;
+        for (int i = _signals.Count - 1; i >= 0; i--)
+        {
+            if (_signals[i].Signal == signal)
+            {
+                _signals.RemoveAt(i);
+                removed = true;
+                break; // Remove first match only
+            }
+        }
+
+        if (removed)
+            NotifyRetracted(signal, false, null);
+
+        return removed;
     }
 
     /// <summary>
@@ -361,11 +471,11 @@ internal sealed class EphemeralOperation<TResult> : ISignalEmitter
         if (_signals is null) return 0;
 
         var removed = new List<string>();
-        _signals.RemoveAll(s =>
+        _signals.RemoveAll(evt =>
         {
-            if (StringPatternMatcher.Matches(s, pattern))
+            if (StringPatternMatcher.Matches(evt.Signal, pattern))
             {
-                removed.Add(s);
+                removed.Add(evt.Signal);
                 return true;
             }
 
@@ -397,7 +507,85 @@ internal sealed class EphemeralOperation<TResult> : ISignalEmitter
     /// </summary>
     public bool HasSignal(string signal)
     {
-        return _signals?.Contains(signal) == true;
+        if (_signals is null) return false;
+        foreach (var evt in _signals)
+            if (evt.Signal == signal)
+                return true;
+        return false;
+    }
+
+    /// <summary>
+    ///     Remove signals older than the specified age from this operation.
+    ///     Operations manage their own signals - no coordinator involvement needed.
+    /// </summary>
+    /// <param name="olderThan">Remove signals older than this timespan from now.</param>
+    /// <returns>Number of signals removed.</returns>
+    public int CleanupSignals(TimeSpan olderThan)
+    {
+        if (_signals is null) return 0;
+        var cutoff = DateTimeOffset.UtcNow - olderThan;
+        return _signals.RemoveAll(s => s.Timestamp < cutoff);
+    }
+
+    /// <summary>
+    ///     Remove the oldest signals, keeping only the most recent N.
+    ///     Operations manage their own signals - no coordinator involvement needed.
+    /// </summary>
+    /// <param name="keepCount">Number of most recent signals to keep.</param>
+    /// <returns>Number of signals removed.</returns>
+    public int CleanupSignals(int keepCount)
+    {
+        if (_signals is null || _signals.Count <= keepCount) return 0;
+        var toRemove = _signals.Count - keepCount;
+        _signals.RemoveRange(0, toRemove);
+        return toRemove;
+    }
+
+    /// <summary>
+    ///     Remove signals matching the specified pattern from this operation.
+    ///     Operations manage their own signals - no coordinator involvement needed.
+    /// </summary>
+    /// <param name="pattern">Pattern to match signal names (e.g., "error.*", "api.*.timeout").</param>
+    /// <returns>Number of signals removed.</returns>
+    public int CleanupSignals(string pattern)
+    {
+        if (_signals is null) return 0;
+        return _signals.RemoveAll(evt => StringPatternMatcher.Matches(evt.Signal, pattern));
+    }
+
+    /// <summary>
+    ///     Set a state value for this operation. All operations have state storage available.
+    /// </summary>
+    public void SetState(string key, object value)
+    {
+        _state ??= new Dictionary<string, object>();
+        _state[key] = value;
+    }
+
+    /// <summary>
+    ///     Get a state value from this operation, or null if not found.
+    /// </summary>
+    public object? GetState(string key)
+    {
+        if (_state is null) return null;
+        return _state.TryGetValue(key, out var value) ? value : null;
+    }
+
+    /// <summary>
+    ///     Get a strongly-typed state value, or default if not found or wrong type.
+    /// </summary>
+    public T? GetState<T>(string key)
+    {
+        var value = GetState(key);
+        return value is T typed ? typed : default;
+    }
+
+    /// <summary>
+    ///     Check if a state key exists.
+    /// </summary>
+    public bool HasState(string key)
+    {
+        return _state?.ContainsKey(key) ?? false;
     }
 
     public EphemeralOperationSnapshot<TResult> ToSnapshot()

@@ -340,50 +340,67 @@ public interface ISignalEmitter
 }
 
 /// <summary>
-///     Global signal sink. Operations raise signals here.
-///     Process with another coordinator or poll the window.
+///     Signal sink: Shared view over multiple coordinators' operations.
+///     Provides live pub/sub (Raise/Subscribe) and aggregated queries (Sense/Detect).
+///     Operations own their signals; sink is just a registry and view aggregator.
 /// </summary>
 public sealed class SignalSink
 {
-        private long _maxAgeTicks;
-        private int _maxCapacity;
-    private readonly ConcurrentQueue<SignalEvent> _window = new();
-    private long _raiseCounter;
-
-    private readonly object _windowSizeLock = new();
+    // Registry of coordinators using this sink (weak references to avoid memory leaks)
+    private readonly ConcurrentBag<WeakReference<CoordinatorBase>> _coordinators = new();
+    private long _lastCleanupTicks;
 
     // Lock-free listener array for optimal performance
     private volatile Action<SignalEvent>[] _listeners = Array.Empty<Action<SignalEvent>>();
     private readonly object _listenersLock = new();
 
 
+    [Obsolete("maxCapacity and maxAge are no longer used. Coordinators manage their own capacity/lifetime.", false)]
     public SignalSink(int maxCapacity = 1000, TimeSpan? maxAge = null)
     {
-        _maxCapacity = maxCapacity;
-        _maxAgeTicks = (maxAge ?? TimeSpan.FromMinutes(1)).Ticks;
-    }
-
-    public int MaxCapacity => Volatile.Read(ref _maxCapacity);
-
-    public TimeSpan MaxAge => TimeSpan.FromTicks(Volatile.Read(ref _maxAgeTicks));
-
-    public void UpdateWindowSize(int? maxCapacity = null, TimeSpan? maxAge = null)
-    {
-        lock (_windowSizeLock)
-        {
-            if (maxCapacity.HasValue)
-                Interlocked.Exchange(ref _maxCapacity, Math.Max(1, maxCapacity.Value));
-
-            if (maxAge.HasValue && maxAge.Value > TimeSpan.Zero)
-                Interlocked.Exchange(ref _maxAgeTicks, maxAge.Value.Ticks);
-        }
+        // Parameters kept for backward compatibility but ignored
+        // Coordinators manage their own MaxTrackedOperations and MaxOperationLifetime
     }
 
     /// <summary>
-    ///     Approximate count of signals in the window.
-    ///     May include some expired signals between cleanup cycles.
+    ///     Register a coordinator with this sink for aggregated queries.
+    ///     Called automatically when coordinator is created with Signals = this sink.
     /// </summary>
-    public int Count => _window.Count;
+    internal void RegisterCoordinator(CoordinatorBase coordinator)
+    {
+        _coordinators.Add(new WeakReference<CoordinatorBase>(coordinator));
+    }
+
+    /// <summary>
+    ///     Get all coordinator IDs registered with this sink.
+    /// </summary>
+    public IReadOnlyList<string> GetCoordinatorIds()
+    {
+        var ids = new List<string>();
+        foreach (var coordRef in _coordinators)
+        {
+            if (coordRef.TryGetTarget(out var coord) && coord.Options.CoordinatorId != null)
+            {
+                ids.Add(coord.Options.CoordinatorId);
+            }
+        }
+        return ids;
+    }
+
+    /// <summary>
+    ///     Count of coordinators currently registered (approximate).
+    /// </summary>
+    public int CoordinatorCount
+    {
+        get
+        {
+            int count = 0;
+            foreach (var coordRef in _coordinators)
+                if (coordRef.TryGetTarget(out _))
+                    count++;
+            return count;
+        }
+    }
 
     /// <summary>
     ///     Raised immediately whenever a signal is enqueued. Use for live subscribers that need push semantics.
@@ -392,13 +409,13 @@ public sealed class SignalSink
     public event Action<SignalEvent>? SignalRaised;
 
     /// <summary>
-    ///     Raise a signal.
+    ///     Raise a signal to live subscribers.
+    ///     Note: Signals are stored on operations, not in the sink.
+    ///     This method only notifies live subscribers for pub/sub patterns.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Raise(SignalEvent signal)
     {
-        _window.Enqueue(signal);
-
         // Lock-free listener invocation - volatile read ensures we get latest array
         var listeners = _listeners;
         var len = listeners.Length;
@@ -431,10 +448,6 @@ public sealed class SignalSink
                 /* never throw from signal fan-out */
             }
         }
-
-        // Only cleanup every ~1024 calls to avoid contention
-        if ((Interlocked.Increment(ref _raiseCounter) & 0x3FF) == 0)
-            Cleanup();
     }
 
     /// <summary>
@@ -446,37 +459,104 @@ public sealed class SignalSink
     }
 
     /// <summary>
-    ///     Sense all visible signals.
-    ///     Since cleanup runs periodically, most signals in the queue are valid.
-    ///     Returns a snapshot - the queue may continue to change.
+    ///     Sense all signals from all registered coordinators.
+    ///     Returns aggregated view of operations' signals across all coordinators.
     /// </summary>
     public IReadOnlyList<SignalEvent> Sense()
     {
-        // Rely on periodic cleanup; avoid O(n) age check on hot path
-        return _window.ToArray();
-    }
+        var results = new List<SignalEvent>();
+        MaybeCleanupDeadCoordinators();
 
-    /// <summary>
-    ///     Sense signals matching predicate.
-    /// </summary>
-    public IReadOnlyList<SignalEvent> Sense(Func<SignalEvent, bool> predicate)
-    {
-        // Use pre-sized list to reduce allocations for common cases
-        var results = new List<SignalEvent>(Math.Min(_window.Count, 64));
-        foreach (var s in _window)
-            if (predicate(s))
-                results.Add(s);
+        foreach (var coordRef in _coordinators)
+        {
+            if (coordRef.TryGetTarget(out var coord))
+            {
+                results.AddRange(coord.GetSignals());
+            }
+        }
         return results;
     }
 
     /// <summary>
-    ///     Get signals for a specific operation ID.
-    ///     Convenience method for: Sense(s => s.OperationId == operationId)
+    ///     Sense signals matching predicate across all coordinators.
+    /// </summary>
+    public IReadOnlyList<SignalEvent> Sense(Func<SignalEvent, bool> predicate)
+    {
+        var results = new List<SignalEvent>();
+        MaybeCleanupDeadCoordinators();
+
+        foreach (var coordRef in _coordinators)
+        {
+            if (coordRef.TryGetTarget(out var coord))
+            {
+                foreach (var signal in coord.GetSignals())
+                {
+                    if (predicate(signal))
+                        results.Add(signal);
+                }
+            }
+        }
+        return results;
+    }
+
+    /// <summary>
+    ///     Sense signals from a specific coordinator ID.
+    /// </summary>
+    public IReadOnlyList<SignalEvent> SenseByCoordinator(string coordinatorId)
+    {
+        var results = new List<SignalEvent>();
+        MaybeCleanupDeadCoordinators();
+
+        foreach (var coordRef in _coordinators)
+        {
+            if (coordRef.TryGetTarget(out var coord) &&
+                coord.Options.CoordinatorId == coordinatorId)
+            {
+                results.AddRange(coord.GetSignals());
+            }
+        }
+        return results;
+    }
+
+    /// <summary>
+    ///     Sense signals from coordinators matching a pattern.
+    /// </summary>
+    public IReadOnlyList<SignalEvent> SenseByCoordinatorPattern(string pattern)
+    {
+        var results = new List<SignalEvent>();
+        MaybeCleanupDeadCoordinators();
+
+        foreach (var coordRef in _coordinators)
+        {
+            if (coordRef.TryGetTarget(out var coord) &&
+                coord.Options.CoordinatorId != null &&
+                StringPatternMatcher.Matches(coord.Options.CoordinatorId, pattern))
+            {
+                results.AddRange(coord.GetSignals());
+            }
+        }
+        return results;
+    }
+
+    /// <summary>
+    ///     Get signals for a specific operation ID across all coordinators.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public IReadOnlyList<SignalEvent> GetOpSignals(long operationId)
     {
-        return Sense(s => s.OperationId == operationId);
+        var results = new List<SignalEvent>();
+        foreach (var coordRef in _coordinators)
+        {
+            if (coordRef.TryGetTarget(out var coord))
+            {
+                foreach (var signal in coord.GetSignals())
+                {
+                    if (signal.OperationId == operationId)
+                        results.Add(signal);
+                }
+            }
+        }
+        return results;
     }
 
     /// <summary>
@@ -508,43 +588,68 @@ public sealed class SignalSink
     }
 
     /// <summary>
-    ///     Detect any signals matching predicate.
-    ///     Short-circuits on first match for O(1) best case.
+    ///     Detect any signals matching predicate across all coordinators.
+    ///     Short-circuits on first match.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Detect(Func<SignalEvent, bool> predicate)
     {
-        foreach (var s in _window)
-            if (predicate(s))
-                return true;
+        foreach (var coordRef in _coordinators)
+        {
+            if (coordRef.TryGetTarget(out var coord))
+            {
+                foreach (var signal in coord.GetSignals())
+                {
+                    if (predicate(signal))
+                        return true;
+                }
+            }
+        }
         return false;
     }
 
     /// <summary>
-    ///     Detect any signals with name.
-    ///     Optimized for exact string match - short-circuits on first match.
+    ///     Detect any signals with name across all coordinators.
+    ///     Short-circuits on first match - delegates to coordinator HasSignal() for performance.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Detect(string signalName)
     {
-        // Fast ordinal comparison for hot path
-        foreach (var s in _window)
-            if (string.Equals(s.Signal, signalName, StringComparison.Ordinal))
-                return true;
+        foreach (var coordRef in _coordinators)
+        {
+            if (coordRef.TryGetTarget(out var coord))
+            {
+                if (coord.HasSignal(signalName))
+                    return true;
+            }
+        }
         return false;
     }
 
     /// <summary>
-    ///     Detect any signals with name (span overload for zero-allocation hot paths).
-    ///     Optimized for exact match - short-circuits on first match.
+    ///     Detect any signals with name by coordinator ID.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool DetectByCoordinator(string coordinatorId, string signalName)
+    {
+        foreach (var coordRef in _coordinators)
+        {
+            if (coordRef.TryGetTarget(out var coord) &&
+                coord.Options.CoordinatorId == coordinatorId)
+            {
+                return coord.HasSignal(signalName);
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    ///     Detect any signals with name (span overload - delegates to string version).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Detect(ReadOnlySpan<char> signalName)
     {
-        foreach (var s in _window)
-            if (s.Signal.AsSpan().SequenceEqual(signalName))
-                return true;
-        return false;
+        return Detect(signalName.ToString());
     }
 
     /// <summary>
@@ -556,42 +661,58 @@ public sealed class SignalSink
     public int CountRecentByPrefix(string prefix, DateTimeOffset since)
     {
         int count = 0;
-        foreach (var s in _window)
+        foreach (var coordRef in _coordinators)
         {
-            if (s.Timestamp >= since && s.Signal.StartsWith(prefix, StringComparison.Ordinal))
-                count++;
+            if (coordRef.TryGetTarget(out var coord))
+            {
+                foreach (var s in coord.GetSignals())
+                {
+                    if (s.Timestamp >= since && s.Signal.StartsWith(prefix, StringComparison.Ordinal))
+                        count++;
+                }
+            }
         }
         return count;
     }
 
     /// <summary>
     ///     Count signals containing a substring within a time window.
-    ///     Use CountRecentByPrefix if possible - it's faster.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int CountRecentByContains(string substring, DateTimeOffset since)
     {
         int count = 0;
-        foreach (var s in _window)
+        foreach (var coordRef in _coordinators)
         {
-            if (s.Timestamp >= since && s.Signal.Contains(substring))
-                count++;
+            if (coordRef.TryGetTarget(out var coord))
+            {
+                foreach (var s in coord.GetSignals())
+                {
+                    if (s.Timestamp >= since && s.Signal.Contains(substring))
+                        count++;
+                }
+            }
         }
         return count;
     }
 
     /// <summary>
     ///     Count exact signal matches within a time window.
-    ///     Fastest option for exact signal name queries.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int CountRecentExact(string signalName, DateTimeOffset since)
     {
         int count = 0;
-        foreach (var s in _window)
+        foreach (var coordRef in _coordinators)
         {
-            if (s.Timestamp >= since && string.Equals(s.Signal, signalName, StringComparison.Ordinal))
-                count++;
+            if (coordRef.TryGetTarget(out var coord))
+            {
+                foreach (var s in coord.GetSignals())
+                {
+                    if (s.Timestamp >= since && string.Equals(s.Signal, signalName, StringComparison.Ordinal))
+                        count++;
+                }
+            }
         }
         return count;
     }
@@ -655,123 +776,83 @@ public sealed class SignalSink
     }
 
     /// <summary>
-    ///     Immediately clear all signals from the window.
-    ///     Thread-safe but briefly blocks other window operations.
-    ///     Emits "sink.cleared" signal with count in Key field.
+    ///     Periodically clean up dead coordinator references.
+    ///     Called automatically during queries; no manual cleanup needed.
     /// </summary>
-    /// <returns>Number of signals removed.</returns>
+    private void MaybeCleanupDeadCoordinators()
+    {
+        var now = Environment.TickCount64;
+        var lastCleanup = Volatile.Read(ref _lastCleanupTicks);
+
+        // Cleanup every ~5 seconds
+        if (now - lastCleanup < 5000)
+            return;
+
+        if (Interlocked.CompareExchange(ref _lastCleanupTicks, now, lastCleanup) != lastCleanup)
+            return; // Another thread is cleaning up
+
+        // Remove dead references
+        var alive = new ConcurrentBag<WeakReference<CoordinatorBase>>();
+        foreach (var coordRef in _coordinators)
+        {
+            if (coordRef.TryGetTarget(out _))
+                alive.Add(coordRef);
+        }
+
+        // Replace with alive-only bag (ConcurrentBag doesn't support removal)
+        // This is rare (only on coordinator disposal) so allocation is acceptable
+        if (alive.Count < _coordinators.Count)
+        {
+            _coordinators.Clear();
+            foreach (var coordRef in alive)
+                _coordinators.Add(coordRef);
+        }
+    }
+
+    /// <summary>
+    ///     [Obsolete] Clear operations don't apply to sink-as-view model.
+    ///     Operations own their signals; use coordinator methods to manage signal lifetime.
+    /// </summary>
+    [Obsolete("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.", false)]
     public int Clear()
     {
-        int count;
-        lock (_windowSizeLock)
-        {
-            count = 0;
-            while (_window.TryDequeue(out _))
-            {
-                count++;
-            }
-        }
-
-        // Emit meta-signal about the clear operation
-        if (count > 0)
-        {
-            Raise(new SignalEvent(
-                "sink.cleared",
-                EphemeralIdGenerator.NextId(),
-                count.ToString(), // Count in key field
-                DateTimeOffset.UtcNow
-            ));
-        }
-
-        return count;
+        throw new NotSupportedException("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.");
     }
 
     /// <summary>
-    ///     Remove all signals matching a predicate.
-    ///     Thread-safe but briefly blocks other window operations.
+    ///     [Obsolete] Clear operations don't apply to sink-as-view model.
     /// </summary>
-    /// <param name="predicate">Condition to match signals for removal.</param>
-    /// <returns>Number of signals removed.</returns>
+    [Obsolete("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.", false)]
     public int ClearMatching(Func<SignalEvent, bool> predicate)
     {
-        if (predicate == null) throw new ArgumentNullException(nameof(predicate));
-
-        lock (_windowSizeLock)
-        {
-            var toKeep = new List<SignalEvent>();
-            var removed = 0;
-
-            while (_window.TryDequeue(out var signal))
-            {
-                if (predicate(signal))
-                {
-                    removed++;  // Don't re-add
-                }
-                else
-                {
-                    toKeep.Add(signal);
-                }
-            }
-
-            // Re-enqueue kept signals
-            foreach (var signal in toKeep)
-            {
-                _window.Enqueue(signal);
-            }
-
-            return removed;
-        }
+        throw new NotSupportedException("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.");
     }
 
     /// <summary>
-    ///     Remove all signals matching a pattern (glob-style with * and ?).
-    ///     Thread-safe but briefly blocks other window operations.
-    ///     Emits "sink.cleared.pattern" signal with pattern in Key field.
+    ///     [Obsolete] Clear operations don't apply to sink-as-view model.
     /// </summary>
-    /// <param name="pattern">Pattern to match signal names (supports * and ? wildcards).</param>
-    /// <returns>Number of signals removed.</returns>
+    [Obsolete("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.", false)]
     public int ClearPattern(string pattern)
     {
-        if (string.IsNullOrEmpty(pattern)) throw new ArgumentNullException(nameof(pattern));
-
-        var removed = ClearMatching(s => StringPatternMatcher.Matches(s.Signal, pattern));
-
-        // Emit meta-signal about the pattern clear
-        if (removed > 0)
-        {
-            Raise(new SignalEvent(
-                "sink.cleared.pattern",
-                EphemeralIdGenerator.NextId(),
-                $"{pattern}:{removed}", // Pattern:count in key field
-                DateTimeOffset.UtcNow
-            ));
-        }
-
-        return removed;
+        throw new NotSupportedException("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.");
     }
 
     /// <summary>
-    ///     Remove all signals for a specific operation ID.
-    ///     Convenience method for: ClearMatching(s => s.OperationId == operationId)
+    ///     [Obsolete] Clear operations don't apply to sink-as-view model.
     /// </summary>
-    /// <param name="operationId">Operation ID to clear.</param>
-    /// <returns>Number of signals removed.</returns>
+    [Obsolete("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.", false)]
     public int ClearOperation(long operationId)
     {
-        return ClearMatching(s => s.OperationId == operationId);
+        throw new NotSupportedException("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.");
     }
 
     /// <summary>
-    ///     Remove all signals for a specific key.
-    ///     Convenience method for: ClearMatching(s => s.Key == key)
+    ///     [Obsolete] Clear operations don't apply to sink-as-view model.
     /// </summary>
-    /// <param name="key">Key to clear.</param>
-    /// <returns>Number of signals removed.</returns>
+    [Obsolete("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.", false)]
     public int ClearKey(string key)
     {
-        if (string.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
-
-        return ClearMatching(s => s.Key == key);
+        throw new NotSupportedException("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.");
     }
 
     /// <summary>
@@ -790,67 +871,30 @@ public sealed class SignalSink
     }
 
     /// <summary>
-    ///     Clears signals older than the specified timespan.
-    ///     Convenience method for age-based cleanup.
+    ///     [Obsolete] Clear operations don't apply to sink-as-view model.
     /// </summary>
-    /// <param name="olderThan">Remove signals older than this timespan from now.</param>
-    /// <returns>Number of signals removed.</returns>
+    [Obsolete("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.", false)]
     public int ClearOlderThan(TimeSpan olderThan)
     {
-        var cutoff = DateTimeOffset.UtcNow - olderThan;
-        return ClearMatching(signal => signal.Timestamp < cutoff);
+        throw new NotSupportedException("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.");
     }
 
     /// <summary>
-    ///     Clears the oldest N signals from the sink.
-    ///     Useful for keeping the signal window at a manageable size.
+    ///     [Obsolete] Clear operations don't apply to sink-as-view model.
     /// </summary>
-    /// <param name="count">Number of oldest signals to remove.</param>
-    /// <returns>Number of signals actually removed (may be less than requested if sink has fewer signals).</returns>
+    [Obsolete("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.", false)]
     public int ClearOldest(int count)
     {
-        if (count <= 0)
-            return 0;
-
-        // Get all signals, sort by timestamp, and identify oldest N
-        var allSignals = _window.ToList();
-        var toRemove = allSignals
-            .OrderBy(s => s.Timestamp)
-            .Take(count)
-            .ToHashSet();
-
-        if (toRemove.Count == 0)
-            return 0;
-
-        // Rebuild window without the signals to remove
-        var kept = new List<SignalEvent>();
-        while (_window.TryDequeue(out var signal))
-        {
-            if (!toRemove.Contains(signal))
-            {
-                kept.Add(signal);
-            }
-        }
-
-        // Re-enqueue kept signals
-        foreach (var signal in kept)
-        {
-            _window.Enqueue(signal);
-        }
-
-        return toRemove.Count;
+        throw new NotSupportedException("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.");
     }
 
     /// <summary>
-    ///     Request drain of all coordinators AND clear the signal window.
-    ///     Emits "coordinator.drain.all" followed by immediate sink clear.
-    ///     This is the "nuclear option" - signal all work to stop, then wipe the slate clean.
+    ///     Request drain of all coordinators.
+    ///     Emits "coordinator.drain.all" signal that coordinators listen for.
     /// </summary>
-    /// <returns>Number of signals cleared.</returns>
-    public int RequestDrainAndClear()
+    public void RequestDrainAndClear()
     {
         RequestDrainAll();
-        return Clear();
     }
 
     /// <summary>
@@ -886,32 +930,8 @@ public sealed class SignalSink
         ));
     }
 
-    private void Cleanup()
-    {
-        var cutoff = DateTimeOffset.UtcNow - MaxAge;
-        var maxCapacity = MaxCapacity;
-
-        // Size-based - limit iterations to prevent unbounded cleanup
-        var removed = 0;
-        while (_window.Count > maxCapacity && removed < 1000 && _window.TryDequeue(out _))
-        {
-            removed++;
-        }
-
-        // Age-based - use safe TryDequeue pattern
-        removed = 0;
-        while (removed < 1000 && _window.TryDequeue(out var item))
-        {
-            if (item.Timestamp >= cutoff)
-            {
-                // Put it back if not expired - relies on timestamp ordering
-                // Note: This is a best-effort approach; concurrent modifications may skip items
-                break;
-            }
-            removed++;
-        }
-    }
 }
+
 
 /// <summary>
 ///     Processes signals asynchronously in a bounded background queue.

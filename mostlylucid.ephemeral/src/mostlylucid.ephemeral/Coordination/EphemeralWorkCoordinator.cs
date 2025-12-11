@@ -222,8 +222,7 @@ public sealed class EphemeralWorkCoordinator<T> : CoordinatorBase, IEphemeralCoo
             if (op.Key != key)
                 continue;
 
-            var timestamp = op.Completed ?? op.Started;
-            foreach (var signal in op._signals) results.Add(new SignalEvent(signal, op.Id, op.Key, timestamp));
+            foreach (var signalEvt in op._signals) results.Add(signalEvt);
         }
 
         return results;
@@ -244,8 +243,7 @@ public sealed class EphemeralWorkCoordinator<T> : CoordinatorBase, IEphemeralCoo
             if (op.Started < from || op.Started > to)
                 continue;
 
-            var timestamp = op.Completed ?? op.Started;
-            foreach (var signal in op._signals) results.Add(new SignalEvent(signal, op.Id, op.Key, timestamp));
+            foreach (var signalEvt in op._signals) results.Add(signalEvt);
         }
 
         return results;
@@ -266,8 +264,7 @@ public sealed class EphemeralWorkCoordinator<T> : CoordinatorBase, IEphemeralCoo
             if (op.Started < since)
                 continue;
 
-            var timestamp = op.Completed ?? op.Started;
-            foreach (var signal in op._signals) results.Add(new SignalEvent(signal, op.Id, op.Key, timestamp));
+            foreach (var signalEvt in op._signals) results.Add(signalEvt);
         }
 
         return results;
@@ -285,10 +282,9 @@ public sealed class EphemeralWorkCoordinator<T> : CoordinatorBase, IEphemeralCoo
             if (op._signals is not { Count: > 0 })
                 continue;
 
-            var timestamp = op.Completed ?? op.Started;
-            foreach (var signal in op._signals)
-                if (signal == signalName)
-                    results.Add(new SignalEvent(signal, op.Id, op.Key, timestamp));
+            foreach (var signalEvt in op._signals)
+                if (signalEvt.Signal == signalName)
+                    results.Add(signalEvt);
         }
 
         return results;
@@ -306,10 +302,9 @@ public sealed class EphemeralWorkCoordinator<T> : CoordinatorBase, IEphemeralCoo
             if (op._signals is not { Count: > 0 })
                 continue;
 
-            var timestamp = op.Completed ?? op.Started;
-            foreach (var signal in op._signals)
-                if (StringPatternMatcher.Matches(signal, pattern))
-                    results.Add(new SignalEvent(signal, op.Id, op.Key, timestamp));
+            foreach (var signalEvt in op._signals)
+                if (StringPatternMatcher.Matches(signalEvt.Signal, pattern))
+                    results.Add(signalEvt);
         }
 
         return results;
@@ -331,7 +326,7 @@ public sealed class EphemeralWorkCoordinator<T> : CoordinatorBase, IEphemeralCoo
             var signals = op._signals;
             var count = signals.Count;
             for (var i = 0; i < count; i++)
-                if (signals[i] == signalName)
+                if (signals[i].Signal == signalName)
                     return true;
         }
 
@@ -354,7 +349,7 @@ public sealed class EphemeralWorkCoordinator<T> : CoordinatorBase, IEphemeralCoo
             var signals = op._signals;
             var count = signals.Count;
             for (var i = 0; i < count; i++)
-                if (StringPatternMatcher.Matches(signals[i], pattern))
+                if (StringPatternMatcher.Matches(signals[i].Signal, pattern))
                     return true;
         }
 
@@ -392,7 +387,7 @@ public sealed class EphemeralWorkCoordinator<T> : CoordinatorBase, IEphemeralCoo
             var signals = op._signals;
             var signalCount = signals.Count;
             for (var i = 0; i < signalCount; i++)
-                if (signals[i] == signalName)
+                if (signals[i].Signal == signalName)
                     count++;
         }
 
@@ -416,7 +411,7 @@ public sealed class EphemeralWorkCoordinator<T> : CoordinatorBase, IEphemeralCoo
             var signals = op._signals;
             var signalCount = signals.Count;
             for (var i = 0; i < signalCount; i++)
-                if (StringPatternMatcher.Matches(signals[i], pattern))
+                if (StringPatternMatcher.Matches(signals[i].Signal, pattern))
                     count++;
         }
 
@@ -436,8 +431,7 @@ public sealed class EphemeralWorkCoordinator<T> : CoordinatorBase, IEphemeralCoo
             if (predicate != null && !predicate(op.ToSnapshot()))
                 continue;
 
-            var timestamp = op.Completed ?? op.Started;
-            foreach (var signal in op._signals) results.Add(new SignalEvent(signal, op.Id, op.Key, timestamp));
+            foreach (var signalEvt in op._signals) results.Add(signalEvt);
         }
 
         return results;
@@ -662,33 +656,14 @@ public sealed class EphemeralWorkCoordinator<T> : CoordinatorBase, IEphemeralCoo
             if (op._signals is not { Count: > 0 })
                 continue;
 
-            foreach (var signal in op._signals)
+            foreach (var signalEvt in op._signals)
             {
-                if (StringPatternMatcher.MatchesAny(signal, _options.ClearOnSignals))
+                if (StringPatternMatcher.MatchesAny(signalEvt.Signal, _options.ClearOnSignals))
                 {
-                    // Found a clear signal - clear the sink
-                    if (_options.ClearOnSignalsUsePattern)
-                    {
-                        // Extract pattern from signal name (e.g., "clear.errors" → "error.*")
-                        // Optimized: Use span-based parsing to avoid String.Split() allocation
-                        var firstDot = signal.IndexOf('.');
-                        if (firstDot > 0 && signal.AsSpan(0, firstDot).SequenceEqual("clear"))
-                        {
-                            var pattern = signal.Substring(firstDot + 1) + ".*";
-                            _options.Signals.ClearPattern(pattern);
-                        }
-                        else
-                        {
-                            // Fallback: clear all
-                            _options.Signals.Clear();
-                        }
-                    }
-                    else
-                    {
-                        // Clear entire sink
-                        _options.Signals.Clear();
-                    }
-                    return;  // Only clear once per check
+                    // ClearOnSignals no longer applies - sink doesn't store signals
+                    // Operations own their signals; coordinators manage lifetime via eviction
+                    // This signal pattern can be used by application logic if needed
+                    return;
                 }
             }
         }
@@ -752,8 +727,8 @@ public sealed class EphemeralWorkCoordinator<T> : CoordinatorBase, IEphemeralCoo
             if (op._signals is not { Count: > 0 })
                 continue;
 
-            foreach (var signal in op._signals)
-                if (StringPatternMatcher.MatchesAny(signal, _options.CancelOnSignals))
+            foreach (var signalEvt in op._signals)
+                if (StringPatternMatcher.MatchesAny(signalEvt.Signal, _options.CancelOnSignals))
                     return true;
         }
 
@@ -807,6 +782,9 @@ public sealed class EphemeralWorkCoordinator<T> : CoordinatorBase, IEphemeralCoo
 
     private async Task ExecuteItemAsync(T item, EphemeralOperation op)
     {
+        // Emit automatic lifecycle start signal
+        op.Signal("atom.start");
+
         try
         {
             await _body(item, _cts.Token).ConfigureAwait(false);
@@ -815,11 +793,16 @@ public sealed class EphemeralWorkCoordinator<T> : CoordinatorBase, IEphemeralCoo
         catch (Exception ex) when (!_cts.Token.IsCancellationRequested)
         {
             op.Error = ex;
+            // Store exception in errorstate for easy access
+            op.SetState("errorstate", ex);
             Interlocked.Increment(ref _totalFailed);
         }
         finally
         {
             op.Completed = DateTimeOffset.UtcNow;
+            // Emit automatic lifecycle stop signal
+            op.Signal("atom.stop");
+
             _concurrency.Release();
             CleanupWindow();
             SampleIfRequested();

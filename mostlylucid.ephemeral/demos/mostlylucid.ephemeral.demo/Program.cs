@@ -485,30 +485,26 @@ async Task RunCommandPatternDemo()
 
     await using var windowAtom = new WindowSizeAtom(sink);
 
-    AnsiConsole.MarkupLine($"[white]Initial capacity:[/] [cyan1]{sink.MaxCapacity}[/]");
+    AnsiConsole.MarkupLine($"[grey]Note: WindowSizeAtom now targets coordinator options, not sink storage[/]");
     AnsiConsole.WriteLine();
 
     await AnsiConsole.Status()
         .Spinner(Spinner.Known.Dots)
-        .StartAsync("Adjusting window size...", async ctx =>
+        .StartAsync("Sending window adjustment commands...", async ctx =>
         {
             ctx.Status("Setting capacity to 500...");
             sink.Raise("window.size.set:500");
             await Task.Delay(100);
 
-            AnsiConsole.MarkupLine($"[white]After set:500:[/] [cyan1]{sink.MaxCapacity}[/]");
-
             ctx.Status("Increasing by 200...");
             sink.Raise("window.size.increase:200");
             await Task.Delay(100);
-
-            AnsiConsole.MarkupLine($"[white]After increase:200:[/] [cyan1]{sink.MaxCapacity}[/]");
 
             ctx.Status("Setting retention to 30s...");
             sink.Raise("window.time.set:30s");
             await Task.Delay(100);
 
-            AnsiConsole.MarkupLine($"[white]Retention time:[/] [cyan1]{sink.MaxAge.TotalSeconds}s[/]");
+            AnsiConsole.MarkupLine($"[green]Commands sent successfully[/]");
         });
 
     AnsiConsole.WriteLine();

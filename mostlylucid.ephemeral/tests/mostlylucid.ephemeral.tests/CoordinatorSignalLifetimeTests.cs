@@ -3,14 +3,16 @@ using Xunit;
 namespace Mostlylucid.Ephemeral.Tests;
 
 /// <summary>
-/// Tests for v2.0.0 coordinator-managed signal lifetime.
-/// Verifies that when operations are evicted from a coordinator's window,
-/// their signals are automatically cleared from the sink.
+/// Tests for v2.0+ operation-owned signal model.
+/// Verifies that operations own their signals and when operations are evicted
+/// from a coordinator's window, their signals are automatically removed from
+/// the coordinator's view (because the operation itself is gone).
+/// Sink receives signals for live subscribers but doesn't own them.
 /// </summary>
 public class CoordinatorSignalLifetimeTests
 {
     [Fact]
-    public async Task Coordinator_ClearsSignals_WhenOperationEvicted_ByWindowSize()
+    public async Task Coordinator_OperationsOwnSignals_EvictionRemovesSignalsFromCoordinatorView()
     {
         var sink = new SignalSink();
         var operationIds = new List<long>();
@@ -18,7 +20,8 @@ public class CoordinatorSignalLifetimeTests
         await using var coordinator = new EphemeralWorkCoordinator<int>(
             async (item, ct) =>
             {
-                // Simple operation - signals will be raised externally
+                // Note: Operations own signals in v2.0+, but work function doesn't receive operation directly
+                // Signals are emitted via coordinator's internal operation tracking
                 await Task.Delay(10, ct);
             },
             new EphemeralOptions
@@ -34,30 +37,26 @@ public class CoordinatorSignalLifetimeTests
         {
             var opId = await coordinator.EnqueueWithIdAsync(i);
             operationIds.Add(opId);
-
-            // Emit signals associated with this operation
-            sink.Raise(new SignalEvent($"test.{i}", opId, null, DateTimeOffset.UtcNow));
-            sink.Raise(new SignalEvent($"test.complete.{i}", opId, null, DateTimeOffset.UtcNow));
         }
 
         coordinator.Complete();
         await coordinator.DrainAsync();
 
-        // Only signals from the last 5 operations should remain
-        var signals = sink.Sense();
-        var remainingOpIds = signals.Select(s => s.OperationId).Distinct().ToList();
+        // Operations own their signals - when evicted, signals go with them
+        // Coordinator should only return signals from tracked operations (last 5)
+        var coordinatorSignals = coordinator.GetSignals();
+        var remainingOpIds = coordinatorSignals.Select(s => s.OperationId).Distinct().ToList();
 
         Assert.True(remainingOpIds.Count <= 5,
-            $"Expected <= 5 unique operation IDs, got {remainingOpIds.Count}");
+            $"Expected <= 5 unique operation IDs from coordinator, got {remainingOpIds.Count}");
 
-        // Verify early operations' signals were cleared
+        // Verify early operations' signals are not in coordinator view
         var firstFiveOps = operationIds.Take(5).ToList();
-        var lastFiveOps = operationIds.Skip(5).ToList();
+        var firstFiveRemaining = coordinatorSignals.Where(s => firstFiveOps.Contains(s.OperationId)).Count();
 
-        // At least some of the first 5 operations should have been evicted and their signals cleared
-        var firstFiveRemaining = signals.Where(s => firstFiveOps.Contains(s.OperationId)).Count();
-        Assert.True(firstFiveRemaining < 10, // Should be fewer than 5 ops × 2 signals
-            $"Expected most early signals cleared, but found {firstFiveRemaining} signals from first 5 operations");
+        // Should be 0 or very few (due to timing) from first 5 operations
+        Assert.True(firstFiveRemaining < 5,
+            $"Expected few/no signals from evicted operations, but found {firstFiveRemaining}");
     }
 
     [Fact]
@@ -81,13 +80,16 @@ public class CoordinatorSignalLifetimeTests
     }
 
     [Fact]
-    public async Task Coordinator_ClearsMultipleSignals_FromSameOperation()
+    public async Task Coordinator_MultipleSignalsPerOperation_EvictedTogether()
     {
         var sink = new SignalSink();
         var operationIds = new List<long>();
 
         await using var coordinator = new EphemeralWorkCoordinator<int>(
-            async (item, ct) => await Task.Delay(10, ct),
+            async (item, ct) =>
+            {
+                await Task.Delay(10, ct);
+            },
             new EphemeralOptions
             {
                 MaxConcurrency = 1,
@@ -96,27 +98,29 @@ public class CoordinatorSignalLifetimeTests
             }
         );
 
-        // Enqueue 5 operations
+        // Enqueue 5 operations - automatic lifecycle signals will be emitted
         for (int i = 0; i < 5; i++)
         {
-            var opId = await coordinator.EnqueueWithIdAsync(i);
-            operationIds.Add(opId);
-
-            // Emit multiple signals per operation
-            for (int j = 0; j < 5; j++)
-            {
-                sink.Raise(new SignalEvent($"signal.{i}.{j}", opId, null, DateTimeOffset.UtcNow));
-            }
+            await coordinator.EnqueueAsync(i);
         }
 
         coordinator.Complete();
         await coordinator.DrainAsync();
 
-        // Should have signals from only 2 operations
-        var signals = sink.Sense();
-        var opIds = signals.Select(s => s.OperationId).Distinct().Count();
+        // Operations own their signals - all signals from an operation are evicted together
+        var coordinatorSignals = coordinator.GetSignals();
+        var opIds = coordinatorSignals.Select(s => s.OperationId).Distinct().Count();
+
         Assert.True(opIds <= 2,
-            $"Expected <= 2 unique operation IDs, got {opIds}");
+            $"Expected <= 2 unique operation IDs from coordinator, got {opIds}");
+
+        // Verify that if an operation is tracked, ALL its signals are present
+        // Each operation has 2 automatic lifecycle signals (atom.start, atom.stop)
+        var groupedByOp = coordinatorSignals.GroupBy(s => s.OperationId);
+        foreach (var group in groupedByOp)
+        {
+            Assert.Equal(2, group.Count()); // 2 automatic lifecycle signals per operation
+        }
     }
 
     [Fact]
@@ -212,13 +216,16 @@ public class CoordinatorSignalLifetimeTests
     }
 
     [Fact]
-    public async Task SharedSink_AcrossCoordinators_IsolatesSignalCleanup()
+    public async Task SharedSink_AcrossCoordinators_EachCoordinatorTracksOwnOperations()
     {
         var sharedSink = new SignalSink();
 
         // Coordinator 1: MaxTracked = 2
         await using var coord1 = new EphemeralWorkCoordinator<int>(
-            async (item, ct) => await Task.Delay(10, ct),
+            async (item, ct) =>
+            {
+                await Task.Delay(10, ct);
+            },
             new EphemeralOptions
             {
                 MaxConcurrency = 1,
@@ -229,7 +236,10 @@ public class CoordinatorSignalLifetimeTests
 
         // Coordinator 2: MaxTracked = 3
         await using var coord2 = new EphemeralWorkCoordinator<int>(
-            async (item, ct) => await Task.Delay(10, ct),
+            async (item, ct) =>
+            {
+                await Task.Delay(10, ct);
+            },
             new EphemeralOptions
             {
                 MaxConcurrency = 1,
@@ -256,19 +266,21 @@ public class CoordinatorSignalLifetimeTests
         coord2.Complete();
         await coord2.DrainAsync();
 
-        // Verify each coordinator only cleared its own signals
-        var allSignals = sharedSink.Sense();
+        // Each coordinator independently tracks its own operations
+        // Operations own their signals - coordinator views are independent
+        var coord1Signals = coord1.GetSignals();
+        var coord2Signals = coord2.GetSignals();
 
-        // Should have signals from coord1's last 2 ops + coord2's last 3 ops
-        // (assuming signals were successfully emitted and not yet cleaned up)
-        var coord1Signals = allSignals.Where(s => s.Signal.StartsWith("coord1.")).ToList();
-        var coord2Signals = allSignals.Where(s => s.Signal.StartsWith("coord2.")).ToList();
-
-        // Each coordinator should have cleared its old operations' signals
         var coord1Ops = coord1Signals.Select(s => s.OperationId).Distinct().Count();
         var coord2Ops = coord2Signals.Select(s => s.OperationId).Distinct().Count();
 
-        Assert.True(coord1Ops <= 2, $"Coord1 should have <= 2 ops, got {coord1Ops}");
-        Assert.True(coord2Ops <= 3, $"Coord2 should have <= 3 ops, got {coord2Ops}");
+        Assert.True(coord1Ops <= 2, $"Coord1 should track <= 2 ops, got {coord1Ops}");
+        Assert.True(coord2Ops <= 3, $"Coord2 should track <= 3 ops, got {coord2Ops}");
+
+        // Verify signal prefixes are distinct per coordinator (excluding automatic lifecycle signals)
+        var coord1CustomSignals = coord1Signals.Where(s => !s.Signal.StartsWith("atom.")).ToList();
+        var coord2CustomSignals = coord2Signals.Where(s => !s.Signal.StartsWith("atom.")).ToList();
+        Assert.All(coord1CustomSignals, s => Assert.StartsWith("coord1.", s.Signal));
+        Assert.All(coord2CustomSignals, s => Assert.StartsWith("coord2.", s.Signal));
     }
 }
