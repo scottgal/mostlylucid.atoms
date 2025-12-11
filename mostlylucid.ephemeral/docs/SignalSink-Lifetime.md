@@ -4,6 +4,31 @@
 
 `SignalSink` is a **shared, long-lived signal repository** that acts as a global event bus for ephemeral operations. Unlike coordinators (which manage work execution), a sink is purely observational - it collects, stores, and makes signals queryable across multiple coordinators.
 
+### Key Design Principle
+
+**Coordinators manage signal lifetime.** When an operation expires from a coordinator's ephemeral window, all of its signals are automatically removed from the sink. SignalSink's `maxCapacity` and `maxAge` parameters are safety bounds only, not the primary expiration mechanism.
+
+```
+┌─────────────────────────────────────┐
+│ Coordinator Ephemeral Window       │
+│ (MaxTrackedOperations = 200)       │
+│                                     │
+│  Operation #1 → Signals: a, b, c   │
+│  Operation #2 → Signals: d, e      │
+│  Operation #3 → Signals: f         │
+│  ...                                │
+│  Operation #200 → Signals: x, y    │
+└─────────────────────────────────────┘
+         ↓ Operation evicted
+         ↓ (size limit or age limit)
+         ↓
+┌─────────────────────────────────────┐
+│ SignalSink                          │
+│ Signals a, b, c automatically       │
+│ cleared when Operation #1 evicted   │
+└─────────────────────────────────────┘
+```
+
 This document covers:
 - SignalSink lifetime management
 - Sharing sinks across coordinators
@@ -96,42 +121,41 @@ var sink = new SignalSink();
 
 ### Memory Management
 
-SignalSink manages memory through **two cleanup mechanisms**:
+**IMPORTANT**: Signal lifetime is managed by **coordinators**, not the SignalSink itself.
 
-#### 1. Size-Based Cleanup (Capacity)
+#### Primary Expiration: Coordinator-Managed
+
+When a coordinator evicts an operation from its ephemeral window (via `MaxTrackedOperations` or `MaxOperationLifetime`), **all signals from that operation are automatically removed** from the sink:
 
 ```csharp
-var sink = new SignalSink(maxCapacity: 1000);
-
-// When signal count exceeds capacity, oldest signals are removed
-// Cleanup runs periodically (every ~1024 raises) with budget of 1000 items
-```
-
-From `Signals.cs:590-600`:
-```csharp
-private void Cleanup()
+// Operations expire from coordinator window
+var options = new EphemeralOptions
 {
-    var cutoff = DateTimeOffset.UtcNow - MaxAge;
-    var maxCapacity = MaxCapacity;
+    MaxTrackedOperations = 200,         // Keep last 200 operations
+    MaxOperationLifetime = TimeSpan.FromMinutes(5)  // Operations older than 5 min are evicted
+};
 
-    // Size-based - limit iterations to prevent unbounded cleanup
-    var removed = 0;
-    while (_window.Count > maxCapacity && removed < 1000 && _window.TryDequeue(out _))
-    {
-        removed++;
-    }
-    // ...
-}
+// When operation is evicted, its signals are cleared via:
+// _options.Signals?.ClearOperation(op.Id)
 ```
 
-#### 2. Age-Based Cleanup (Time)
+This ensures **operations and their signals have the same lifetime** - when the operation expires, so do all its signals.
+
+#### Safety Bounds: SignalSink Limits
+
+SignalSink's `maxCapacity` and `maxAge` are **safety bounds only**, not the primary expiration mechanism:
 
 ```csharp
 var sink = new SignalSink(
-    maxCapacity: 5000,
-    maxAge: TimeSpan.FromMinutes(1)  // Signals older than 1 minute are evicted
+    maxCapacity: 5000,      // Emergency cap if coordinators don't clean up
+    maxAge: TimeSpan.FromMinutes(10)  // Absolute maximum signal age
 );
 ```
+
+These limits protect against:
+- Coordinators that never evict operations (e.g., pinned operations)
+- Signals from operations that completed but weren't evicted yet
+- Memory leaks from misconfigured coordinators
 
 **Cleanup Trigger:**
 - Runs every ~1024 signal raises (see `Signals.cs:418`)

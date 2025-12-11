@@ -3,11 +3,10 @@ namespace Mostlylucid.Ephemeral.Atoms.SignalAware;
 /// <summary>
 ///     Atom that pauses or cancels intake based on ambient signals (patterns supported).
 /// </summary>
-public sealed class SignalAwareAtom<T> : IAsyncDisposable
+public sealed class SignalAwareAtom<T> : AtomBase<EphemeralWorkCoordinator<T>>
 {
     private readonly HashSet<string> _ambient = new(StringComparer.Ordinal);
     private readonly IReadOnlySet<string>? _cancelOn;
-    private readonly EphemeralWorkCoordinator<T> _coordinator;
 
     public SignalAwareAtom(
         Func<T, CancellationToken, Task> body,
@@ -17,24 +16,17 @@ public sealed class SignalAwareAtom<T> : IAsyncDisposable
         int? maxDeferAttempts = null,
         SignalSink? signals = null,
         int? maxConcurrency = null)
-    {
-        var options = new EphemeralOptions
+        : base(new EphemeralWorkCoordinator<T>(body, new EphemeralOptions
         {
-            MaxConcurrency = maxConcurrency is > 0 ? maxConcurrency.Value : Environment.ProcessorCount,
+            MaxConcurrency = ConcurrencyHelper.ResolveDefaultConcurrency(maxConcurrency),
             CancelOnSignals = cancelOn,
             DeferOnSignals = deferOn,
             DeferCheckInterval = deferInterval ?? TimeSpan.FromMilliseconds(100),
             MaxDeferAttempts = maxDeferAttempts ?? 50,
             Signals = signals
-        };
-
-        _coordinator = new EphemeralWorkCoordinator<T>(body, options);
-        _cancelOn = cancelOn;
-    }
-
-    public ValueTask DisposeAsync()
+        }))
     {
-        return _coordinator.DisposeAsync();
+        _cancelOn = cancelOn;
     }
 
     public ValueTask<long> EnqueueAsync(T item, CancellationToken ct = default)
@@ -44,7 +36,7 @@ public sealed class SignalAwareAtom<T> : IAsyncDisposable
                 if (StringPatternMatcher.MatchesAny(signal, _cancelOn))
                     return ValueTask.FromResult(-1L);
 
-        return _coordinator.EnqueueWithIdAsync(item, ct);
+        return Coordinator.EnqueueWithIdAsync(item, ct);
     }
 
     /// <summary>
@@ -56,20 +48,18 @@ public sealed class SignalAwareAtom<T> : IAsyncDisposable
             _ambient.Add(signal);
     }
 
-    public async Task DrainAsync(CancellationToken ct = default)
+    protected override void Complete()
     {
-        _coordinator.Complete();
-        await _coordinator.DrainAsync(ct).ConfigureAwait(false);
+        Coordinator.Complete();
     }
 
-    public IReadOnlyCollection<EphemeralOperationSnapshot> Snapshot()
+    protected override Task DrainInternalAsync(CancellationToken ct)
     {
-        return _coordinator.GetSnapshot();
+        return Coordinator.DrainAsync(ct);
     }
 
-    public (int Pending, int Active, int Completed, int Failed) Stats()
+    public override IReadOnlyCollection<EphemeralOperationSnapshot> Snapshot()
     {
-        return (_coordinator.PendingCount, _coordinator.ActiveCount, _coordinator.TotalCompleted,
-            _coordinator.TotalFailed);
+        return Coordinator.GetSnapshot();
     }
 }

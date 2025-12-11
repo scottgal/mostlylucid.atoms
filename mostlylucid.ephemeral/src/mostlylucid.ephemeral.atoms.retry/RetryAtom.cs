@@ -3,24 +3,29 @@ namespace Mostlylucid.Ephemeral.Atoms.Retry;
 /// <summary>
 ///     Wraps work with retry/backoff semantics using EphemeralWorkCoordinator under the hood.
 /// </summary>
-public sealed class RetryAtom<T> : IAsyncDisposable
+public sealed class RetryAtom<T> : AtomBase<EphemeralWorkCoordinator<T>>
 {
-    private readonly Func<int, TimeSpan> _backoff;
-    private readonly EphemeralWorkCoordinator<T> _coordinator;
-    private readonly int _maxAttempts;
-
     public RetryAtom(
         Func<T, CancellationToken, Task> body,
         int maxAttempts = 3,
         Func<int, TimeSpan>? backoff = null,
         int? maxConcurrency = null,
         SignalSink? signals = null)
+        : base(CreateRetryCoordinator(body, maxAttempts, backoff, maxConcurrency, signals))
+    {
+    }
+
+    private static EphemeralWorkCoordinator<T> CreateRetryCoordinator(
+        Func<T, CancellationToken, Task> body,
+        int maxAttempts,
+        Func<int, TimeSpan>? backoff,
+        int? maxConcurrency,
+        SignalSink? signals)
     {
         if (maxAttempts <= 0) throw new ArgumentOutOfRangeException(nameof(maxAttempts));
-        _maxAttempts = maxAttempts;
-        _backoff = backoff ?? (attempt => TimeSpan.FromMilliseconds(50 * attempt));
+        var backoffFunc = backoff ?? (attempt => TimeSpan.FromMilliseconds(50 * attempt));
 
-        _coordinator = new EphemeralWorkCoordinator<T>(
+        return new EphemeralWorkCoordinator<T>(
             async (item, ct) =>
             {
                 var attempt = 0;
@@ -30,31 +35,35 @@ public sealed class RetryAtom<T> : IAsyncDisposable
                         await body(item, ct).ConfigureAwait(false);
                         return;
                     }
-                    catch when (++attempt < _maxAttempts && !ct.IsCancellationRequested)
+                    catch when (++attempt < maxAttempts && !ct.IsCancellationRequested)
                     {
-                        await Task.Delay(_backoff(attempt), ct).ConfigureAwait(false);
+                        await Task.Delay(backoffFunc(attempt), ct).ConfigureAwait(false);
                     }
             },
             new EphemeralOptions
             {
-                MaxConcurrency = maxConcurrency is > 0 ? maxConcurrency.Value : Environment.ProcessorCount,
+                MaxConcurrency = ConcurrencyHelper.ResolveDefaultConcurrency(maxConcurrency),
                 Signals = signals
             });
     }
 
-    public ValueTask DisposeAsync()
-    {
-        return _coordinator.DisposeAsync();
-    }
-
     public ValueTask<long> EnqueueAsync(T item, CancellationToken ct = default)
     {
-        return _coordinator.EnqueueWithIdAsync(item, ct);
+        return Coordinator.EnqueueWithIdAsync(item, ct);
     }
 
-    public async Task DrainAsync(CancellationToken ct = default)
+    protected override void Complete()
     {
-        _coordinator.Complete();
-        await _coordinator.DrainAsync(ct).ConfigureAwait(false);
+        Coordinator.Complete();
+    }
+
+    protected override Task DrainInternalAsync(CancellationToken ct)
+    {
+        return Coordinator.DrainAsync(ct);
+    }
+
+    public override IReadOnlyCollection<EphemeralOperationSnapshot> Snapshot()
+    {
+        return Coordinator.GetSnapshot();
     }
 }

@@ -3,9 +3,9 @@ namespace Mostlylucid.Ephemeral.Atoms.KeyedSequential;
 /// <summary>
 ///     Per-key sequential atom. Ensures ordering per key while allowing global parallelism.
 /// </summary>
-public sealed class KeyedSequentialAtom<T, TKey> : IAsyncDisposable where TKey : notnull
+public sealed class KeyedSequentialAtom<T, TKey> : AtomBase<EphemeralKeyedWorkCoordinator<T, TKey>>
+    where TKey : notnull
 {
-    private readonly EphemeralKeyedWorkCoordinator<T, TKey> _coordinator;
     private long _id;
 
     public KeyedSequentialAtom(
@@ -15,43 +15,34 @@ public sealed class KeyedSequentialAtom<T, TKey> : IAsyncDisposable where TKey :
         int perKeyConcurrency = 1,
         bool enableFairScheduling = false,
         SignalSink? signals = null)
-    {
-        var options = new EphemeralOptions
+        : base(new EphemeralKeyedWorkCoordinator<T, TKey>(keySelector, body, new EphemeralOptions
         {
-            MaxConcurrency = maxConcurrency is > 0 ? maxConcurrency.Value : Environment.ProcessorCount,
+            MaxConcurrency = ConcurrencyHelper.ResolveDefaultConcurrency(maxConcurrency),
             MaxConcurrencyPerKey = Math.Max(1, perKeyConcurrency),
             EnableFairScheduling = enableFairScheduling,
             Signals = signals
-        };
-
-        _coordinator = new EphemeralKeyedWorkCoordinator<T, TKey>(keySelector, body, options);
-    }
-
-    public ValueTask DisposeAsync()
+        }))
     {
-        return _coordinator.DisposeAsync();
     }
 
     public async ValueTask<long> EnqueueAsync(T item, CancellationToken ct = default)
     {
-        await _coordinator.EnqueueAsync(item, ct).ConfigureAwait(false);
+        await Coordinator.EnqueueAsync(item, ct).ConfigureAwait(false);
         return Interlocked.Increment(ref _id);
     }
 
-    public async Task DrainAsync(CancellationToken ct = default)
+    protected override void Complete()
     {
-        _coordinator.Complete();
-        await _coordinator.DrainAsync(ct).ConfigureAwait(false);
+        Coordinator.Complete();
     }
 
-    public IReadOnlyCollection<EphemeralOperationSnapshot> Snapshot()
+    protected override Task DrainInternalAsync(CancellationToken ct)
     {
-        return _coordinator.GetSnapshot();
+        return Coordinator.DrainAsync(ct);
     }
 
-    public (int Pending, int Active, int Completed, int Failed) Stats()
+    public override IReadOnlyCollection<EphemeralOperationSnapshot> Snapshot()
     {
-        return (_coordinator.PendingCount, _coordinator.ActiveCount, _coordinator.TotalCompleted,
-            _coordinator.TotalFailed);
+        return Coordinator.GetSnapshot();
     }
 }

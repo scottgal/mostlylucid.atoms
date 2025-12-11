@@ -4,29 +4,20 @@ namespace Mostlylucid.Ephemeral.Atoms.FixedWork;
 ///     Minimal "atom" wrapper around EphemeralWorkCoordinator for fixed-concurrency pipelines.
 ///     Keeps API small: enqueue, complete, drain, snapshot.
 /// </summary>
-public sealed class FixedWorkAtom<T> : IAsyncDisposable
+public sealed class FixedWorkAtom<T> : AtomBase<EphemeralWorkCoordinator<T>>
 {
-    private readonly EphemeralWorkCoordinator<T> _coordinator;
-
     public FixedWorkAtom(
         Func<T, CancellationToken, Task> body,
         int? maxConcurrency = null,
         int? maxTracked = null,
         SignalSink? signals = null)
-    {
-        var options = new EphemeralOptions
+        : base(new EphemeralWorkCoordinator<T>(body, new EphemeralOptions
         {
-            MaxConcurrency = maxConcurrency is > 0 ? maxConcurrency.Value : Environment.ProcessorCount,
+            MaxConcurrency = ConcurrencyHelper.ResolveDefaultConcurrency(maxConcurrency),
             MaxTrackedOperations = maxTracked is > 0 ? maxTracked.Value : 200,
             Signals = signals
-        };
-
-        _coordinator = new EphemeralWorkCoordinator<T>(body, options);
-    }
-
-    public ValueTask DisposeAsync()
+        }))
     {
-        return _coordinator.DisposeAsync();
     }
 
     /// <summary>
@@ -34,32 +25,21 @@ public sealed class FixedWorkAtom<T> : IAsyncDisposable
     /// </summary>
     public ValueTask<long> EnqueueAsync(T item, CancellationToken ct = default)
     {
-        return _coordinator.EnqueueWithIdAsync(item, ct);
+        return Coordinator.EnqueueWithIdAsync(item, ct);
     }
 
-    /// <summary>
-    ///     Prevent new work and drain outstanding operations.
-    /// </summary>
-    public async Task DrainAsync(CancellationToken ct = default)
+    protected override void Complete()
     {
-        _coordinator.Complete();
-        await _coordinator.DrainAsync(ct).ConfigureAwait(false);
+        Coordinator.Complete();
     }
 
-    /// <summary>
-    ///     Snapshot recent operations.
-    /// </summary>
-    public IReadOnlyCollection<EphemeralOperationSnapshot> Snapshot()
+    protected override Task DrainInternalAsync(CancellationToken ct)
     {
-        return _coordinator.GetSnapshot();
+        return Coordinator.DrainAsync(ct);
     }
 
-    /// <summary>
-    ///     Aggregate health stats for dashboards.
-    /// </summary>
-    public (int Pending, int Active, int Completed, int Failed) Stats()
+    public override IReadOnlyCollection<EphemeralOperationSnapshot> Snapshot()
     {
-        return (_coordinator.PendingCount, _coordinator.ActiveCount, _coordinator.TotalCompleted,
-            _coordinator.TotalFailed);
+        return Coordinator.GetSnapshot();
     }
 }

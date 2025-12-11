@@ -7,7 +7,7 @@
         <Nullable>enable</Nullable>
 
         <PackageId>Mostlylucid.Ephemeral.Atoms.KeyedSequential</PackageId>
-        <Version>1.0.0</Version>
+        <Version>2.0.0</Version>
         <Authors>Scott Galloway</Authors>
         <Description>Per-key sequential execution atom with global parallelism and optional fair scheduling.</Description>
         <PackageTags>async;parallel;concurrency;keyed;sequential;atom</PackageTags>

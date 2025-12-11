@@ -8,7 +8,7 @@
 
         <!-- NuGet Package Metadata -->
         <PackageId>Mostlylucid.Ephemeral.Atoms.FixedWork</PackageId>
-        <Version>1.0.0</Version>
+        <Version>2.0.0</Version>
         <Authors>Scott Galloway</Authors>
         <Description>Minimal atom wrapper for fixed-concurrency work pipelines with stats tracking.</Description>
         <PackageTags>async;parallel;concurrency;worker;atom</PackageTags>

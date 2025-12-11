@@ -1,8 +1,51 @@
+v2.0.0 - BREAKING CHANGES
+- BREAKING: Signal lifetime model changed - signals are now owned by atoms/coordinators, NOT by SignalSink
+  * SignalSink is now a shared workspace, not the signal lifecycle manager
+  * When operations are evicted from coordinator window, their signals are automatically cleared
+  * SignalSink's maxAge/maxCapacity are now safety bounds only, not primary expiration mechanism
+- BREAKING: Coordinators now call `_options.Signals?.ClearOperation(op.Id)` when finalizing operations
+- NEW: Atom-level signal management via AtomBase constructor parameters:
+  * `maxSignalCount` - Limit signals this atom can have in sink (0 = unbounded)
+  * `maxSignalAge` - Maximum age for this atom's signals (null = unbounded)
+- NEW: `CleanupAtomSignals()` protected method in AtomBase for atom-level cleanup
+- NEW: `Options` property on CoordinatorBase for public access to configuration
+- NEW: `GetSnapshot()` abstract method on CoordinatorBase (implemented by all coordinators)
+- IMPROVED: Architecture now enforces single source of truth: atoms own operations AND their signals
+- IMPROVED: Better memory management for long-lived atoms (scheduled tasks, etc.)
+- TEST: +5 comprehensive tests for coordinator-managed and atom-level signal cleanup
+- TEST: All 211+ tests passing with new architecture
+- BENCHMARK: New BenchmarkDotNet project for measuring signal cleanup performance
+- DOCS: Updated SignalSink-Lifetime.md to clarify new ownership model
+- DOCS: Added ASCII diagram showing atom→operation→signal ownership hierarchy
+
+**Migration Guide v1.x → v2.0:**
+- If you relied on SignalSink cleaning up signals automatically via maxAge, you now need to:
+  1. Use atom-level cleanup parameters (`maxSignalAge`, `maxSignalCount`) for long-lived atoms
+  2. Or ensure coordinator window settings (`MaxTrackedOperations`, `MaxOperationLifetime`) match your needs
+- SignalSink configuration: maxAge/maxCapacity should now be set conservatively as safety bounds
+- Custom coordinators: Must implement `GetSnapshot()` abstract method
+
+v1.8.0
+- BREAKING: Major architectural refactoring for SOLID principles
+- NEW: CoordinatorBase - consolidated 750+ lines of duplicate coordinator logic into single base class
+- NEW: AtomBase<T> - generic base class for atom wrappers, reducing boilerplate by ~20% per atom
+- NEW: ConcurrencyHelper - shared concurrency utilities across all coordinators
+- NEW: CoordinatorMetrics - thread-safe metrics value type with volatile reads
+- IMPROVED: All coordinators now extend CoordinatorBase (EphemeralWorkCoordinator, EphemeralKeyedWorkCoordinator)
+- IMPROVED: 6 atoms refactored to use AtomBase (FixedWork, KeyedSequential, Retry, SignalAware, DurableTask, OperationEcho)
+- IMPROVED: Updated to C# 12 primary constructors throughout core and atoms
+- IMPROVED: Made IConcurrencyGate and OperationEchoStore public for proper encapsulation
+- TEST: New test projects for individual atoms (fixedwork, keyedsequential, retry)
+- TEST: +21 comprehensive tests for atom behavior
+- TEST: All 211 tests passing
+- DOCS: Enhanced XML documentation across all core infrastructure
+
 v1.0.0
 - Initial release
 - EphemeralWorkCoordinator for bounded async execution
 - EphemeralKeyedWorkCoordinator for per-key ordering
 - PriorityWorkCoordinator for priority lanes
+
 - Signal-based coordination (SignalSink, SignalDispatcher)
 - ParallelEphemeral extension methods
 - DI integration

@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 
 namespace Mostlylucid.Ephemeral;
 
-internal sealed class OperationEchoStore
+public sealed class OperationEchoStore
 {
     private readonly int _capacity;
     private readonly object _lock = new();

@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 
 namespace Mostlylucid.Ephemeral;
 
-internal interface IConcurrencyGate : IAsyncDisposable
+public interface IConcurrencyGate : IAsyncDisposable
 {
     ValueTask WaitAsync(CancellationToken cancellationToken);
     void Release();
@@ -12,7 +12,7 @@ internal interface IConcurrencyGate : IAsyncDisposable
 /// <summary>
 ///     Lightweight, dynamically adjustable async gate.
 /// </summary>
-internal sealed class AdjustableConcurrencyGate : IConcurrencyGate
+public sealed class AdjustableConcurrencyGate : IConcurrencyGate
 {
     private readonly object _lock = new();
     private readonly Queue<WaiterEntry> _waiters = new();
@@ -163,7 +163,7 @@ internal sealed class AdjustableConcurrencyGate : IConcurrencyGate
 /// <summary>
 ///     Fixed-concurrency gate backed by SemaphoreSlim (hot-path fast).
 /// </summary>
-internal sealed class FixedConcurrencyGate : IConcurrencyGate
+public sealed class FixedConcurrencyGate : IConcurrencyGate
 {
     private readonly SemaphoreSlim _semaphore;
     private bool _disposed;

@@ -8,53 +8,30 @@ namespace Mostlylucid.Ephemeral;
 /// <summary>
 ///     Keyed version: per-key sequential execution with fair scheduling.
 /// </summary>
-public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, IOperationPinning, IOperationFinalization, IOperationEvictor
+public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : CoordinatorBase
     where TKey : notnull
 {
     private const long KeyLockIdleTimeoutMs = 60_000;
     private readonly Func<T, CancellationToken, Task> _body;
-
     private readonly Channel<T> _channel;
-    private readonly CancellationTokenSource _cts;
-    private readonly TaskCompletionSource _drainTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private readonly OperationEchoStore? _echoStore;
     private readonly IConcurrencyGate _globalConcurrency;
     private readonly Func<T, TKey> _keySelector;
-    private readonly EphemeralOptions _options;
-    private readonly ManualResetEventSlim _pauseGate = new(true);
     private readonly ConcurrentDictionary<TKey, KeyLock> _perKeyLocks;
     private readonly ConcurrentDictionary<TKey, int> _perKeyPendingCount;
     private readonly Task _processingTask;
-    private readonly ConcurrentQueue<EphemeralOperation> _recent;
     private readonly Task? _sourceConsumerTask;
-    private readonly object _windowLock = new();
-    private int _activeTaskCount;
-    private bool _channelIterationComplete;
-    private bool _completed;
-    private long _lastReadCleanupTicks;
-    private long _lastTrimTicks;
-    private bool _paused;
-    private int _pendingCount;
-    private int _totalCompleted;
-    private int _totalEnqueued;
-    private int _totalFailed;
 
     public EphemeralKeyedWorkCoordinator(
         Func<T, TKey> keySelector,
         Func<T, CancellationToken, Task> body,
         EphemeralOptions? options = null)
+        : base(options)
     {
         _keySelector = keySelector ?? throw new ArgumentNullException(nameof(keySelector));
         _body = body ?? throw new ArgumentNullException(nameof(body));
-        _options = options ?? new EphemeralOptions();
-        _cts = new CancellationTokenSource();
-        _recent = new ConcurrentQueue<EphemeralOperation>();
-        _globalConcurrency = CreateGate(_options);
+        _globalConcurrency = ConcurrencyHelper.CreateGate(_options);
         _perKeyLocks = new ConcurrentDictionary<TKey, KeyLock>();
         _perKeyPendingCount = new ConcurrentDictionary<TKey, int>();
-        _echoStore = _options.EnableOperationEcho
-            ? new OperationEchoStore(_options.OperationEchoRetention, _options.OperationEchoCapacity)
-            : null;
 
         _channel = Channel.CreateBounded<T>(new BoundedChannelOptions(_options.MaxTrackedOperations)
         {
@@ -71,18 +48,13 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
         Func<T, TKey> keySelector,
         Func<T, CancellationToken, Task> body,
         EphemeralOptions? options)
+        : base(options)
     {
         _keySelector = keySelector ?? throw new ArgumentNullException(nameof(keySelector));
         _body = body ?? throw new ArgumentNullException(nameof(body));
-        _options = options ?? new EphemeralOptions();
-        _cts = new CancellationTokenSource();
-        _recent = new ConcurrentQueue<EphemeralOperation>();
-        _globalConcurrency = CreateGate(_options);
+        _globalConcurrency = ConcurrencyHelper.CreateGate(_options);
         _perKeyLocks = new ConcurrentDictionary<TKey, KeyLock>();
         _perKeyPendingCount = new ConcurrentDictionary<TKey, int>();
-        _echoStore = _options.EnableOperationEcho
-            ? new OperationEchoStore(_options.OperationEchoRetention, _options.OperationEchoCapacity)
-            : null;
 
         _channel = Channel.CreateBounded<T>(new BoundedChannelOptions(_options.MaxTrackedOperations)
         {
@@ -94,15 +66,6 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
         _processingTask = ProcessAsync();
         _sourceConsumerTask = ConsumeSourceAsync(source);
     }
-
-    public int PendingCount => Volatile.Read(ref _pendingCount);
-    public int ActiveCount => Volatile.Read(ref _activeTaskCount);
-    public int TotalEnqueued => Volatile.Read(ref _totalEnqueued);
-    public int TotalCompleted => Volatile.Read(ref _totalCompleted);
-    public int TotalFailed => Volatile.Read(ref _totalFailed);
-    public bool IsCompleted => Volatile.Read(ref _completed);
-    public bool IsDrained => IsCompleted && PendingCount == 0 && ActiveCount == 0;
-    public bool IsPaused => Volatile.Read(ref _paused);
 
     public async ValueTask DisposeAsync()
     {
@@ -117,98 +80,7 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
         }
 
         await _globalConcurrency.DisposeAsync().ConfigureAwait(false);
-        _cts.Dispose();
-        _pauseGate.Dispose();
-    }
-
-    /// <summary>
-    ///     Raised when an operation is evicted from the window.
-    /// </summary>
-    public event Action<EphemeralOperationSnapshot>? OperationFinalized;
-
-    public bool Pin(long operationId)
-    {
-        foreach (var op in _recent)
-            if (op.Id == operationId)
-            {
-                op.IsPinned = true;
-                return true;
-            }
-
-        return false;
-    }
-
-    public bool Unpin(long operationId)
-    {
-        foreach (var op in _recent)
-            if (op.Id == operationId)
-            {
-                op.IsPinned = false;
-                return true;
-            }
-
-        return false;
-    }
-
-    private void NotifyOperationFinalized(EphemeralOperation op)
-    {
-        OperationFinalized?.Invoke(op.ToSnapshot());
-        RecordEcho(op);
-    }
-
-    /// <inheritdoc />
-    public bool TryKill(long operationId)
-    {
-        if (operationId <= 0)
-            return false;
-
-        if (!TryRemoveOperation(operationId, out var candidate) || candidate is null)
-            return false;
-
-        if (candidate.Completed is null) candidate.Completed = DateTimeOffset.UtcNow;
-        candidate.IsPinned = false;
-        NotifyOperationFinalized(candidate);
-        CleanupWindow();
-        return true;
-    }
-
-    private bool TryRemoveOperation(long operationId, out EphemeralOperation? removed)
-    {
-        removed = null;
-        var buffer = new List<EphemeralOperation>();
-        var found = false;
-
-        lock (_windowLock)
-        {
-            while (_recent.TryDequeue(out var op))
-            {
-                if (!found && op.Id == operationId)
-                {
-                    removed = op;
-                    found = true;
-                    continue;
-                }
-
-                buffer.Add(op);
-            }
-
-            foreach (var op in buffer)
-            {
-                _recent.Enqueue(op);
-            }
-        }
-
-        return found;
-    }
-
-    private void RecordEcho(EphemeralOperation op)
-    {
-        if (_echoStore is null)
-            return;
-
-        var signals = op._signals?.ToArray();
-        var echo = new OperationEcho(op.Id, op.Key, signals, DateTimeOffset.UtcNow);
-        _echoStore.Add(echo);
+        Dispose(true);
     }
 
     public static EphemeralKeyedWorkCoordinator<T, TKey> FromAsyncEnumerable(
@@ -220,24 +92,12 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
         return new EphemeralKeyedWorkCoordinator<T, TKey>(source, keySelector, body, options);
     }
 
-    public void Pause()
-    {
-        Volatile.Write(ref _paused, true);
-        _pauseGate.Reset();
-    }
-
-    public void Resume()
-    {
-        Volatile.Write(ref _paused, false);
-        _pauseGate.Set();
-    }
-
     public int GetPendingCountForKey(TKey key)
     {
         return _perKeyPendingCount.TryGetValue(key, out var count) ? count : 0;
     }
 
-    public IReadOnlyCollection<EphemeralOperationSnapshot> GetSnapshot()
+    public override IReadOnlyCollection<EphemeralOperationSnapshot> GetSnapshot()
     {
         MaybeCleanupForRead();
         return _recent.Select(x => x.ToSnapshot()).ToArray();
@@ -280,141 +140,10 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
             .ToArray();
     }
 
-    private void MaybeCleanupForRead()
-    {
-        var now = Environment.TickCount64;
-        var lastCleanup = Volatile.Read(ref _lastReadCleanupTicks);
-        if (now - lastCleanup < 500) return;
-        if (Interlocked.CompareExchange(ref _lastReadCleanupTicks, now, lastCleanup) == lastCleanup)
-            CleanupWindow();
-    }
-
-    public IReadOnlyList<SignalEvent> GetSignals()
-    {
-        return GetSignalsCore(null);
-    }
-
-    public IReadOnlyList<SignalEvent> GetSignals(Func<EphemeralOperationSnapshot, bool>? predicate)
-    {
-        return GetSignalsCore(predicate);
-    }
-
-    public IReadOnlyList<SignalEvent> GetSignalsByKey(string key)
-    {
-        var results = new List<SignalEvent>();
-        foreach (var op in _recent)
-        {
-            if (op._signals is not { Count: > 0 }) continue;
-            if (op.Key != key) continue;
-            var timestamp = op.Completed ?? op.Started;
-            foreach (var signal in op._signals)
-                results.Add(new SignalEvent(signal, op.Id, op.Key, timestamp));
-        }
-
-        return results;
-    }
-
-    /// <summary>
-    ///     Gets echo copies of signals emitted by operations that were just trimmed.
-    /// </summary>
-    public IReadOnlyList<OperationEcho> GetEchoes()
-    {
-        return _echoStore?.Snapshot() ?? Array.Empty<OperationEcho>();
-    }
 
     public IReadOnlyList<SignalEvent> GetSignalsByKey(TKey key)
     {
         return GetSignalsByKey(key.ToString()!);
-    }
-
-    public IReadOnlyList<SignalEvent> GetSignalsByPattern(string pattern)
-    {
-        var results = new List<SignalEvent>();
-        foreach (var op in _recent)
-        {
-            if (op._signals is not { Count: > 0 }) continue;
-            var timestamp = op.Completed ?? op.Started;
-            foreach (var signal in op._signals)
-                if (StringPatternMatcher.Matches(signal, pattern))
-                    results.Add(new SignalEvent(signal, op.Id, op.Key, timestamp));
-        }
-
-        return results;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool HasSignal(string signalName)
-    {
-        foreach (var op in _recent)
-        {
-            if (op._signals is not { Count: > 0 }) continue;
-
-            // Manual loop for better performance
-            var signals = op._signals;
-            var count = signals.Count;
-            for (var i = 0; i < count; i++)
-                if (signals[i] == signalName)
-                    return true;
-        }
-
-        return false;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool HasSignalMatching(string pattern)
-    {
-        foreach (var op in _recent)
-        {
-            if (op._signals is not { Count: > 0 }) continue;
-
-            // Manual loop for better performance
-            var signals = op._signals;
-            var count = signals.Count;
-            for (var i = 0; i < count; i++)
-                if (StringPatternMatcher.Matches(signals[i], pattern))
-                    return true;
-        }
-
-        return false;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public int CountSignals()
-    {
-        var count = 0;
-        foreach (var op in _recent)
-            if (op._signals is { Count: > 0 } signals)
-                count += signals.Count;
-        return count;
-    }
-
-    private IReadOnlyList<SignalEvent> GetSignalsCore(Func<EphemeralOperationSnapshot, bool>? predicate)
-    {
-        var results = new List<SignalEvent>();
-        foreach (var op in _recent)
-        {
-            if (op._signals is not { Count: > 0 }) continue;
-            if (predicate != null && !predicate(op.ToSnapshot())) continue;
-            var timestamp = op.Completed ?? op.Started;
-            foreach (var signal in op._signals)
-                results.Add(new SignalEvent(signal, op.Id, op.Key, timestamp));
-        }
-
-        return results;
-    }
-
-    public bool Evict(long operationId)
-    {
-        lock (_windowLock)
-        {
-            var toKeep = new List<EphemeralOperation>();
-            var found = false;
-            while (_recent.TryDequeue(out var op))
-                if (op.Id == operationId) found = true;
-                else toKeep.Add(op);
-            foreach (var op in toKeep) _recent.Enqueue(op);
-            return found;
-        }
     }
 
     public async ValueTask EnqueueAsync(T item, CancellationToken cancellationToken = default)
@@ -478,6 +207,13 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
         _channel.Writer.Complete();
     }
 
+    public new void Cancel()
+    {
+        Volatile.Write(ref _completed, true);
+        _channel.Writer.TryComplete();
+        base.Cancel();
+    }
+
     public async Task DrainAsync(CancellationToken cancellationToken = default)
     {
         if (_sourceConsumerTask is not null)
@@ -492,13 +228,6 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
 
         using var linkedCts2 = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cts.Token);
         await _processingTask.WaitAsync(linkedCts2.Token).ConfigureAwait(false);
-    }
-
-    public void Cancel()
-    {
-        Volatile.Write(ref _completed, true);
-        _channel.Writer.TryComplete();
-        _cts.Cancel();
     }
 
     public void SetMaxConcurrency(int newLimit)
@@ -680,75 +409,6 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
         }
     }
 
-    private void EnqueueOperation(EphemeralOperation op)
-    {
-        lock (_windowLock)
-        {
-            _recent.Enqueue(op);
-        }
-        CleanupWindow();
-    }
-
-    private void CleanupWindow()
-    {
-        lock (_windowLock)
-        {
-            TrimWindowSizeLocked();
-            TrimWindowAgeLocked();
-        }
-    }
-
-    private void TrimWindowSizeLocked()
-    {
-        var max = _options.MaxTrackedOperations;
-        if (max <= 0) return;
-        var pinnedCount = 0;
-        var scanBudget = _recent.Count;
-        while (_recent.Count > max && scanBudget-- > 0)
-        {
-            if (!_recent.TryDequeue(out var candidate)) break;
-            if (candidate.IsPinned)
-            {
-                pinnedCount++;
-                _recent.Enqueue(candidate);
-                if (pinnedCount >= _recent.Count) break;
-            }
-            else
-            {
-                NotifyOperationFinalized(candidate);
-            }
-        }
-    }
-
-    private void TrimWindowAgeLocked()
-    {
-        if (_options.MaxOperationLifetime is not { } maxAge) return;
-        var now = Environment.TickCount64;
-        var lastTrim = Volatile.Read(ref _lastTrimTicks);
-        if (now - lastTrim < 1000) return;
-        Volatile.Write(ref _lastTrimTicks, now);
-        var cutoff = DateTimeOffset.UtcNow - maxAge;
-        var scanBudget = _recent.Count;
-        while (scanBudget-- > 0 && _recent.TryDequeue(out var op))
-            if (op.IsPinned || op.Started >= cutoff) _recent.Enqueue(op);
-            else
-                NotifyOperationFinalized(op);
-    }
-
-    private void SampleIfRequested()
-    {
-        var sampler = _options.OnSample;
-        if (sampler is null) return;
-        var snapshot = _recent.Select(x => x.ToSnapshot()).ToArray();
-        if (snapshot.Length > 0) sampler(snapshot);
-    }
-
-    private static IConcurrencyGate CreateGate(EphemeralOptions options)
-    {
-        return options.EnableDynamicConcurrency
-            ? new AdjustableConcurrencyGate(options.MaxConcurrency)
-            : new FixedConcurrencyGate(options.MaxConcurrency);
-    }
 
     /// <summary>
     ///     Tracks a per-key semaphore with last usage time for cleanup.

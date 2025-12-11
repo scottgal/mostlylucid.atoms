@@ -19,7 +19,14 @@
       "Bash(timeout 120 dotnet run:*)",
       "Bash(sort:*)",
       "Bash(timeout 90 dotnet run:*)",
-      "Bash(timeout 60 dotnet run:*)"
+      "Bash(timeout 60 dotnet run:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(wc:*)",
+      "Bash(ls:*)",
+      "Bash(xargs basename:*)",
+      "Bash(dotnet add reference:*)",
+      "Bash(dotnet add:*)"
     ],
     "deny": [],
     "ask": []

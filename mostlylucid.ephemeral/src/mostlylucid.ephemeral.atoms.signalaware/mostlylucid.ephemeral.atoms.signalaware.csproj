@@ -7,7 +7,7 @@
         <Nullable>enable</Nullable>
 
         <PackageId>Mostlylucid.Ephemeral.Atoms.SignalAware</PackageId>
-        <Version>1.0.0</Version>
+        <Version>2.0.0</Version>
         <Authors>Scott Galloway</Authors>
         <Description>Atom that pauses or cancels intake based on ambient signals (circuit-breaker pattern).</Description>
         <PackageTags>async;parallel;signals;circuit-breaker;atom</PackageTags>

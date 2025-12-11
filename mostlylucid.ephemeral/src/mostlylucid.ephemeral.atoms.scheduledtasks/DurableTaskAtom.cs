@@ -3,28 +3,16 @@ namespace Mostlylucid.Ephemeral.Atoms.ScheduledTasks;
 /// <summary>
 ///     A small wrapper around <see cref="EphemeralWorkCoordinator{DurableTask}" /> that keeps scheduled jobs durable.
 /// </summary>
-public sealed class DurableTaskAtom : IAsyncDisposable
+public sealed class DurableTaskAtom : AtomBase<EphemeralWorkCoordinator<DurableTask>>
 {
-    private readonly EphemeralWorkCoordinator<DurableTask> _coordinator;
-
     /// <summary>
     ///     Creates a durable task atom that executes the provided handler whenever a task is dequeued.
     /// </summary>
     public DurableTaskAtom(Func<DurableTask, CancellationToken, Task> handler, EphemeralOptions? options = null)
+        : base(new EphemeralWorkCoordinator<DurableTask>(
+            handler ?? throw new ArgumentNullException(nameof(handler)),
+            options ?? CreateDefaultOptions()))
     {
-        if (handler is null) throw new ArgumentNullException(nameof(handler));
-
-        _coordinator = new EphemeralWorkCoordinator<DurableTask>(handler, options ?? CreateDefaultOptions());
-    }
-
-    /// <summary>
-    ///     Gracefully stop accepting tasks and await completion.
-    /// </summary>
-    public async ValueTask DisposeAsync()
-    {
-        _coordinator.Complete();
-        await _coordinator.DrainAsync().ConfigureAwait(false);
-        await _coordinator.DisposeAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -32,15 +20,7 @@ public sealed class DurableTaskAtom : IAsyncDisposable
     /// </summary>
     public ValueTask EnqueueAsync(DurableTask task, CancellationToken cancellationToken = default)
     {
-        return _coordinator.EnqueueAsync(task, cancellationToken);
-    }
-
-    /// <summary>
-    ///     Drain outstanding tasks.
-    /// </summary>
-    public Task DrainAsync(CancellationToken cancellationToken = default)
-    {
-        return _coordinator.DrainAsync(cancellationToken);
+        return Coordinator.EnqueueAsync(task, cancellationToken);
     }
 
     /// <summary>
@@ -51,13 +31,28 @@ public sealed class DurableTaskAtom : IAsyncDisposable
         var delay = pollInterval ?? TimeSpan.FromMilliseconds(25);
         while (!cancellationToken.IsCancellationRequested)
         {
-            if (_coordinator.PendingCount == 0 && _coordinator.ActiveCount == 0)
+            if (Coordinator.PendingCount == 0 && Coordinator.ActiveCount == 0)
                 return;
 
             await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+    }
+
+    protected override void Complete()
+    {
+        Coordinator.Complete();
+    }
+
+    protected override Task DrainInternalAsync(CancellationToken ct)
+    {
+        return Coordinator.DrainAsync(ct);
+    }
+
+    public override IReadOnlyCollection<EphemeralOperationSnapshot> Snapshot()
+    {
+        return Coordinator.GetSnapshot();
     }
 
     private static EphemeralOptions CreateDefaultOptions()

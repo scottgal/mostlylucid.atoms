@@ -6,7 +6,7 @@
 
 **Fire... and Don't *Quite* Forget.**
 
-> 🚨🚨 WARNING 🚨🚨 - Though in the 1.x range of version THINGS WILL STILL BREAK. This is the lab for developing this concept when stabilized it'll becoe the first *stylo*flow release 🚨🚨🚨
+> 🚨🚨 WARNING 🚨🚨 - Version 2.0 introduces BREAKING CHANGES to signal ownership model. See [ReleaseNotes.txt](src/mostlylucid.ephemeral/ReleaseNotes.txt) for migration guide. 🚨🚨🚨
 
 A lightweight .NET library for bounded, observable, self-cleaning async execution with signal-based coordination. Targets .NET 6.0, 7.0, 8.0, 9.0, and 10.0.
 
@@ -31,6 +31,31 @@ Ephemeral provides **trackable, bounded, observable async execution**:
 - **Self-cleaning** - Old operations automatically evict (no memory leaks)
 - **Signal-based coordination** - Operations emit signals that influence execution
 - **Zero external dependencies** - Core package is dependency-free
+
+## What's New in v2.0.0
+
+**⚠️ BREAKING CHANGES: New signal ownership model**
+
+Signals are now owned by atoms/coordinators, not by SignalSink. This fundamental architectural change provides better memory management and clearer ownership semantics.
+
+### Key Changes:
+- **Coordinator-managed signal lifetime** - When operations are evicted, their signals are automatically cleared
+- **Atom-level signal controls** - `maxSignalCount` and `maxSignalAge` parameters for fine-grained cleanup
+- **SignalSink as workspace** - Now a shared storage space, not a lifecycle manager
+- **Better memory management** - Especially important for long-lived atoms like scheduled tasks
+
+### New Features:
+- `AtomBase` constructor now accepts `maxSignalCount` and `maxSignalAge` parameters
+- `CleanupAtomSignals()` protected method for atom-level signal management
+- `Options` property on `CoordinatorBase` for public configuration access
+- `GetSnapshot()` abstract method on `CoordinatorBase`
+
+### Testing & Benchmarks:
+- **BenchmarkDotNet project** added for performance measurement
+- 5+ new tests for signal cleanup (211+ total tests passing)
+- Comprehensive documentation updates
+
+**Migration Guide:** See [ReleaseNotes.txt](src/mostlylucid.ephemeral/ReleaseNotes.txt) for details on upgrading from v1.x
 
 ## Interactive Demo
 

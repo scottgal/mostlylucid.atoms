@@ -7,7 +7,7 @@
         <Nullable>enable</Nullable>
 
         <PackageId>Mostlylucid.Ephemeral.Atoms.Batching</PackageId>
-        <Version>1.0.0</Version>
+        <Version>2.0.0</Version>
         <Authors>Scott Galloway</Authors>
         <Description>Collects items into batches by size or time interval before processing.</Description>
         <PackageTags>async;batching;coalesce;buffer;atom</PackageTags>

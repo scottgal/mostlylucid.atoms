@@ -8,7 +8,7 @@
 
         <!-- NuGet Package Metadata -->
         <PackageId>mostlylucid.ephemeral</PackageId>
-        <Version>1.0.0</Version>
+        <Version>2.0.0</Version>
         <Authors>Scott Galloway</Authors>
         <Description>A lightweight .NET library for bounded, observable, self-cleaning async execution with signal-based coordination. Fire... and Don't Quite Forget.</Description>
         <PackageTags>async;parallel;concurrency;observability;signals;coordination</PackageTags>
