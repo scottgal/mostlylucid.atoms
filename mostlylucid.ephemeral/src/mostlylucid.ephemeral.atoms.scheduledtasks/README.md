@@ -4,6 +4,19 @@ Durable task + cron-driven helpers that keep scheduled work visible until someon
 
 > 🚨🚨 WARNING 🚨🚨 - Though in the 1.x range of version THINGS WILL STILL BREAK. This is the lab for developing this concept when stabilized it'll becoe the first *stylo*flow release 🚨🚨🚨
 
+## Signal Management (v2.0+)
+
+**⚠️ Important for long-lived atoms:** ScheduledTasksAtom and DurableTaskAtom are long-lived atoms that may accumulate signals over time. As of v2.0.0, you can control signal cleanup via atom-level parameters:
+
+```csharp
+var durable = new DurableTaskAtom(
+    async (task, ct) => { /* handler */ },
+    maxSignalCount: 5000,                      // Limit total signals from this atom
+    maxSignalAge: TimeSpan.FromMinutes(30)     // Max age for this atom's signals
+);
+```
+
+This prevents unbounded signal growth in the shared SignalSink while keeping scheduled task signals visible for monitoring. See [ReleaseNotes.txt](../../ReleaseNotes.txt) for v2.0 migration details.
 
 ## DurableTaskAtom
 

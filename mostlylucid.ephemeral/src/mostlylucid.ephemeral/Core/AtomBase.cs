@@ -80,6 +80,87 @@ public abstract class AtomBase<TCoordinator>(
     }
 
     /// <summary>
+    ///     Cleans up this atom's signals older than the specified age.
+    /// </summary>
+    /// <param name="olderThan">Remove signals older than this timespan from now.</param>
+    /// <returns>Number of signals removed.</returns>
+    public int Cleanup(TimeSpan olderThan)
+    {
+        var sink = Coordinator.Options.Signals;
+        if (sink == null)
+            return 0;
+
+        var snapshot = Coordinator.GetSnapshot();
+        if (snapshot.Count == 0)
+            return 0;
+
+        var operationIds = snapshot.Select(op => op.Id).ToHashSet();
+        var cutoff = DateTimeOffset.UtcNow - olderThan;
+
+        return sink.ClearMatching(signal =>
+            operationIds.Contains(signal.OperationId) && signal.Timestamp < cutoff);
+    }
+
+    /// <summary>
+    ///     Cleans up the oldest N signals from this atom.
+    /// </summary>
+    /// <param name="count">Number of oldest signals to remove.</param>
+    /// <returns>Number of signals actually removed (may be less than requested if atom has fewer signals).</returns>
+    public int Cleanup(int count)
+    {
+        if (count <= 0)
+            return 0;
+
+        var sink = Coordinator.Options.Signals;
+        if (sink == null)
+            return 0;
+
+        var snapshot = Coordinator.GetSnapshot();
+        if (snapshot.Count == 0)
+            return 0;
+
+        var operationIds = snapshot.Select(op => op.Id).ToHashSet();
+        var atomSignals = sink.Sense(signal => operationIds.Contains(signal.OperationId))
+            .OrderBy(s => s.Timestamp)
+            .Take(count)
+            .ToList();
+
+        var removed = 0;
+        foreach (var signal in atomSignals)
+        {
+            removed += sink.ClearOperation(signal.OperationId);
+        }
+
+        return removed;
+    }
+
+    /// <summary>
+    ///     Cleans up signals from this atom matching the specified pattern.
+    ///     Supports glob-style wildcards (* and ?).
+    /// </summary>
+    /// <param name="pattern">Pattern to match signal names (e.g., "error.*", "api.*.timeout").</param>
+    /// <returns>Number of signals removed.</returns>
+    public int Cleanup(string pattern)
+    {
+        if (string.IsNullOrEmpty(pattern))
+            throw new ArgumentNullException(nameof(pattern));
+
+        var sink = Coordinator.Options.Signals;
+        if (sink == null)
+            return 0;
+
+        var snapshot = Coordinator.GetSnapshot();
+        if (snapshot.Count == 0)
+            return 0;
+
+        var operationIds = snapshot.Select(op => op.Id).ToHashSet();
+
+        return sink.ClearMatching(signal =>
+            operationIds.Contains(signal.OperationId) &&
+            StringPatternMatcher.Matches(signal.Signal, pattern));
+    }
+
+    /// <summary>
     ///     Cleans up this atom's signals from the shared sink based on maxSignalCount and maxSignalAge.
     ///     Call this periodically (e.g., after operations complete) to prevent unbounded signal growth.
     ///     For long-lived atoms like scheduled tasks, this prevents signal accumulation.

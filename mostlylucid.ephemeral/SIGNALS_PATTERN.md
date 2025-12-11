@@ -11,6 +11,40 @@ This is a **non-locking "sure of value" system** where:
 - Atoms **always hold the authoritative state**
 - Listeners can use hints for speed, but **verify with atom for truth**
 
+### Signal Lifetime (v2.0+)
+
+**⚠️ Important:** As of v2.0.0, **atoms/coordinators own their signals**. When an operation expires from a coordinator's ephemeral window, all its signals are automatically removed from SignalSink.
+
+```
+Operation Lifetime = Signal Lifetime
+```
+
+**Primary Expiration:** Coordinator-managed
+- When `MaxTrackedOperations` limit is reached → oldest operation evicted → its signals cleared
+- When operation exceeds `MaxOperationLifetime` → operation evicted → its signals cleared
+- Automatic via `CoordinatorBase.NotifyOperationFinalized()` → calls `Signals?.ClearOperation(op.Id)`
+
+**Secondary Expiration:** Atom-level (optional)
+```csharp
+public class MyAtom : AtomBase<EphemeralWorkCoordinator<T>>
+{
+    public MyAtom(SignalSink sink) : base(
+        coordinator,
+        maxSignalCount: 5000,                      // Limit signals for this atom
+        maxSignalAge: TimeSpan.FromMinutes(5)      // Max age for this atom's signals
+    ) { }
+}
+```
+
+**Safety Bounds:** SignalSink (fallback only)
+- `maxCapacity` and `maxAge` parameters are safety bounds, not primary expiration
+- Protect against misconfigured coordinators or memory leaks
+- Should be set conservatively as last-resort limits
+
+**Key Benefit:** Operations and their signals have the same lifetime. No orphaned signals, no dual expiration logic.
+
+See [SignalSink-Lifetime.md](docs/SignalSink-Lifetime.md) for detailed ownership model and [ReleaseNotes.txt](src/mostlylucid.ephemeral/ReleaseNotes.txt) for migration guide.
+
 ### The Three Models
 
 1. **Pure Notification** (most common)

@@ -136,6 +136,9 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
 
     private void NotifyOperationFinalized(EphemeralOperation<TResult> op)
     {
+        // Clear this operation's signals from the sink - coordinator manages signal lifetime
+        _options.Signals?.ClearOperation(op.Id);
+
         OperationFinalized?.Invoke(op.ToBaseSnapshot());
         RecordEcho(op);
     }

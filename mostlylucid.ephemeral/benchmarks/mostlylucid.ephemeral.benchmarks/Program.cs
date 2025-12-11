@@ -5,3 +5,8 @@ using Mostlylucid.Ephemeral.Benchmarks;
 BenchmarkRunner.Run<SignalCleanupBenchmarks>();
 BenchmarkRunner.Run<SignalLifetimeComparisonBenchmarks>();
 BenchmarkRunner.Run<AtomSignalCleanupBenchmarks>();
+
+// Run new cleanup method benchmarks
+BenchmarkRunner.Run<CleanupBenchmarks>();
+BenchmarkRunner.Run<CleanupScalabilityBenchmarks>();
+BenchmarkRunner.Run<CleanupEdgeCaseBenchmarks>();

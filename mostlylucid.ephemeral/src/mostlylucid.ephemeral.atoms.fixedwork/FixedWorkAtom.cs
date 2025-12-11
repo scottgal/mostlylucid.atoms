@@ -10,13 +10,18 @@ public sealed class FixedWorkAtom<T> : AtomBase<EphemeralWorkCoordinator<T>>
         Func<T, CancellationToken, Task> body,
         int? maxConcurrency = null,
         int? maxTracked = null,
-        SignalSink? signals = null)
-        : base(new EphemeralWorkCoordinator<T>(body, new EphemeralOptions
-        {
-            MaxConcurrency = ConcurrencyHelper.ResolveDefaultConcurrency(maxConcurrency),
-            MaxTrackedOperations = maxTracked is > 0 ? maxTracked.Value : 200,
-            Signals = signals
-        }))
+        SignalSink? signals = null,
+        int maxSignalCount = 0,
+        TimeSpan? maxSignalAge = null)
+        : base(
+            new EphemeralWorkCoordinator<T>(body, new EphemeralOptions
+            {
+                MaxConcurrency = ConcurrencyHelper.ResolveDefaultConcurrency(maxConcurrency),
+                MaxTrackedOperations = maxTracked is > 0 ? maxTracked.Value : 200,
+                Signals = signals
+            }),
+            maxSignalCount,
+            maxSignalAge)
     {
     }
 

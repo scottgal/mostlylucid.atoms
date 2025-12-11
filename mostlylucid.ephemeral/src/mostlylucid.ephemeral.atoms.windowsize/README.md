@@ -43,6 +43,14 @@ sink.Raise($"file.saved:{filename}"); // State in signal!
 
 For these, **listeners query the atom** for actual state rather than embedding it in the signal.
 
+### v2.0 Signal Ownership Update
+
+As of v2.0.0, the role of SignalSink has changed: **atoms/coordinators now own their signals**. SignalSink is a shared workspace, not a lifecycle manager. When operations expire from a coordinator's window, their signals are automatically cleared.
+
+WindowSizeAtom adjusts SignalSink's **safety bounds** (`maxCapacity` and `maxAge`), which protect against misconfigured coordinators. The primary signal expiration is now managed by coordinators via `MaxTrackedOperations` and `MaxOperationLifetime`.
+
+For details on the new ownership model, see [SignalSink-Lifetime.md](../../docs/SignalSink-Lifetime.md) and [ReleaseNotes.txt](../../ReleaseNotes.txt).
+
 ## Installation
 
 ```bash

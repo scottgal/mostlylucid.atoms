@@ -8,10 +8,21 @@ public sealed class DurableTaskAtom : AtomBase<EphemeralWorkCoordinator<DurableT
     /// <summary>
     ///     Creates a durable task atom that executes the provided handler whenever a task is dequeued.
     /// </summary>
-    public DurableTaskAtom(Func<DurableTask, CancellationToken, Task> handler, EphemeralOptions? options = null)
-        : base(new EphemeralWorkCoordinator<DurableTask>(
-            handler ?? throw new ArgumentNullException(nameof(handler)),
-            options ?? CreateDefaultOptions()))
+    /// <param name="handler">The async handler to execute for each durable task.</param>
+    /// <param name="options">Optional ephemeral options for the underlying coordinator.</param>
+    /// <param name="maxSignalCount">Maximum signals this atom can have in the sink (0 = unbounded). Useful for long-lived atoms.</param>
+    /// <param name="maxSignalAge">Maximum age for this atom's signals (null = unbounded). Useful for long-lived atoms.</param>
+    public DurableTaskAtom(
+        Func<DurableTask, CancellationToken, Task> handler,
+        EphemeralOptions? options = null,
+        int maxSignalCount = 0,
+        TimeSpan? maxSignalAge = null)
+        : base(
+            new EphemeralWorkCoordinator<DurableTask>(
+                handler ?? throw new ArgumentNullException(nameof(handler)),
+                options ?? CreateDefaultOptions()),
+            maxSignalCount,
+            maxSignalAge)
     {
     }
 

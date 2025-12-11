@@ -185,6 +185,41 @@ signals.Raise("atom.completed", atomName, duration);
 signals.Raise("atom.failed", atomName, error);
 ```
 
+### 6. Signal Ownership (v2.0+)
+
+**⚠️ Important:** As of v2.0.0, **atoms own their signals**. SignalSink is a shared workspace, not a lifecycle manager.
+
+```csharp
+// Atoms manage their signals' lifetime
+public class MyAtom : AtomBase<EphemeralWorkCoordinator<T>>
+{
+    public MyAtom(SignalSink sink) : base(
+        new EphemeralWorkCoordinator<T>(
+            async (item, ct) => { /* work */ },
+            new EphemeralOptions
+            {
+                MaxTrackedOperations = 200,  // Operations expire from window
+                Signals = sink               // Shared workspace
+            }),
+        maxSignalCount: 5000,          // Atom-level signal limit (optional)
+        maxSignalAge: TimeSpan.FromMinutes(5)  // Atom-level age limit (optional)
+    )
+    {
+    }
+}
+```
+
+**Key Points:**
+- When an operation expires from the coordinator's window (`MaxTrackedOperations`, `MaxOperationLifetime`), **all its signals are automatically cleared** from the sink
+- Atoms can set additional cleanup policies via `maxSignalCount` and `maxSignalAge` (useful for long-lived atoms like scheduled tasks)
+- SignalSink's `maxCapacity` and `maxAge` are safety bounds only, not primary expiration
+- This ensures operations and their signals have the same lifetime
+
+**Migration from v1.x:**
+- If you relied on SignalSink auto-cleanup, now use atom-level parameters (`maxSignalCount`, `maxSignalAge`)
+- Coordinator window settings (`MaxTrackedOperations`, `MaxOperationLifetime`) control primary signal lifetime
+- See [ReleaseNotes.txt](src/mostlylucid.ephemeral/ReleaseNotes.txt) for detailed migration guide
+
 ---
 
 ## Anatomy of an Atom

@@ -790,6 +790,58 @@ public sealed class SignalSink
     }
 
     /// <summary>
+    ///     Clears signals older than the specified timespan.
+    ///     Convenience method for age-based cleanup.
+    /// </summary>
+    /// <param name="olderThan">Remove signals older than this timespan from now.</param>
+    /// <returns>Number of signals removed.</returns>
+    public int ClearOlderThan(TimeSpan olderThan)
+    {
+        var cutoff = DateTimeOffset.UtcNow - olderThan;
+        return ClearMatching(signal => signal.Timestamp < cutoff);
+    }
+
+    /// <summary>
+    ///     Clears the oldest N signals from the sink.
+    ///     Useful for keeping the signal window at a manageable size.
+    /// </summary>
+    /// <param name="count">Number of oldest signals to remove.</param>
+    /// <returns>Number of signals actually removed (may be less than requested if sink has fewer signals).</returns>
+    public int ClearOldest(int count)
+    {
+        if (count <= 0)
+            return 0;
+
+        // Get all signals, sort by timestamp, and identify oldest N
+        var allSignals = _window.ToList();
+        var toRemove = allSignals
+            .OrderBy(s => s.Timestamp)
+            .Take(count)
+            .ToHashSet();
+
+        if (toRemove.Count == 0)
+            return 0;
+
+        // Rebuild window without the signals to remove
+        var kept = new List<SignalEvent>();
+        while (_window.TryDequeue(out var signal))
+        {
+            if (!toRemove.Contains(signal))
+            {
+                kept.Add(signal);
+            }
+        }
+
+        // Re-enqueue kept signals
+        foreach (var signal in kept)
+        {
+            _window.Enqueue(signal);
+        }
+
+        return toRemove.Count;
+    }
+
+    /// <summary>
     ///     Request drain of all coordinators AND clear the signal window.
     ///     Emits "coordinator.drain.all" followed by immediate sink clear.
     ///     This is the "nuclear option" - signal all work to stop, then wipe the slate clean.

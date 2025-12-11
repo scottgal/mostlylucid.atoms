@@ -45,9 +45,14 @@ new FixedWorkAtom<T>(
     // Default: 200
     maxTracked: 200,
 
-    // Shared signal sink
+    // Shared signal sink (v2.0+: acts as workspace, atom owns signals)
     // Default: null (isolated)
-    signals: sharedSink
+    signals: sharedSink,
+
+    // Atom-level signal cleanup (v2.0+)
+    // Default: 0 (unbounded), null (no age limit)
+    maxSignalCount: 5000,
+    maxSignalAge: TimeSpan.FromMinutes(5)
 )
 ```
 
