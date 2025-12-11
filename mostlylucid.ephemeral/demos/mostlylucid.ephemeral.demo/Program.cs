@@ -146,7 +146,7 @@ while (true)
     var choice = AnsiConsole.Prompt(
         new SelectionPrompt<string>()
             .Title("[cyan1]Select a demo:[/]")
-            .PageSize(20) // Show all menu items without scrolling
+            .PageSize(25) // Show all menu items without scrolling
             .AddChoices(new[]
             {
                 "1. Image Processing Pipeline (ImageSharp Atoms)",
@@ -165,6 +165,9 @@ while (true)
                 "14. Dynamic Adaptive Workflow (Priority Failover + Self-Healing)",
                 "15. Quick Dynamic Workflow Perf Test (Hotspot Analysis)",
                 "16. Preload and Trigger Demo (Bulk Enqueue + Signal Trigger)",
+                "17. Dependency Coordinator (Topological Execution) ⭐ NEW",
+                "18. Priority Lanes (Multi-Tier SLA Guarantees) ⭐ NEW",
+                "19. Decaying Reputation (Time-Based Forgiveness) ⭐ NEW",
                 "B. Run Benchmarks (BenchmarkDotNet)",
                 "Exit"
             }));
@@ -230,6 +233,15 @@ while (true)
                 break;
             case "16":
                 await PreloadDemo.RunAsync();
+                break;
+            case "17":
+                await DependencyCoordinatorDemo.RunAsync();
+                break;
+            case "18":
+                await PriorityLanesDemo.RunAsync();
+                break;
+            case "19":
+                await DecayingReputationDemo.RunAsync();
                 break;
             case "B":
                 RunBenchmarks();
