@@ -109,36 +109,38 @@ public static class ImageProcessingDemo
             }
         });
 
-        // Process all jobs with bounded parallelism
+        // Process all jobs with bounded parallelism using EphemeralForEachAsync
         var results = new List<ImageProcessingResult>();
-        var semaphore = new SemaphoreSlim(4, 4); // Max 4 concurrent operations
         var processedCount = 0;
         var cancelledCount = 0;
+        var resultsLock = new object();
 
         try
         {
-            var tasks = jobs.Select(async job =>
-            {
-                await semaphore.WaitAsync(cts.Token);
-                try
+            await jobs.EphemeralForEachAsync(
+                async (job, ct) =>
                 {
-                    var result = await pipeline.ProcessAsync(job, cts.Token);
-                    Interlocked.Increment(ref processedCount);
-                    return result;
-                }
-                catch (OperationCanceledException)
+                    try
+                    {
+                        var result = await pipeline.ProcessAsync(job, ct);
+                        lock (resultsLock)
+                        {
+                            results.Add(result);
+                        }
+                        Interlocked.Increment(ref processedCount);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        Interlocked.Increment(ref cancelledCount);
+                        throw;
+                    }
+                },
+                new EphemeralOptions
                 {
-                    Interlocked.Increment(ref cancelledCount);
-                    throw;
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            }).ToList();
-
-            var completed = await Task.WhenAll(tasks);
-            results.AddRange(completed);
+                    MaxConcurrency = 4,
+                    Signals = sink
+                },
+                cts.Token);
         }
         catch (OperationCanceledException)
         {

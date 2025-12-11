@@ -350,7 +350,7 @@ async Task RunPureNotificationDemo()
         processingDelay: TimeSpan.FromMilliseconds(200));
 
     // Create multiple listeners that query the atom
-    var notificationListener = new Action<SignalEvent>(signal =>
+    using var notificationSubscription = sink.Subscribe(signal =>
     {
         if (signal.Signal == "file.saved")
         {
@@ -360,7 +360,7 @@ async Task RunPureNotificationDemo()
         }
     });
 
-    var auditListener = new Action<SignalEvent>(signal =>
+    using var auditSubscription = sink.Subscribe(signal =>
     {
         if (signal.Signal == "file.saved")
         {
@@ -368,9 +368,6 @@ async Task RunPureNotificationDemo()
             AnsiConsole.MarkupLine($"[blue]📋[/] [white]Audit listener: File save logged at {time:HH:mm:ss}[/]");
         }
     });
-
-    sink.SignalRaised += notificationListener;
-    sink.SignalRaised += auditListener;
 
     // Simulate file saves
     await AnsiConsole.Status()
@@ -384,9 +381,6 @@ async Task RunPureNotificationDemo()
                 await Task.Delay(300);
             }
         });
-
-    sink.SignalRaised -= notificationListener;
-    sink.SignalRaised -= auditListener;
 
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[yellow]Key Takeaway:[/] Signal is just notification. State queried from atom.");
@@ -422,7 +416,7 @@ async Task RunContextHintDemo()
         },
         processingDelay: TimeSpan.FromMilliseconds(150));
 
-    var emailListener = new Action<SignalEvent>(signal =>
+    using var emailSubscription = sink.Subscribe(signal =>
     {
         if (signal.Signal.StartsWith("order.placed"))
         {
@@ -442,8 +436,6 @@ async Task RunContextHintDemo()
         }
     });
 
-    sink.SignalRaised += emailListener;
-
     await AnsiConsole.Status()
         .Spinner(Spinner.Known.Dots)
         .StartAsync("Processing orders...", async ctx =>
@@ -455,8 +447,6 @@ async Task RunContextHintDemo()
                 await Task.Delay(250);
             }
         });
-
-    sink.SignalRaised -= emailListener;
 
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[yellow]Key Takeaway:[/] Hint in signal for speed, atom query for truth.");
@@ -575,7 +565,7 @@ async Task RunComplexPipelineDemo()
         processingDelay: TimeSpan.FromMilliseconds(75));
 
     // Stats listener
-    var statsListener = new Action<SignalEvent>(signal =>
+    using var statsSubscription = sink.Subscribe(signal =>
     {
         if (signal.Signal == "request.complete")
         {
@@ -583,8 +573,6 @@ async Task RunComplexPipelineDemo()
             AnsiConsole.MarkupLine($"[green]✓[/] [white]Request complete! Total processed: {totalProcessed}[/]");
         }
     });
-
-    sink.SignalRaised += statsListener;
 
     // Send requests rapidly - watch rate limiter in action
     await AnsiConsole.Status()
@@ -611,8 +599,6 @@ async Task RunComplexPipelineDemo()
                 await Task.Delay(200); // Fast requests to trigger rate limit
             }
         });
-
-    sink.SignalRaised -= statsListener;
 
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[yellow]Pipeline Summary:[/]");
@@ -661,15 +647,13 @@ async Task RunSignalChainDemo()
         signalResponses: new Dictionary<string, string> { { "stepB.complete", "stepC.complete" } },
         processingDelay: TimeSpan.FromMilliseconds(100));
 
-    var completionListener = new Action<SignalEvent>(signal =>
+    using var completionSubscription = sink.Subscribe(signal =>
     {
         if (signal.Signal == "stepC.complete")
         {
             AnsiConsole.MarkupLine($"[green]🎉 Chain complete![/] [grey](A:{atomA.GetProcessedCount()}, B:{atomB.GetProcessedCount()}, C:{atomC.GetProcessedCount()})[/]");
         }
     });
-
-    sink.SignalRaised += completionListener;
 
     await AnsiConsole.Status()
         .Spinner(Spinner.Known.Dots)
@@ -683,8 +667,6 @@ async Task RunSignalChainDemo()
             }
         });
 
-    sink.SignalRaised -= completionListener;
-
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[yellow]Key Takeaway:[/] Atoms can form processing pipelines via signal chains.");
 }
@@ -695,12 +677,12 @@ async Task RunSignalChainDemo()
 // ============================================================================
 async Task RunCircuitBreakerDemo()
 {
-    AnsiConsole.MarkupLine("[yellow]Circuit Breaker Pattern demonstration:[/]");
-    AnsiConsole.MarkupLine("[grey]- Detects failures via signals[/]");
-    AnsiConsole.MarkupLine("[grey]- Opens circuit after threshold[/]");
+    AnsiConsole.MarkupLine("[yellow]Circuit Breaker Pattern demonstration (using CancelOnSignals):[/]");
+    AnsiConsole.MarkupLine("[grey]- Service calls enqueued to coordinator[/]");
+    AnsiConsole.MarkupLine("[grey]- CancelOnSignals prevents execution when circuit is open[/]");
     AnsiConsole.MarkupLine("[grey]- Automatic recovery after cooldown[/]\n");
 
-    var sink = new SignalSink();
+    var sink = new SignalSink(maxCapacity: 200);
 
     await using var logger = new ConsoleSignalLoggerAtom(sink, new ConsoleSignalLoggerOptions
     {
@@ -708,76 +690,88 @@ async Task RunCircuitBreakerDemo()
         WindowSize = 100
     });
 
-    // Simulated service that can fail
-    await using var serviceAtom = new TestAtom(
-        sink,
-        "ServiceAtom",
-        listenSignals: new List<string> { "service.call" },
-        signalResponses: new Dictionary<string, string>(),
-        processingDelay: TimeSpan.FromMilliseconds(50));
-
-    // Circuit breaker state
-    var circuitState = "closed"; // closed, open, half-open
+    // Circuit breaker state tracking
     var failureCount = 0;
+    var successCount = 0;
+    var rejectedCount = 0;
     var lastFailureTime = DateTime.MinValue;
     const int failureThreshold = 3;
     var cooldownPeriod = TimeSpan.FromSeconds(3);
+    var circuitState = "closed";
+    var random = new Random();
 
-    var circuitBreakerListener = new Action<SignalEvent>(signal =>
+    // Monitor failures and manage circuit state
+    using var monitorSubscription = sink.Subscribe(signal =>
     {
-        if (signal.Signal == "service.call")
+        if (signal.Signal == "service.failure")
         {
-            // Check circuit state
+            failureCount++;
+            lastFailureTime = DateTime.UtcNow;
+
+            if (failureCount >= failureThreshold && circuitState == "closed")
+            {
+                circuitState = "open";
+                sink.Raise("circuit.open");
+                AnsiConsole.MarkupLine($"[red]🔴 Circuit OPEN - too many failures ({failureCount})! Cooldown: {cooldownPeriod.TotalSeconds}s[/]");
+            }
+        }
+        else if (signal.Signal == "service.success" && circuitState == "half-open")
+        {
+            circuitState = "closed";
+            failureCount = 0;
+            sink.Raise("circuit.closed");
+            AnsiConsole.MarkupLine("[green]✅ Circuit CLOSED - recovery complete[/]");
+        }
+    });
+
+    // Background task to handle circuit recovery
+    var recoveryTask = Task.Run(async () =>
+    {
+        while (true)
+        {
+            await Task.Delay(500);
+
             if (circuitState == "open")
             {
                 var timeSinceFailure = DateTime.UtcNow - lastFailureTime;
                 if (timeSinceFailure > cooldownPeriod)
                 {
                     circuitState = "half-open";
-                    AnsiConsole.MarkupLine("[yellow]🔄 Circuit entering HALF-OPEN state (testing recovery)[/]");
-                }
-                else
-                {
-                    AnsiConsole.MarkupLine("[red]⛔ Circuit OPEN - call rejected[/]");
-                    sink.Raise("circuit.open.rejected");
-                    return;
-                }
-            }
-
-            // Simulate success/failure (70% success rate)
-            var random = new Random();
-            var success = random.Next(100) < 70;
-
-            if (success)
-            {
-                sink.Raise("service.success");
-                AnsiConsole.MarkupLine($"[green]✓[/] [white]Service call succeeded (failures: {failureCount})[/]");
-
-                if (circuitState == "half-open")
-                {
-                    circuitState = "closed";
-                    failureCount = 0;
-                    AnsiConsole.MarkupLine("[green]✅ Circuit CLOSED - recovery complete[/]");
-                }
-            }
-            else
-            {
-                failureCount++;
-                lastFailureTime = DateTime.UtcNow;
-                sink.Raise("service.failure");
-                AnsiConsole.MarkupLine($"[red]✗[/] [grey]Service call failed ({failureCount}/{failureThreshold})[/]");
-
-                if (failureCount >= failureThreshold && circuitState == "closed")
-                {
-                    circuitState = "open";
-                    AnsiConsole.MarkupLine($"[red]🔴 Circuit OPEN - too many failures! Cooldown: {cooldownPeriod.TotalSeconds}s[/]");
-                    sink.Raise("circuit.open");
+                    sink.Raise("circuit.half-open");
+                    AnsiConsole.MarkupLine("[yellow]🔄 Circuit HALF-OPEN - testing recovery[/]");
                 }
             }
         }
     });
 
-    sink.SignalRaised += circuitBreakerListener;
+    // Service call coordinator with CancelOnSignals
+    var serviceCoordinator = new EphemeralWorkCoordinator<int>(
+        async (callId, ct) =>
+        {
+            // Simulate service call with 70% success rate
+            await Task.Delay(50, ct);
+            var success = random.Next(100) < 70;
+
+            if (success)
+            {
+                Interlocked.Increment(ref successCount);
+                sink.Raise("service.success");
+                AnsiConsole.MarkupLine($"[green]✓[/] [white]Call {callId} succeeded (total: {successCount})[/]");
+            }
+            else
+            {
+                sink.Raise("service.failure");
+                AnsiConsole.MarkupLine($"[red]✗[/] [grey]Call {callId} failed (failures: {failureCount}/{failureThreshold})[/]");
+                throw new Exception("Service call failed");
+            }
+        },
+        new EphemeralOptions
+        {
+            MaxConcurrency = 1,
+            CancelOnSignals = new HashSet<string> { "circuit.open" },
+            MaxTrackedOperations = 100,
+            Signals = sink
+        });
 
     await AnsiConsole.Status()
         .Spinner(Spinner.Known.Dots)
@@ -786,16 +780,33 @@ async Task RunCircuitBreakerDemo()
             for (int i = 1; i <= 20; i++)
             {
                 ctx.Status($"Call {i}/20...");
-                sink.Raise("service.call");
+
+                try
+                {
+                    await serviceCoordinator.EnqueueAsync(i);
+                }
+                catch (Exception)
+                {
+                    Interlocked.Increment(ref rejectedCount);
+                    AnsiConsole.MarkupLine($"[red]⛔[/] [grey]Call {i} rejected by circuit breaker[/]");
+                }
+
                 await Task.Delay(300);
             }
+
+            // Wait a bit for any pending operations
+            await Task.Delay(1000);
         });
 
-    sink.SignalRaised -= circuitBreakerListener;
+    await serviceCoordinator.DisposeAsync();
 
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine($"[yellow]Final State:[/] Circuit is [cyan1]{circuitState.ToUpper()}[/]");
-    AnsiConsole.MarkupLine("[yellow]Key Takeaway:[/] Circuit breaker protects system from cascading failures.");
+    AnsiConsole.MarkupLine($"[yellow]Statistics:[/]");
+    AnsiConsole.MarkupLine($"  [green]Succeeded:[/] {successCount}");
+    AnsiConsole.MarkupLine($"  [red]Failed:[/] {failureCount}");
+    AnsiConsole.MarkupLine($"  [grey]Rejected:[/] {rejectedCount}");
+    AnsiConsole.MarkupLine("[yellow]Key Takeaway:[/] CancelOnSignals automatically blocks operations when circuit opens.");
 }
 
 // ============================================================================
@@ -804,12 +815,12 @@ async Task RunCircuitBreakerDemo()
 // ============================================================================
 async Task RunBackpressureDemo()
 {
-    AnsiConsole.MarkupLine("[yellow]Backpressure demonstration:[/]");
-    AnsiConsole.MarkupLine("[grey]- Producer generates data rapidly[/]");
-    AnsiConsole.MarkupLine("[grey]- Consumer processes slowly[/]");
-    AnsiConsole.MarkupLine("[grey]- Backpressure signals slow down producer[/]\n");
+    AnsiConsole.MarkupLine("[yellow]Backpressure demonstration (using DeferOnSignals/ResumeOnSignals):[/]");
+    AnsiConsole.MarkupLine("[grey]- Producer coordinator automatically defers when backpressure.start is raised[/]");
+    AnsiConsole.MarkupLine("[grey]- Consumer processes slowly, triggering backpressure[/]");
+    AnsiConsole.MarkupLine("[grey]- Production resumes when backpressure.end is raised[/]\n");
 
-    var sink = new SignalSink();
+    var sink = new SignalSink(maxCapacity: 200);
 
     await using var logger = new ConsoleSignalLoggerAtom(sink, new ConsoleSignalLoggerOptions
     {
@@ -820,84 +831,81 @@ async Task RunBackpressureDemo()
 
     var queue = new Queue<int>();
     const int maxQueueSize = 5;
-    var isBackpressureActive = false;
+    var processedCount = 0;
 
-    // Producer
-    await using var producerAtom = new TestAtom(
-        sink,
-        "Producer",
-        listenSignals: new List<string> { "produce.item" },
-        signalResponses: new Dictionary<string, string>(),
-        processingDelay: TimeSpan.FromMilliseconds(10));
-
-    // Consumer (slow)
-    await using var consumerAtom = new TestAtom(
-        sink,
-        "Consumer",
-        listenSignals: new List<string> { "queue.item.added" },
-        signalResponses: new Dictionary<string, string> { { "queue.item.added", "item.consumed" } },
-        processingDelay: TimeSpan.FromMilliseconds(200));
-
-    var queueListener = new Action<SignalEvent>(signal =>
+    // Consumer (slow) - monitors queue and raises backpressure signals
+    using var consumerSubscription = sink.Subscribe(signal =>
     {
-        if (signal.Signal == "produce.item" && !isBackpressureActive)
+        if (signal.Signal == "item.produced")
         {
-            queue.Enqueue(queue.Count + 1);
-            sink.Raise("queue.item.added");
-            AnsiConsole.MarkupLine($"[cyan]📦[/] [white]Produced item (queue: {queue.Count}/{maxQueueSize})[/]");
-
+            // Check queue before consuming
             if (queue.Count >= maxQueueSize)
             {
-                isBackpressureActive = true;
                 sink.Raise("backpressure.start");
                 AnsiConsole.MarkupLine($"[yellow]⚠️  BACKPRESSURE ACTIVE - queue full ({queue.Count}/{maxQueueSize})[/]");
             }
-        }
-        else if (signal.Signal == "produce.item" && isBackpressureActive)
-        {
-            AnsiConsole.MarkupLine("[red]🛑[/] [grey]Production blocked by backpressure[/]");
-            sink.Raise("backpressure.blocked");
-        }
-        else if (signal.Signal == "item.consumed")
-        {
+
             if (queue.Count > 0)
             {
                 var item = queue.Dequeue();
+                Interlocked.Increment(ref processedCount);
                 AnsiConsole.MarkupLine($"[green]✓[/] [white]Consumed item {item} (queue: {queue.Count}/{maxQueueSize})[/]");
 
-                if (isBackpressureActive && queue.Count < maxQueueSize / 2)
+                // Release backpressure when queue drains below threshold
+                if (queue.Count < maxQueueSize / 2)
                 {
-                    isBackpressureActive = false;
                     sink.Raise("backpressure.end");
                     AnsiConsole.MarkupLine($"[green]✅ BACKPRESSURE RELEASED - queue draining ({queue.Count}/{maxQueueSize})[/]");
                 }
             }
+
+            // Simulate slow consumption
+            Thread.Sleep(200);
         }
     });
 
-    sink.SignalRaised += queueListener;
+    // Producer coordinator with DeferOnSignals/ResumeOnSignals
+    var producerCoordinator = new EphemeralWorkCoordinator<int>(
+        async (item, ct) =>
+        {
+            queue.Enqueue(item);
+            sink.Raise("item.produced");
+            AnsiConsole.MarkupLine($"[cyan]📦[/] [white]Produced item {item} (queue: {queue.Count}/{maxQueueSize})[/]");
+            await Task.CompletedTask;
+        },
+        new EphemeralOptions
+        {
+            MaxConcurrency = 1,
+            DeferOnSignals = new HashSet<string> { "backpressure.start" },
+            ResumeOnSignals = new HashSet<string> { "backpressure.end" },
+            DeferCheckInterval = TimeSpan.FromMilliseconds(50),
+            MaxTrackedOperations = 100,
+            Signals = sink
+        });
 
     await AnsiConsole.Status()
         .Spinner(Spinner.Known.Dots)
         .StartAsync("Running producer/consumer...", async ctx =>
         {
+            // Enqueue production jobs
             for (int i = 1; i <= 15; i++)
             {
-                ctx.Status($"Producing item {i}/15...");
-                sink.Raise("produce.item");
+                ctx.Status($"Enqueueing item {i}/15...");
+                await producerCoordinator.EnqueueAsync(i);
                 await Task.Delay(100);
             }
 
-            // Let consumer drain
-            ctx.Status("Draining queue...");
-            await Task.Delay(2000);
+            // Wait for completion
+            ctx.Status("Waiting for queue to drain...");
+            await Task.Delay(3000);
         });
 
-    sink.SignalRaised -= queueListener;
+    await producerCoordinator.DisposeAsync();
 
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine($"[yellow]Final Queue Size:[/] {queue.Count}");
-    AnsiConsole.MarkupLine("[yellow]Key Takeaway:[/] Backpressure prevents queue overflow via flow control.");
+    AnsiConsole.MarkupLine($"[yellow]Items Processed:[/] {processedCount}/15");
+    AnsiConsole.MarkupLine("[yellow]Key Takeaway:[/] DeferOnSignals/ResumeOnSignals provide automatic backpressure control.");
 }
 
 // ============================================================================
@@ -926,7 +934,7 @@ async Task RunMetricsMonitoringDemo()
     var latencies = new List<double>();
     var random = new Random();
 
-    var metricsListener = new Action<SignalEvent>(signal =>
+    using var metricsSubscription = sink.Subscribe(signal =>
     {
         if (signal.Signal.StartsWith("request."))
         {
@@ -944,8 +952,6 @@ async Task RunMetricsMonitoringDemo()
             }
         }
     });
-
-    sink.SignalRaised += metricsListener;
 
     // Request generator
     await using var requestAtom = new TestAtom(
@@ -1005,7 +1011,6 @@ async Task RunMetricsMonitoringDemo()
     });
 
     await dashboardTask;
-    sink.SignalRaised -= metricsListener;
 
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[yellow]Key Takeaway:[/] Signals enable real-time metrics aggregation and monitoring.");
@@ -1040,7 +1045,7 @@ async Task RunDynamicRateAdjustmentDemo()
     var currentLoad = 0.3; // 30% load
     var random = new Random();
 
-    var loadMonitorListener = new Action<SignalEvent>(signal =>
+    using var loadMonitorSubscription = sink.Subscribe(signal =>
     {
         if (signal.Signal == "load.check")
         {
@@ -1064,8 +1069,6 @@ async Task RunDynamicRateAdjustmentDemo()
             }
         }
     });
-
-    sink.SignalRaised += loadMonitorListener;
 
     await AnsiConsole.Status()
         .Spinner(Spinner.Known.Dots)
@@ -1091,8 +1094,6 @@ async Task RunDynamicRateAdjustmentDemo()
                 await Task.Delay(400);
             }
         });
-
-    sink.SignalRaised -= loadMonitorListener;
 
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine($"[yellow]Final Rate:[/] {rateLimiter.RatePerSecond:F1}/s (burst: {rateLimiter.Burst})");
