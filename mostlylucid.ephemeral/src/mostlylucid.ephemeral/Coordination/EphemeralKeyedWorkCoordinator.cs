@@ -8,7 +8,7 @@ namespace Mostlylucid.Ephemeral;
 /// <summary>
 ///     Keyed version: per-key sequential execution with fair scheduling.
 /// </summary>
-public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : CoordinatorBase
+public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : CoordinatorBase<EphemeralOperation>, IEphemeralCoordinator
     where TKey : notnull
 {
     private const long KeyLockIdleTimeoutMs = 60_000;

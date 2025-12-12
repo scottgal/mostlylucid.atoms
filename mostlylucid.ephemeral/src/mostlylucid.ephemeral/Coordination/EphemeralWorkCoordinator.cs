@@ -10,7 +10,7 @@ namespace Mostlylucid.Ephemeral;
 ///     Unlike EphemeralForEachAsync (which processes a collection), this stays alive
 ///     and lets you enqueue items over time, inspect operations, and gracefully shutdown.
 /// </summary>
-public sealed class EphemeralWorkCoordinator<T> : CoordinatorBase, IEphemeralCoordinator
+public sealed class EphemeralWorkCoordinator<T> : CoordinatorBase<EphemeralOperation>, IEphemeralCoordinator
 {
     private readonly Func<T, CancellationToken, Task> _body;
     private readonly Channel<WorkItem> _channel;

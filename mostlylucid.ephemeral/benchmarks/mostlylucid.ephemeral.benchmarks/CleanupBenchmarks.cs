@@ -89,19 +89,6 @@ public class CleanupBenchmarks
         return _sink.ClearOldest(50);
     }
 
-    [Benchmark(Baseline = true, Description = "Sink.ClearMatching(predicate) - Remove old signals (baseline)")]
-    public int Sink_ClearMatching_Baseline()
-    {
-        var cutoff = DateTimeOffset.UtcNow.AddMinutes(-5);
-        return _sink.ClearMatching(s => s.Timestamp < cutoff);
-    }
-
-    [Benchmark(Description = "Sink.ClearPattern(string) - Remove by pattern 'signal.*'")]
-    public int Sink_ClearPattern()
-    {
-        return _sink.ClearPattern("signal.*");
-    }
-
     #endregion
 
     #region Comparative Performance Tests
@@ -198,26 +185,11 @@ public class CleanupScalabilityBenchmarks
         return _sink.ClearOldest(TotalSignals / 10);
     }
 
-    [Benchmark(Description = "ClearOlderThan - Scale test with N signals")]
+    [Benchmark(Baseline = true, Description = "ClearOlderThan - Scale test with N signals")]
     public int ClearOlderThan_ScaleTest()
     {
         // Clear signals older than average age
         return _sink.ClearOlderThan(TimeSpan.FromSeconds(TotalSignals / (OperationCount * 2)));
-    }
-
-    [Benchmark(Description = "ClearOperation - Scale test (single operation)")]
-    public int ClearOperation_ScaleTest()
-    {
-        if (_operationIds.Count == 0)
-            return 0;
-
-        return _sink.ClearOperation(_operationIds[0]);
-    }
-
-    [Benchmark(Baseline = true, Description = "ClearPattern - Scale test with glob matching")]
-    public int ClearPattern_ScaleTest()
-    {
-        return _sink.ClearPattern("signal.1.*");
     }
 }
 

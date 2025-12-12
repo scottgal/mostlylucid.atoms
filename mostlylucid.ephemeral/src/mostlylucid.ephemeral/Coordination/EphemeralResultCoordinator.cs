@@ -8,44 +8,22 @@ namespace Mostlylucid.Ephemeral;
 ///     A work coordinator that captures results from each operation.
 ///     Use this when you need to retrieve outcomes (summaries, fingerprints, IDs) from completed work.
 /// </summary>
-public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposable, IOperationPinning,
-    IOperationFinalization
+public sealed class EphemeralResultCoordinator<TInput, TResult> : CoordinatorBase<EphemeralOperation<TResult>>, IEphemeralCoordinator
 {
     private readonly Func<TInput, CancellationToken, Task<TResult>> _body;
     private readonly Channel<TInput> _channel;
     private readonly IConcurrencyGate _concurrency;
-    private readonly CancellationTokenSource _cts;
-    private readonly TaskCompletionSource _drainTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private readonly OperationEchoStore? _echoStore;
-    private readonly EphemeralOptions _options;
-    private readonly ManualResetEventSlim _pauseGate = new(true);
     private readonly Task _processingTask;
-    private readonly ConcurrentQueue<EphemeralOperation<TResult>> _recent;
     private readonly Task? _sourceConsumerTask;
-    private readonly object _windowLock = new();
-    private int _activeTaskCount;
     private bool _channelIterationComplete;
-    private bool _completed;
-    private long _lastReadCleanupTicks;
-    private long _lastTrimTicks;
-    private bool _paused;
-    private int _pendingCount;
-    private int _totalCompleted;
-    private int _totalEnqueued;
-    private int _totalFailed;
 
     public EphemeralResultCoordinator(
         Func<TInput, CancellationToken, Task<TResult>> body,
         EphemeralOptions? options = null)
+        : base(options)
     {
         _body = body ?? throw new ArgumentNullException(nameof(body));
-        _options = options ?? new EphemeralOptions();
-        _cts = new CancellationTokenSource();
-        _recent = new ConcurrentQueue<EphemeralOperation<TResult>>();
         _concurrency = CreateGate(_options);
-        _echoStore = _options.EnableOperationEcho
-            ? new OperationEchoStore(_options.OperationEchoRetention, _options.OperationEchoCapacity)
-            : null;
 
         _channel = Channel.CreateBounded<TInput>(new BoundedChannelOptions(_options.MaxTrackedOperations)
         {
@@ -61,11 +39,9 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
         IAsyncEnumerable<TInput> source,
         Func<TInput, CancellationToken, Task<TResult>> body,
         EphemeralOptions? options)
+        : base(options)
     {
         _body = body ?? throw new ArgumentNullException(nameof(body));
-        _options = options ?? new EphemeralOptions();
-        _cts = new CancellationTokenSource();
-        _recent = new ConcurrentQueue<EphemeralOperation<TResult>>();
         _concurrency = CreateGate(_options);
 
         _channel = Channel.CreateBounded<TInput>(new BoundedChannelOptions(_options.MaxTrackedOperations)
@@ -79,16 +55,7 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
         _sourceConsumerTask = ConsumeSourceAsync(source);
     }
 
-    public int PendingCount => Volatile.Read(ref _pendingCount);
-    public int ActiveCount => Volatile.Read(ref _activeTaskCount);
-    public int TotalEnqueued => Volatile.Read(ref _totalEnqueued);
-    public int TotalCompleted => Volatile.Read(ref _totalCompleted);
-    public int TotalFailed => Volatile.Read(ref _totalFailed);
-    public bool IsCompleted => Volatile.Read(ref _completed);
-    public bool IsDrained => IsCompleted && PendingCount == 0 && ActiveCount == 0;
-    public bool IsPaused => Volatile.Read(ref _paused);
-
-    public async ValueTask DisposeAsync()
+    public override async ValueTask DisposeAsync()
     {
         Cancel();
         try
@@ -101,44 +68,7 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
         }
 
         await _concurrency.DisposeAsync().ConfigureAwait(false);
-        _cts.Dispose();
-        _pauseGate.Dispose();
-    }
-
-    /// <summary>
-    ///     Raised when an operation exits the window.
-    /// </summary>
-    public event Action<EphemeralOperationSnapshot>? OperationFinalized;
-
-    public bool Pin(long operationId)
-    {
-        foreach (var op in _recent)
-            if (op.Id == operationId)
-            {
-                op.IsPinned = true;
-                return true;
-            }
-
-        return false;
-    }
-
-    public bool Unpin(long operationId)
-    {
-        foreach (var op in _recent)
-            if (op.Id == operationId)
-            {
-                op.IsPinned = false;
-                return true;
-            }
-
-        return false;
-    }
-
-    private void NotifyOperationFinalized(EphemeralOperation<TResult> op)
-    {
-        // Operations own their signals - no manual cleanup needed
-        OperationFinalized?.Invoke(op.ToBaseSnapshot());
-        RecordEcho(op);
+        await base.DisposeAsync();
     }
 
     public static EphemeralResultCoordinator<TInput, TResult> FromAsyncEnumerable(
@@ -149,25 +79,19 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
         return new EphemeralResultCoordinator<TInput, TResult>(source, body, options);
     }
 
-    public void Pause()
-    {
-        Volatile.Write(ref _paused, true);
-        _pauseGate.Reset();
-    }
-
-    public void Resume()
-    {
-        Volatile.Write(ref _paused, false);
-        _pauseGate.Set();
-    }
-
-    public IReadOnlyCollection<EphemeralOperationSnapshot<TResult>> GetSnapshot()
+    /// <summary>
+    ///     Gets typed snapshot with results.
+    /// </summary>
+    public IReadOnlyCollection<EphemeralOperationSnapshot<TResult>> GetTypedSnapshot()
     {
         MaybeCleanupForRead();
         return _recent.Select(x => x.ToSnapshot()).ToArray();
     }
 
-    public IReadOnlyCollection<EphemeralOperationSnapshot> GetBaseSnapshot()
+    /// <summary>
+    ///     Override to provide base snapshot for ICoordinator interface.
+    /// </summary>
+    public override IReadOnlyCollection<EphemeralOperationSnapshot> GetSnapshot()
     {
         MaybeCleanupForRead();
         return _recent.Select(x => x.ToBaseSnapshot()).ToArray();
@@ -200,100 +124,12 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
             .ToArray();
     }
 
-    private void MaybeCleanupForRead()
-    {
-        var now = Environment.TickCount64;
-        var lastCleanup = Volatile.Read(ref _lastReadCleanupTicks);
-        if (now - lastCleanup < 500) return;
-        if (Interlocked.CompareExchange(ref _lastReadCleanupTicks, now, lastCleanup) == lastCleanup)
-            CleanupWindow();
-    }
-
     public IReadOnlyCollection<TResult> GetResults()
     {
         return _recent
             .Where(x => x.IsSuccess && x.HasResult)
             .Select(x => x.Result!)
             .ToArray();
-    }
-
-    public IReadOnlyList<SignalEvent> GetSignals()
-    {
-        return GetSignalsCore(null);
-    }
-
-    /// <summary>
-    ///     Gets the short-lived echo of signals emitted by operations that were just trimmed.
-    /// </summary>
-    public IReadOnlyList<OperationEcho> GetEchoes()
-    {
-        return _echoStore?.Snapshot() ?? Array.Empty<OperationEcho>();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool HasSignal(string signalName)
-    {
-        foreach (var op in _recent)
-        {
-            if (op._signals is not { Count: > 0 }) continue;
-
-            // Manual loop for better performance
-            var signals = op._signals;
-            var count = signals.Count;
-            for (var i = 0; i < count; i++)
-                if (signals[i].Signal == signalName)
-                    return true;
-        }
-
-        return false;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public int CountSignals()
-    {
-        var count = 0;
-        foreach (var op in _recent)
-            if (op._signals is { Count: > 0 } signals)
-                count += signals.Count;
-        return count;
-    }
-
-    private IReadOnlyList<SignalEvent> GetSignalsCore(Func<EphemeralOperationSnapshot, bool>? predicate)
-    {
-        var results = new List<SignalEvent>();
-        foreach (var op in _recent)
-        {
-            if (op._signals is not { Count: > 0 }) continue;
-            if (predicate != null && !predicate(op.ToBaseSnapshot())) continue;
-            foreach (var signalEvt in op._signals)
-                results.Add(signalEvt);
-        }
-
-        return results;
-    }
-
-    private void RecordEcho(EphemeralOperation<TResult> op)
-    {
-        if (_echoStore is null)
-            return;
-
-        var signals = op._signals?.ToArray();
-        var echo = new OperationEcho(op.Id, op.Key, signals, DateTimeOffset.UtcNow);
-        _echoStore.Add(echo);
-    }
-
-    public bool Evict(long operationId)
-    {
-        lock (_windowLock)
-        {
-            var toKeep = new List<EphemeralOperation<TResult>>();
-            var found = false;
-            while (_recent.TryDequeue(out var op))
-                if (op.Id == operationId) found = true;
-                else toKeep.Add(op);
-            foreach (var op in toKeep) _recent.Enqueue(op);
-            return found;
-        }
     }
 
     public async ValueTask EnqueueAsync(TInput item, CancellationToken cancellationToken = default)
@@ -366,6 +202,7 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
         Volatile.Write(ref _completed, true);
         _channel.Writer.TryComplete();
         _cts.Cancel();
+        Signal("coordinator.cancelled");
     }
 
     public void SetMaxConcurrency(int newLimit)
@@ -516,66 +353,6 @@ public sealed class EphemeralResultCoordinator<TInput, TResult> : IAsyncDisposab
             if (Interlocked.Decrement(ref _activeTaskCount) == 0 && Volatile.Read(ref _channelIterationComplete))
                 _drainTcs.TrySetResult();
         }
-    }
-
-    private void EnqueueOperation(EphemeralOperation<TResult> op)
-    {
-        _recent.Enqueue(op);
-        CleanupWindow();
-    }
-
-    private void CleanupWindow()
-    {
-        lock (_windowLock)
-        {
-            TrimWindowSizeLocked();
-            TrimWindowAgeLocked();
-        }
-    }
-
-    private void TrimWindowSizeLocked()
-    {
-        var max = _options.MaxTrackedOperations;
-        if (max <= 0) return;
-        var pinnedCount = 0;
-        var scanBudget = _recent.Count;
-        while (_recent.Count > max && scanBudget-- > 0)
-        {
-            if (!_recent.TryDequeue(out var candidate)) break;
-            if (candidate.IsPinned)
-            {
-                pinnedCount++;
-                _recent.Enqueue(candidate);
-                if (pinnedCount >= _recent.Count) break;
-            }
-            else
-            {
-                NotifyOperationFinalized(candidate);
-            }
-        }
-    }
-
-    private void TrimWindowAgeLocked()
-    {
-        if (_options.MaxOperationLifetime is not { } maxAge) return;
-        var now = Environment.TickCount64;
-        var lastTrim = Volatile.Read(ref _lastTrimTicks);
-        if (now - lastTrim < 1000) return;
-        Volatile.Write(ref _lastTrimTicks, now);
-        var cutoff = DateTimeOffset.UtcNow - maxAge;
-        var scanBudget = _recent.Count;
-        while (scanBudget-- > 0 && _recent.TryDequeue(out var op))
-            if (op.IsPinned || op.Started >= cutoff) _recent.Enqueue(op);
-            else
-                NotifyOperationFinalized(op);
-    }
-
-    private void SampleIfRequested()
-    {
-        var sampler = _options.OnSample;
-        if (sampler is null) return;
-        var snapshot = _recent.Select(x => x.ToBaseSnapshot()).ToArray();
-        if (snapshot.Length > 0) sampler(snapshot);
     }
 
     private static IConcurrencyGate CreateGate(EphemeralOptions options)

@@ -15,7 +15,7 @@ public abstract class AtomBase<TCoordinator>(
     TCoordinator coordinator,
     int maxSignalCount = 0,
     TimeSpan? maxSignalAge = null) : IAsyncDisposable
-    where TCoordinator : CoordinatorBase
+    where TCoordinator : ICoordinator
 {
     protected readonly TCoordinator Coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
 

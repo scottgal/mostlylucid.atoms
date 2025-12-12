@@ -6,7 +6,7 @@ namespace Mostlylucid.Ephemeral;
 ///     Operation tracking for non-result-returning work.
 ///     Exposed publicly to enable signal emission with correct operation IDs in parallel work.
 /// </summary>
-public sealed class EphemeralOperation : ISignalEmitter
+public sealed class EphemeralOperation : IEphemeralOperationCore
 {
     private readonly SignalConstraints? _constraints;
     private readonly Action<SignalEvent>? _onSignal;
@@ -217,6 +217,15 @@ public sealed class EphemeralOperation : ISignalEmitter
     }
 
     /// <summary>
+    ///     Gets all signals from this operation.
+    /// </summary>
+    /// <returns>Read-only list of signal events.</returns>
+    public IReadOnlyList<SignalEvent> GetSignals()
+    {
+        return _signals ?? (IReadOnlyList<SignalEvent>)Array.Empty<SignalEvent>();
+    }
+
+    /// <summary>
     ///     Remove signals older than the specified age from this operation.
     ///     Operations manage their own signals - no coordinator involvement needed.
     /// </summary>
@@ -298,9 +307,9 @@ public sealed class EphemeralOperation : ISignalEmitter
 }
 
 /// <summary>
-///     Internal operation tracking for result-returning work.
+///     Operation tracking for result-returning work.
 /// </summary>
-internal sealed class EphemeralOperation<TResult> : ISignalEmitter
+public sealed class EphemeralOperation<TResult> : IEphemeralOperationCore
 {
     private readonly SignalConstraints? _constraints;
     private readonly Action<SignalEvent>? _onSignal;
@@ -515,6 +524,15 @@ internal sealed class EphemeralOperation<TResult> : ISignalEmitter
     }
 
     /// <summary>
+    ///     Gets all signals from this operation.
+    /// </summary>
+    /// <returns>Read-only list of signal events.</returns>
+    public IReadOnlyList<SignalEvent> GetSignals()
+    {
+        return _signals ?? (IReadOnlyList<SignalEvent>)Array.Empty<SignalEvent>();
+    }
+
+    /// <summary>
     ///     Remove signals older than the specified age from this operation.
     ///     Operations manage their own signals - no coordinator involvement needed.
     /// </summary>
@@ -600,4 +618,7 @@ internal sealed class EphemeralOperation<TResult> : ISignalEmitter
         return new EphemeralOperationSnapshot(Id, Started, Completed, Key, Error != null, Error, Duration, _signals,
             IsPinned);
     }
+
+    // Explicit interface implementation for IEphemeralOperationCore
+    EphemeralOperationSnapshot IEphemeralOperationCore.ToSnapshot() => ToBaseSnapshot();
 }

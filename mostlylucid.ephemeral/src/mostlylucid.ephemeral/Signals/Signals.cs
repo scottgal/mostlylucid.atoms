@@ -347,7 +347,7 @@ public interface ISignalEmitter
 public sealed class SignalSink
 {
     // Registry of coordinators using this sink (weak references to avoid memory leaks)
-    private readonly ConcurrentBag<WeakReference<CoordinatorBase>> _coordinators = new();
+    private readonly ConcurrentBag<WeakReference<ICoordinator>> _coordinators = new();
     private long _lastCleanupTicks;
 
     // Lock-free listener array for optimal performance
@@ -366,9 +366,9 @@ public sealed class SignalSink
     ///     Register a coordinator with this sink for aggregated queries.
     ///     Called automatically when coordinator is created with Signals = this sink.
     /// </summary>
-    internal void RegisterCoordinator(CoordinatorBase coordinator)
+    internal void RegisterCoordinator(ICoordinator coordinator)
     {
-        _coordinators.Add(new WeakReference<CoordinatorBase>(coordinator));
+        _coordinators.Add(new WeakReference<ICoordinator>(coordinator));
     }
 
     /// <summary>
@@ -792,7 +792,7 @@ public sealed class SignalSink
             return; // Another thread is cleaning up
 
         // Remove dead references
-        var alive = new ConcurrentBag<WeakReference<CoordinatorBase>>();
+        var alive = new ConcurrentBag<WeakReference<ICoordinator>>();
         foreach (var coordRef in _coordinators)
         {
             if (coordRef.TryGetTarget(out _))
@@ -815,42 +815,6 @@ public sealed class SignalSink
     /// </summary>
     [Obsolete("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.", false)]
     public int Clear()
-    {
-        throw new NotSupportedException("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.");
-    }
-
-    /// <summary>
-    ///     [Obsolete] Clear operations don't apply to sink-as-view model.
-    /// </summary>
-    [Obsolete("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.", false)]
-    public int ClearMatching(Func<SignalEvent, bool> predicate)
-    {
-        throw new NotSupportedException("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.");
-    }
-
-    /// <summary>
-    ///     [Obsolete] Clear operations don't apply to sink-as-view model.
-    /// </summary>
-    [Obsolete("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.", false)]
-    public int ClearPattern(string pattern)
-    {
-        throw new NotSupportedException("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.");
-    }
-
-    /// <summary>
-    ///     [Obsolete] Clear operations don't apply to sink-as-view model.
-    /// </summary>
-    [Obsolete("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.", false)]
-    public int ClearOperation(long operationId)
-    {
-        throw new NotSupportedException("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.");
-    }
-
-    /// <summary>
-    ///     [Obsolete] Clear operations don't apply to sink-as-view model.
-    /// </summary>
-    [Obsolete("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.", false)]
-    public int ClearKey(string key)
     {
         throw new NotSupportedException("Sink no longer stores signals. Operations own signals; coordinators manage lifetime.");
     }
