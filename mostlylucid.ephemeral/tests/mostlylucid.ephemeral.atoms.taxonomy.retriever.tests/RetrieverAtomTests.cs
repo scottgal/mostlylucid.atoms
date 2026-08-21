@@ -10,7 +10,7 @@ public class RetrieverAtomTests
         var sink = new SignalSink();
         var typed = new TypedSignalSink<int>(sink);
 
-        await using var atom = new RetrieverAtom<int, int>(typed, Handler);
+        await using var atom = new RetrieverAtom<int, int>(typed, Handler, maxBodyDuration: TimeSpan.FromSeconds(30));
 
         Assert.Equal(AtomKind.Retriever, atom.Contract.Kind);
         Assert.Equal(AtomDeterminism.Deterministic, atom.Contract.Determinism);
@@ -23,7 +23,7 @@ public class RetrieverAtomTests
         var sink = new SignalSink();
         var typed = new TypedSignalSink<int>(sink);
 
-        await using var atom = new RetrieverAtom<int, int>(typed, Handler);
+        await using var atom = new RetrieverAtom<int, int>(typed, Handler, maxBodyDuration: TimeSpan.FromSeconds(30));
 
         var expected = "atom.retriever.output";
         Assert.Equal(expected, atom.OutputSignal);
@@ -37,7 +37,7 @@ public class RetrieverAtomTests
         var tcs = new TaskCompletionSource<SignalEvent<int>>(TaskCreationOptions.RunContinuationsAsynchronously);
         typed.TypedSignalRaised += evt => tcs.TrySetResult(evt);
 
-        await using var atom = new RetrieverAtom<int, int>(typed, Handler, outputSignal: "retriever.output");
+        await using var atom = new RetrieverAtom<int, int>(typed, Handler, maxBodyDuration: TimeSpan.FromSeconds(30), outputSignal: "retriever.output");
         var result = await atom.RunAsync(5);
 
         Assert.Equal(6, result);
@@ -57,6 +57,7 @@ public class RetrieverAtomTests
         await using var atom = new RetrieverAtom<int, int>(
             typed,
             Handler,
+            maxBodyDuration: TimeSpan.FromSeconds(30),
             outputSignal: "retriever.output",
             keySelector: value => $"key-{value}");
 
@@ -73,7 +74,7 @@ public class RetrieverAtomTests
         var tcs = new TaskCompletionSource<SignalEvent<int>>(TaskCreationOptions.RunContinuationsAsynchronously);
         typed.TypedSignalRaised += evt => tcs.TrySetResult(evt);
 
-        await using var atom = new RetrieverAtom<int, int>(typed, Handler, emitOutputSignals: false);
+        await using var atom = new RetrieverAtom<int, int>(typed, Handler, maxBodyDuration: TimeSpan.FromSeconds(30), emitOutputSignals: false);
         await atom.RunAsync(1);
 
         await Task.Delay(100);

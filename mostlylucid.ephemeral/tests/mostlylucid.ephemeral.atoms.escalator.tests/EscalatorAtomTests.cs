@@ -33,7 +33,7 @@ public class EscalatorAtomTests
             })
         };
 
-        await using var escalator = new EscalatorAtom<int>(sink, typed, targets);
+        await using var escalator = new EscalatorAtom<int>(sink, typed, targets, TimeSpan.FromSeconds(30));
         typed.Raise("escalate.signal", 5, "order-1");
 
         await WaitForSignalAsync(successTcs.Task);
@@ -61,6 +61,7 @@ public class EscalatorAtomTests
             sink,
             typed,
             targets,
+            TimeSpan.FromSeconds(30),
             new EscalatorAtomOptions<int> { EscalateSignalPattern = "escalate.*" });
 
         typed.Raise("ignore.signal", 1);
@@ -97,7 +98,7 @@ public class EscalatorAtomTests
             })
         };
 
-        await using var escalator = new EscalatorAtom<int>(sink, typed, targets);
+        await using var escalator = new EscalatorAtom<int>(sink, typed, targets, TimeSpan.FromSeconds(30));
         typed.Raise("escalate.fail", 42, "order-2");
 
         var failure = await WaitForSignalAsync(failureTcs.Task);
@@ -126,6 +127,7 @@ public class EscalatorAtomTests
             sink,
             typed,
             targets,
+            TimeSpan.FromSeconds(30),
             new EscalatorAtomOptions<int>
             {
                 EscalateSignalPattern = "escalate.*",

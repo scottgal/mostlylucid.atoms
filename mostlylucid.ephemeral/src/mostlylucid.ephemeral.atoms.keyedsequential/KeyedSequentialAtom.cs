@@ -11,6 +11,7 @@ public sealed class KeyedSequentialAtom<T, TKey> : IAsyncDisposable where TKey :
     public KeyedSequentialAtom(
         Func<T, TKey> keySelector,
         Func<T, CancellationToken, Task> body,
+        TimeSpan maxBodyDuration,
         int? maxConcurrency = null,
         int perKeyConcurrency = 1,
         bool enableFairScheduling = false,
@@ -24,7 +25,7 @@ public sealed class KeyedSequentialAtom<T, TKey> : IAsyncDisposable where TKey :
             Signals = signals
         };
 
-        _coordinator = new EphemeralKeyedWorkCoordinator<T, TKey>(keySelector, body, options);
+        _coordinator = new EphemeralKeyedWorkCoordinator<T, TKey>(keySelector, body, maxBodyDuration, options);
     }
 
     public ValueTask DisposeAsync()

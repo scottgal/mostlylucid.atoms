@@ -51,8 +51,8 @@ public sealed class SqliteDataStorageAtom<TKey, TValue> : DataStorageAtomBase<TK
     private SqliteConnection? _connection;
     private bool _initialized;
 
-    public SqliteDataStorageAtom(SignalSink signals, SqliteDataStorageConfig config)
-        : base(signals, config)
+    public SqliteDataStorageAtom(SignalSink signals, SqliteDataStorageConfig config, TimeSpan maxBodyDuration)
+        : base(signals, config, maxBodyDuration)
     {
         _sqliteConfig = config;
         _jsonOptions = config.JsonOptions ?? new JsonSerializerOptions
@@ -64,26 +64,26 @@ public sealed class SqliteDataStorageAtom<TKey, TValue> : DataStorageAtomBase<TK
     /// <summary>
     ///     Creates a SQLite storage atom with a file path.
     /// </summary>
-    public SqliteDataStorageAtom(SignalSink signals, string databaseName, string dbPath)
+    public SqliteDataStorageAtom(SignalSink signals, string databaseName, string dbPath, TimeSpan maxBodyDuration)
         : this(signals, new SqliteDataStorageConfig
         {
             DatabaseName = databaseName,
             ConnectionString = SqliteDataStorageConfig.FileConnectionString(dbPath),
             TableName = databaseName
-        })
+        }, maxBodyDuration)
     {
     }
 
     /// <summary>
     ///     Creates an in-memory SQLite storage atom.
     /// </summary>
-    public SqliteDataStorageAtom(SignalSink signals, string databaseName)
+    public SqliteDataStorageAtom(SignalSink signals, string databaseName, TimeSpan maxBodyDuration)
         : this(signals, new SqliteDataStorageConfig
         {
             DatabaseName = databaseName,
             ConnectionString = "Data Source=:memory:;Mode=Memory;Cache=Shared",
             TableName = databaseName
-        })
+        }, maxBodyDuration)
     {
     }
 

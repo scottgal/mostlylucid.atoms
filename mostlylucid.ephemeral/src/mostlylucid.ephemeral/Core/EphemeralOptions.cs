@@ -14,7 +14,7 @@ public sealed class EphemeralOptions
     /// <summary>
     ///     Allow adjusting concurrency at runtime. Defaults to false for fastest hot-path.
     /// </summary>
-    public bool EnableDynamicConcurrency { get; init; } = false;
+    public bool EnableDynamicConcurrency { get; init; }
 
     /// <summary>
     ///     Max number of operations to retain in the in-memory window.
@@ -69,7 +69,7 @@ public sealed class EphemeralOptions
     ///     to prevent hot keys from starving cold keys.
     ///     Default: false (FIFO ordering).
     /// </summary>
-    public bool EnableFairScheduling { get; init; } = false;
+    public bool EnableFairScheduling { get; init; }
 
     /// <summary>
     ///     Maximum pending items per key before new items for that key are deprioritized.
@@ -194,7 +194,7 @@ public sealed class EphemeralOptions
     ///     Default: false (clear entire sink).
     ///     When true: "clear.errors" will only clear signals matching "error.*".
     /// </summary>
-    public bool ClearOnSignalsUsePattern { get; init; } = false;
+    public bool ClearOnSignalsUsePattern { get; init; }
 
     /// <summary>
     ///     Signals that trigger this coordinator to complete intake and begin draining.

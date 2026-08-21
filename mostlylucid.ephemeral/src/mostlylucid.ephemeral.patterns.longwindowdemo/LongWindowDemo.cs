@@ -6,8 +6,8 @@ namespace Mostlylucid.Ephemeral.Patterns.LongWindowDemo;
 /// </summary>
 public static class LongWindowDemo
 {
-    public static async Task<Result> RunAsync(int totalItems, int windowSize, int workDelayMs = 0,
-        CancellationToken ct = default)
+    public static async Task<Result> RunAsync(int totalItems, int windowSize, TimeSpan maxBodyDuration,
+        int workDelayMs = 0, CancellationToken ct = default)
     {
         if (totalItems < 0) throw new ArgumentOutOfRangeException(nameof(totalItems));
         if (windowSize <= 0) throw new ArgumentOutOfRangeException(nameof(windowSize));
@@ -24,6 +24,7 @@ public static class LongWindowDemo
                 if (workDelayMs > 0)
                     await Task.Delay(workDelayMs, token).ConfigureAwait(false);
             },
+            maxBodyDuration,
             options);
 
         for (var i = 0; i < totalItems; i++)

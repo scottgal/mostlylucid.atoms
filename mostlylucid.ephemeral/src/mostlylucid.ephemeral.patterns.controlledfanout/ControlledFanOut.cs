@@ -11,6 +11,7 @@ public sealed class ControlledFanOut<TKey, T> : IAsyncDisposable where TKey : no
     public ControlledFanOut(
         Func<T, TKey> keySelector,
         Func<T, CancellationToken, Task> body,
+        TimeSpan maxBodyDuration,
         int maxGlobalConcurrency,
         int perKeyConcurrency = 1,
         SignalSink? sink = null)
@@ -18,6 +19,7 @@ public sealed class ControlledFanOut<TKey, T> : IAsyncDisposable where TKey : no
         _coordinator = new EphemeralKeyedWorkCoordinator<T, TKey>(
             keySelector,
             body,
+            maxBodyDuration,
             new EphemeralOptions
             {
                 MaxConcurrency = maxGlobalConcurrency,

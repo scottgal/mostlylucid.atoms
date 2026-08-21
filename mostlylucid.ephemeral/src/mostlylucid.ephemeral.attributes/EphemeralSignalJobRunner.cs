@@ -14,7 +14,17 @@ public sealed class EphemeralSignalJobRunner : IAsyncDisposable
     private readonly SignalSink _signals;
     private readonly IDisposable _subscription;
 
+    /// <param name="signals">The signal sink to listen on.</param>
+    /// <param name="jobTargets">Instances hosting attributed job methods.</param>
+    /// <param name="maxJobDuration">
+    ///     Required, no default: coordinator-level backstop duration. Distinct from and coarser
+    ///     than each job's own <c>[EphemeralJob(TimeoutMs = ...)]</c> attribute timeout, which
+    ///     defaults to no timeout at all — this bound exists so a job that never sets TimeoutMs
+    ///     still cannot hold the shared coordinator's concurrency slot forever.
+    /// </param>
+    /// <param name="options">Optional coordinator options.</param>
     public EphemeralSignalJobRunner(SignalSink signals, IEnumerable<object> jobTargets,
+        TimeSpan maxJobDuration,
         EphemeralOptions? options = null)
     {
         _signals = signals ?? throw new ArgumentNullException(nameof(signals));
@@ -62,6 +72,7 @@ public sealed class EphemeralSignalJobRunner : IAsyncDisposable
         _coordinator = new EphemeralKeyedWorkCoordinator<EphemeralJobInvocation, string>(
             work => $"{work.Descriptor.Lane}:{work.Descriptor.ExtractKey(work.Signal, work.Payload) ?? "default"}",
             async (work, ct) => await ExecuteJobAsync(work, ct).ConfigureAwait(false),
+            maxJobDuration,
             opts);
 
         _subscription = _signals.Subscribe(OnSignal);

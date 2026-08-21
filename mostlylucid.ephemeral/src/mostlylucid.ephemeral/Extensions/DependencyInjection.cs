@@ -28,6 +28,7 @@ public interface IEphemeralKeyedCoordinatorFactory<T, TKey>
 public sealed class EphemeralCoordinatorConfiguration<T>
 {
     internal Func<IServiceProvider, Func<T, CancellationToken, Task>>? BodyFactory { get; set; }
+    internal TimeSpan MaxBodyDuration { get; set; }
     internal EphemeralOptions? Options { get; set; }
 }
 
@@ -39,6 +40,7 @@ public sealed class EphemeralKeyedCoordinatorConfiguration<T, TKey>
 {
     internal Func<T, TKey>? KeySelector { get; set; }
     internal Func<IServiceProvider, Func<T, CancellationToken, Task>>? BodyFactory { get; set; }
+    internal TimeSpan MaxBodyDuration { get; set; }
     internal EphemeralOptions? Options { get; set; }
 }
 
@@ -104,7 +106,7 @@ internal sealed class EphemeralCoordinatorFactory<T> : IEphemeralCoordinatorFact
                     $"Call AddEphemeralWorkCoordinator<{typeof(T).Name}>(\"{n}\", ...) during registration.");
 
             var body = config.BodyFactory!(_serviceProvider);
-            return new EphemeralWorkCoordinator<T>(body, config.Options);
+            return new EphemeralWorkCoordinator<T>(body, config.MaxBodyDuration, config.Options);
         })).Value;
     }
 }
@@ -152,7 +154,8 @@ internal sealed class EphemeralKeyedCoordinatorFactory<T, TKey> : IEphemeralKeye
                     $"Call AddEphemeralKeyedWorkCoordinator<{typeof(T).Name}, {typeof(TKey).Name}>(\"{n}\", ...) during registration.");
 
             var body = config.BodyFactory!(_serviceProvider);
-            return new EphemeralKeyedWorkCoordinator<T, TKey>(config.KeySelector!, body, config.Options);
+            return new EphemeralKeyedWorkCoordinator<T, TKey>(config.KeySelector!, body, config.MaxBodyDuration,
+                config.Options);
         })).Value;
     }
 }
@@ -165,12 +168,13 @@ public static class EphemeralServiceCollectionExtensions
     public static IServiceCollection AddEphemeralWorkCoordinator<T>(
         this IServiceCollection services,
         Func<IServiceProvider, Func<T, CancellationToken, Task>> bodyFactory,
+        TimeSpan maxBodyDuration,
         EphemeralOptions? options = null)
     {
         services.TryAddSingleton(sp =>
         {
             var body = bodyFactory(sp);
-            return new EphemeralWorkCoordinator<T>(body, options);
+            return new EphemeralWorkCoordinator<T>(body, maxBodyDuration, options);
         });
 
         return services;
@@ -179,22 +183,24 @@ public static class EphemeralServiceCollectionExtensions
     public static IServiceCollection AddEphemeralWorkCoordinator<T>(
         this IServiceCollection services,
         Func<T, CancellationToken, Task> body,
+        TimeSpan maxBodyDuration,
         EphemeralOptions? options = null)
     {
-        return services.AddEphemeralWorkCoordinator<T>(_ => body, options);
+        return services.AddEphemeralWorkCoordinator<T>(_ => body, maxBodyDuration, options);
     }
 
     public static IServiceCollection AddEphemeralKeyedWorkCoordinator<T, TKey>(
         this IServiceCollection services,
         Func<T, TKey> keySelector,
         Func<IServiceProvider, Func<T, CancellationToken, Task>> bodyFactory,
+        TimeSpan maxBodyDuration,
         EphemeralOptions? options = null)
         where TKey : notnull
     {
         services.TryAddSingleton(sp =>
         {
             var body = bodyFactory(sp);
-            return new EphemeralKeyedWorkCoordinator<T, TKey>(keySelector, body, options);
+            return new EphemeralKeyedWorkCoordinator<T, TKey>(keySelector, body, maxBodyDuration, options);
         });
 
         return services;
@@ -204,21 +210,23 @@ public static class EphemeralServiceCollectionExtensions
         this IServiceCollection services,
         Func<T, TKey> keySelector,
         Func<T, CancellationToken, Task> body,
+        TimeSpan maxBodyDuration,
         EphemeralOptions? options = null)
         where TKey : notnull
     {
-        return services.AddEphemeralKeyedWorkCoordinator<T, TKey>(keySelector, _ => body, options);
+        return services.AddEphemeralKeyedWorkCoordinator<T, TKey>(keySelector, _ => body, maxBodyDuration, options);
     }
 
     public static IServiceCollection AddScopedEphemeralWorkCoordinator<T>(
         this IServiceCollection services,
         Func<IServiceProvider, Func<T, CancellationToken, Task>> bodyFactory,
+        TimeSpan maxBodyDuration,
         EphemeralOptions? options = null)
     {
         services.TryAddScoped(sp =>
         {
             var body = bodyFactory(sp);
-            return new EphemeralWorkCoordinator<T>(body, options);
+            return new EphemeralWorkCoordinator<T>(body, maxBodyDuration, options);
         });
 
         return services;
@@ -228,13 +236,14 @@ public static class EphemeralServiceCollectionExtensions
         this IServiceCollection services,
         Func<T, TKey> keySelector,
         Func<IServiceProvider, Func<T, CancellationToken, Task>> bodyFactory,
+        TimeSpan maxBodyDuration,
         EphemeralOptions? options = null)
         where TKey : notnull
     {
         services.TryAddScoped(sp =>
         {
             var body = bodyFactory(sp);
-            return new EphemeralKeyedWorkCoordinator<T, TKey>(keySelector, body, options);
+            return new EphemeralKeyedWorkCoordinator<T, TKey>(keySelector, body, maxBodyDuration, options);
         });
 
         return services;
@@ -244,6 +253,7 @@ public static class EphemeralServiceCollectionExtensions
         this IServiceCollection services,
         string name,
         Func<IServiceProvider, Func<T, CancellationToken, Task>> bodyFactory,
+        TimeSpan maxBodyDuration,
         EphemeralOptions? options = null)
     {
         var configKey = typeof(ConcurrentDictionary<string, EphemeralCoordinatorConfiguration<T>>);
@@ -265,6 +275,7 @@ public static class EphemeralServiceCollectionExtensions
         configurations[name] = new EphemeralCoordinatorConfiguration<T>
         {
             BodyFactory = bodyFactory,
+            MaxBodyDuration = maxBodyDuration,
             Options = options
         };
 
@@ -275,9 +286,10 @@ public static class EphemeralServiceCollectionExtensions
         this IServiceCollection services,
         string name,
         Func<T, CancellationToken, Task> body,
+        TimeSpan maxBodyDuration,
         EphemeralOptions? options = null)
     {
-        return services.AddEphemeralWorkCoordinator<T>(name, _ => body, options);
+        return services.AddEphemeralWorkCoordinator<T>(name, _ => body, maxBodyDuration, options);
     }
 
     public static IServiceCollection AddEphemeralKeyedWorkCoordinator<T, TKey>(
@@ -285,6 +297,7 @@ public static class EphemeralServiceCollectionExtensions
         string name,
         Func<T, TKey> keySelector,
         Func<IServiceProvider, Func<T, CancellationToken, Task>> bodyFactory,
+        TimeSpan maxBodyDuration,
         EphemeralOptions? options = null)
         where TKey : notnull
     {
@@ -308,6 +321,7 @@ public static class EphemeralServiceCollectionExtensions
         {
             KeySelector = keySelector,
             BodyFactory = bodyFactory,
+            MaxBodyDuration = maxBodyDuration,
             Options = options
         };
 
@@ -319,98 +333,106 @@ public static class EphemeralServiceCollectionExtensions
         string name,
         Func<T, TKey> keySelector,
         Func<T, CancellationToken, Task> body,
+        TimeSpan maxBodyDuration,
         EphemeralOptions? options = null)
         where TKey : notnull
     {
-        return services.AddEphemeralKeyedWorkCoordinator<T, TKey>(name, keySelector, _ => body, options);
+        return services.AddEphemeralKeyedWorkCoordinator<T, TKey>(name, keySelector, _ => body, maxBodyDuration,
+            options);
     }
 
     /// <summary>
     ///     Alias for
     ///     <see
-    ///         cref="AddEphemeralWorkCoordinator{T}(IServiceCollection, Func{IServiceProvider, Func{T, CancellationToken, Task}}, EphemeralOptions?)" />
+    ///         cref="AddEphemeralWorkCoordinator{T}(IServiceCollection, Func{IServiceProvider, Func{T, CancellationToken, Task}}, TimeSpan, EphemeralOptions?)" />
     ///     so coordinators read like service registrations.
     /// </summary>
     public static IServiceCollection AddCoordinator<T>(
         this IServiceCollection services,
         Func<IServiceProvider, Func<T, CancellationToken, Task>> bodyFactory,
+        TimeSpan maxBodyDuration,
         EphemeralOptions? options = null)
     {
-        return services.AddEphemeralWorkCoordinator(bodyFactory, options);
+        return services.AddEphemeralWorkCoordinator(bodyFactory, maxBodyDuration, options);
     }
 
     /// <summary>
     ///     Alias for
-    ///     <see cref="AddEphemeralWorkCoordinator{T}(IServiceCollection, Func{T, CancellationToken, Task}, EphemeralOptions?)" />
+    ///     <see cref="AddEphemeralWorkCoordinator{T}(IServiceCollection, Func{T, CancellationToken, Task}, TimeSpan, EphemeralOptions?)" />
     ///     .
     /// </summary>
     public static IServiceCollection AddCoordinator<T>(
         this IServiceCollection services,
         Func<T, CancellationToken, Task> body,
+        TimeSpan maxBodyDuration,
         EphemeralOptions? options = null)
     {
-        return services.AddEphemeralWorkCoordinator(body, options);
+        return services.AddEphemeralWorkCoordinator(body, maxBodyDuration, options);
     }
 
     /// <summary>
     ///     Alias for
     ///     <see
-    ///         cref="AddScopedEphemeralWorkCoordinator{T}(IServiceCollection, Func{IServiceProvider, Func{T, CancellationToken, Task}}, EphemeralOptions?)" />
+    ///         cref="AddScopedEphemeralWorkCoordinator{T}(IServiceCollection, Func{IServiceProvider, Func{T, CancellationToken, Task}}, TimeSpan, EphemeralOptions?)" />
     ///     .
     /// </summary>
     public static IServiceCollection AddScopedCoordinator<T>(
         this IServiceCollection services,
         Func<IServiceProvider, Func<T, CancellationToken, Task>> bodyFactory,
+        TimeSpan maxBodyDuration,
         EphemeralOptions? options = null)
     {
-        return services.AddScopedEphemeralWorkCoordinator(bodyFactory, options);
+        return services.AddScopedEphemeralWorkCoordinator(bodyFactory, maxBodyDuration, options);
     }
 
     /// <summary>
     ///     Alias for
     ///     <see
-    ///         cref="AddEphemeralKeyedWorkCoordinator{T, TKey}(IServiceCollection, Func{T, TKey}, Func{T, CancellationToken, Task}, EphemeralOptions?)" />
+    ///         cref="AddEphemeralKeyedWorkCoordinator{T, TKey}(IServiceCollection, Func{T, TKey}, Func{T, CancellationToken, Task}, TimeSpan, EphemeralOptions?)" />
     ///     .
     /// </summary>
     public static IServiceCollection AddKeyedCoordinator<T, TKey>(
         this IServiceCollection services,
         Func<T, TKey> keySelector,
         Func<T, CancellationToken, Task> body,
+        TimeSpan maxBodyDuration,
         EphemeralOptions? options = null)
         where TKey : notnull
     {
-        return services.AddEphemeralKeyedWorkCoordinator(keySelector, body, options);
+        return services.AddEphemeralKeyedWorkCoordinator(keySelector, body, maxBodyDuration, options);
     }
 
     /// <summary>
     ///     Alias for
     ///     <see
-    ///         cref="AddEphemeralKeyedWorkCoordinator{T, TKey}(IServiceCollection, Func{T, TKey}, Func{IServiceProvider, Func{T, CancellationToken, Task}}, EphemeralOptions?)" />
+    ///         cref="AddEphemeralKeyedWorkCoordinator{T, TKey}(IServiceCollection, Func{T, TKey}, Func{IServiceProvider, Func{T, CancellationToken, Task}}, TimeSpan, EphemeralOptions?)" />
     ///     .
     /// </summary>
     public static IServiceCollection AddKeyedCoordinator<T, TKey>(
         this IServiceCollection services,
         Func<T, TKey> keySelector,
         Func<IServiceProvider, Func<T, CancellationToken, Task>> bodyFactory,
+        TimeSpan maxBodyDuration,
         EphemeralOptions? options = null)
         where TKey : notnull
     {
-        return services.AddEphemeralKeyedWorkCoordinator(keySelector, bodyFactory, options);
+        return services.AddEphemeralKeyedWorkCoordinator(keySelector, bodyFactory, maxBodyDuration, options);
     }
 
     /// <summary>
     ///     Alias for
     ///     <see
-    ///         cref="AddScopedEphemeralKeyedWorkCoordinator{T, TKey}(IServiceCollection, Func{T, TKey}, Func{IServiceProvider, Func{T, CancellationToken, Task}}, EphemeralOptions?)" />
+    ///         cref="AddScopedEphemeralKeyedWorkCoordinator{T, TKey}(IServiceCollection, Func{T, TKey}, Func{IServiceProvider, Func{T, CancellationToken, Task}}, TimeSpan, EphemeralOptions?)" />
     ///     .
     /// </summary>
     public static IServiceCollection AddScopedKeyedCoordinator<T, TKey>(
         this IServiceCollection services,
         Func<T, TKey> keySelector,
         Func<IServiceProvider, Func<T, CancellationToken, Task>> bodyFactory,
+        TimeSpan maxBodyDuration,
         EphemeralOptions? options = null)
         where TKey : notnull
     {
-        return services.AddScopedEphemeralKeyedWorkCoordinator(keySelector, bodyFactory, options);
+        return services.AddScopedEphemeralKeyedWorkCoordinator(keySelector, bodyFactory, maxBodyDuration, options);
     }
 }

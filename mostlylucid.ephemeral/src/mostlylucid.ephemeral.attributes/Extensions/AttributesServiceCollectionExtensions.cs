@@ -15,6 +15,7 @@ public static class AttributesServiceCollectionExtensions
     public static IServiceCollection AddEphemeralSignalJobRunner(
         this IServiceCollection services,
         IEnumerable<Type> jobTypes,
+        TimeSpan maxJobDuration,
         EphemeralOptions? options = null,
         Func<IServiceProvider, SignalSink>? signalFactory = null)
     {
@@ -37,7 +38,7 @@ public static class AttributesServiceCollectionExtensions
                 var registered = sp.GetService(type);
                 return registered ?? ActivatorUtilities.CreateInstance(sp, type);
             }).ToArray();
-            return new EphemeralSignalJobRunner(sink, targets, options);
+            return new EphemeralSignalJobRunner(sink, targets, maxJobDuration, options);
         });
 
         return services;
@@ -48,11 +49,12 @@ public static class AttributesServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddEphemeralSignalJobRunner<TJob>(
         this IServiceCollection services,
+        TimeSpan maxJobDuration,
         EphemeralOptions? options = null,
         Func<IServiceProvider, SignalSink>? signalFactory = null)
         where TJob : class
     {
-        return services.AddEphemeralSignalJobRunner(new[] { typeof(TJob) }, options, signalFactory);
+        return services.AddEphemeralSignalJobRunner(new[] { typeof(TJob) }, maxJobDuration, options, signalFactory);
     }
 
     /// <summary>
@@ -61,6 +63,7 @@ public static class AttributesServiceCollectionExtensions
     public static IServiceCollection AddEphemeralScopedJobRunner(
         this IServiceCollection services,
         IEnumerable<Type> jobTypes,
+        TimeSpan maxJobDuration,
         EphemeralOptions? options = null,
         Func<IServiceProvider, SignalSink>? signalFactory = null)
     {
@@ -75,7 +78,7 @@ public static class AttributesServiceCollectionExtensions
         services.AddSingleton(sp =>
         {
             var sink = sp.GetRequiredService<SignalSink>();
-            return new EphemeralScopedJobRunner(sp, sink, jobArray, options);
+            return new EphemeralScopedJobRunner(sp, sink, jobArray, maxJobDuration, options);
         });
 
         return services;
@@ -86,50 +89,55 @@ public static class AttributesServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddEphemeralScopedJobRunner<TJob>(
         this IServiceCollection services,
+        TimeSpan maxJobDuration,
         EphemeralOptions? options = null,
         Func<IServiceProvider, SignalSink>? signalFactory = null)
         where TJob : class
     {
-        return services.AddEphemeralScopedJobRunner(new[] { typeof(TJob) }, options, signalFactory);
+        return services.AddEphemeralScopedJobRunner(new[] { typeof(TJob) }, maxJobDuration, options, signalFactory);
     }
 
     // Assembly-scanning overloads
     public static IServiceCollection AddEphemeralSignalJobRunner(
         this IServiceCollection services,
         Assembly assembly,
+        TimeSpan maxJobDuration,
         EphemeralOptions? options = null,
         Func<IServiceProvider, SignalSink>? signalFactory = null)
     {
-        return services.AddEphemeralSignalJobRunner(new[] { assembly }, options, signalFactory);
+        return services.AddEphemeralSignalJobRunner(new[] { assembly }, maxJobDuration, options, signalFactory);
     }
 
     public static IServiceCollection AddEphemeralSignalJobRunner(
         this IServiceCollection services,
         IEnumerable<Assembly> assemblies,
+        TimeSpan maxJobDuration,
         EphemeralOptions? options = null,
         Func<IServiceProvider, SignalSink>? signalFactory = null)
     {
         var types = ScanAssembliesForJobTypes(assemblies).ToArray();
-        return services.AddEphemeralSignalJobRunner(types, options, signalFactory);
+        return services.AddEphemeralSignalJobRunner(types, maxJobDuration, options, signalFactory);
     }
 
     public static IServiceCollection AddEphemeralScopedJobRunner(
         this IServiceCollection services,
         Assembly assembly,
+        TimeSpan maxJobDuration,
         EphemeralOptions? options = null,
         Func<IServiceProvider, SignalSink>? signalFactory = null)
     {
-        return services.AddEphemeralScopedJobRunner(new[] { assembly }, options, signalFactory);
+        return services.AddEphemeralScopedJobRunner(new[] { assembly }, maxJobDuration, options, signalFactory);
     }
 
     public static IServiceCollection AddEphemeralScopedJobRunner(
         this IServiceCollection services,
         IEnumerable<Assembly> assemblies,
+        TimeSpan maxJobDuration,
         EphemeralOptions? options = null,
         Func<IServiceProvider, SignalSink>? signalFactory = null)
     {
         var types = ScanAssembliesForJobTypes(assemblies).ToArray();
-        return services.AddEphemeralScopedJobRunner(types, options, signalFactory);
+        return services.AddEphemeralScopedJobRunner(types, maxJobDuration, options, signalFactory);
     }
 
     // Local helper: replicated from EphemeralScopedJobRunner.ScanAssembliesForJobTypes

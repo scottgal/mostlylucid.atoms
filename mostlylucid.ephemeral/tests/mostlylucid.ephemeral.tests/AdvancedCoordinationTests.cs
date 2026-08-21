@@ -283,6 +283,7 @@ public class AdvancedCoordinationTests
                 EarlyExitSignals = new HashSet<string> { "verdict.confirmed" },
                 OnEarlyExit = (signal, results) => results.Sum()
             },
+            TimeSpan.FromSeconds(10),
             new EphemeralOptions { MaxConcurrency = 1, Signals = sink });
 
         for (var i = 1; i <= 10; i++)
@@ -311,6 +312,7 @@ public class AdvancedCoordinationTests
             {
                 EarlyExitSignals = new HashSet<string> { "early.exit" }
             },
+            TimeSpan.FromSeconds(10),
             new EphemeralOptions { MaxConcurrency = 2, Signals = sink });
 
         await coordinator.EnqueueAsync(1);

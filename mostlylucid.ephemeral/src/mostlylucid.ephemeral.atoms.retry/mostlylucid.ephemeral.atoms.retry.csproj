@@ -19,6 +19,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj"/>
+        <ProjectReference Include="..\mostlylucid.ephemeral.patterns.circuitbreaker\mostlylucid.ephemeral.patterns.circuitbreaker.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

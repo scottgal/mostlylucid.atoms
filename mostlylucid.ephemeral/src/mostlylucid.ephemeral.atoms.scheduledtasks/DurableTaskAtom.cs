@@ -10,11 +10,19 @@ public sealed class DurableTaskAtom : IAsyncDisposable
     /// <summary>
     ///     Creates a durable task atom that executes the provided handler whenever a task is dequeued.
     /// </summary>
-    public DurableTaskAtom(Func<DurableTask, CancellationToken, Task> handler, EphemeralOptions? options = null)
+    /// <param name="handler">Arbitrary caller-supplied task handler.</param>
+    /// <param name="maxTaskDuration">
+    ///     Required, no default: <paramref name="handler" /> is arbitrary caller-supplied work, so
+    ///     the same "one bad item cannot destroy this coordinator" invariant applies here.
+    /// </param>
+    /// <param name="options">Optional coordinator options.</param>
+    public DurableTaskAtom(Func<DurableTask, CancellationToken, Task> handler, TimeSpan maxTaskDuration,
+        EphemeralOptions? options = null)
     {
         if (handler is null) throw new ArgumentNullException(nameof(handler));
 
-        _coordinator = new EphemeralWorkCoordinator<DurableTask>(handler, options ?? CreateDefaultOptions());
+        _coordinator = new EphemeralWorkCoordinator<DurableTask>(handler, maxTaskDuration,
+            options ?? CreateDefaultOptions());
     }
 
     /// <summary>

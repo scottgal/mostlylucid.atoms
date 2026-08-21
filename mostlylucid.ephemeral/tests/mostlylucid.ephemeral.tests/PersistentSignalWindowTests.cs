@@ -40,7 +40,7 @@ public class PersistentSignalWindowTests : IAsyncLifetime
     [Fact]
     public async Task Window_RaisesAndSensesSignals()
     {
-        await using var window = new PersistentSignalWindow($"Data Source={_dbPath}", TimeSpan.FromSeconds(30));
+        await using var window = new PersistentSignalWindow($"Data Source={_dbPath}", maxWriteDuration: TimeSpan.FromSeconds(30), flushInterval: TimeSpan.FromSeconds(30));
 
         window.Raise("order.created", "order-1");
         window.Raise("order.shipped", "order-1");
@@ -57,7 +57,7 @@ public class PersistentSignalWindowTests : IAsyncLifetime
     [Fact]
     public async Task Window_FlushesToDisk()
     {
-        await using var window = new PersistentSignalWindow($"Data Source={_dbPath}", TimeSpan.FromMilliseconds(100));
+        await using var window = new PersistentSignalWindow($"Data Source={_dbPath}", maxWriteDuration: TimeSpan.FromSeconds(30), flushInterval: TimeSpan.FromMilliseconds(100));
 
         window.Raise("test.signal.1");
         window.Raise("test.signal.2");
@@ -75,7 +75,7 @@ public class PersistentSignalWindowTests : IAsyncLifetime
     public async Task Window_LoadsFromDisk()
     {
         // First window - write signals and ensure they're flushed
-        await using (var window1 = new PersistentSignalWindow($"Data Source={_dbPath}", TimeSpan.FromMilliseconds(100)))
+        await using (var window1 = new PersistentSignalWindow($"Data Source={_dbPath}", maxWriteDuration: TimeSpan.FromSeconds(30), flushInterval: TimeSpan.FromMilliseconds(100)))
         {
             window1.Raise("persistent.signal.1");
             window1.Raise("persistent.signal.2");
@@ -89,7 +89,7 @@ public class PersistentSignalWindowTests : IAsyncLifetime
         }
 
         // Second window - load signals (no maxAge to load all)
-        await using var window2 = new PersistentSignalWindow($"Data Source={_dbPath}", TimeSpan.FromSeconds(30));
+        await using var window2 = new PersistentSignalWindow($"Data Source={_dbPath}", maxWriteDuration: TimeSpan.FromSeconds(30), flushInterval: TimeSpan.FromSeconds(30));
         await window2.LoadFromDiskAsync();
 
         var signals = window2.Sense("persistent.*");
@@ -100,7 +100,7 @@ public class PersistentSignalWindowTests : IAsyncLifetime
     public async Task Window_RespectsMaxAgeOnLoad()
     {
         // First window - write signals with a delay
-        await using (var window1 = new PersistentSignalWindow($"Data Source={_dbPath}", TimeSpan.FromMilliseconds(100)))
+        await using (var window1 = new PersistentSignalWindow($"Data Source={_dbPath}", maxWriteDuration: TimeSpan.FromSeconds(30), flushInterval: TimeSpan.FromMilliseconds(100)))
         {
             window1.Raise("old.signal");
             await Task.Delay(200); // Wait for flush
@@ -110,7 +110,7 @@ public class PersistentSignalWindowTests : IAsyncLifetime
         await Task.Delay(100);
 
         // Second window - load with very short max age
-        await using var window2 = new PersistentSignalWindow($"Data Source={_dbPath}", TimeSpan.FromSeconds(30));
+        await using var window2 = new PersistentSignalWindow($"Data Source={_dbPath}", maxWriteDuration: TimeSpan.FromSeconds(30), flushInterval: TimeSpan.FromSeconds(30));
         await window2.LoadFromDiskAsync(TimeSpan.FromMilliseconds(1));
 
         // Signal should be too old
@@ -121,7 +121,7 @@ public class PersistentSignalWindowTests : IAsyncLifetime
     [Fact]
     public async Task Window_GetStats_ReturnsCorrectCounts()
     {
-        await using var window = new PersistentSignalWindow($"Data Source={_dbPath}", TimeSpan.FromMilliseconds(100));
+        await using var window = new PersistentSignalWindow($"Data Source={_dbPath}", maxWriteDuration: TimeSpan.FromSeconds(30), flushInterval: TimeSpan.FromMilliseconds(100));
 
         window.Raise("stat.test.1");
         window.Raise("stat.test.2");
@@ -141,7 +141,7 @@ public class PersistentSignalWindowTests : IAsyncLifetime
     [Fact]
     public async Task Window_HandlesHighVolume()
     {
-        await using var window = new PersistentSignalWindow($"Data Source={_dbPath}", TimeSpan.FromMilliseconds(200));
+        await using var window = new PersistentSignalWindow($"Data Source={_dbPath}", maxWriteDuration: TimeSpan.FromSeconds(30), flushInterval: TimeSpan.FromMilliseconds(200));
 
         // Raise many signals
         for (var i = 0; i < 100; i++) window.Raise($"volume.test.{i % 10}", $"key-{i}");
@@ -156,7 +156,7 @@ public class PersistentSignalWindowTests : IAsyncLifetime
     [Fact]
     public async Task Window_RaiseSignalEvent_PreservesProperties()
     {
-        await using var window = new PersistentSignalWindow($"Data Source={_dbPath}", TimeSpan.FromSeconds(30));
+        await using var window = new PersistentSignalWindow($"Data Source={_dbPath}", maxWriteDuration: TimeSpan.FromSeconds(30), flushInterval: TimeSpan.FromSeconds(30));
 
         var evt = new SignalEvent("custom.event", 12345, "custom-key", DateTimeOffset.UtcNow);
         window.Raise(evt);
@@ -170,7 +170,7 @@ public class PersistentSignalWindowTests : IAsyncLifetime
     [Fact]
     public async Task Window_HasSignal_ViaSignalSink()
     {
-        await using var window = new PersistentSignalWindow($"Data Source={_dbPath}", TimeSpan.FromSeconds(30));
+        await using var window = new PersistentSignalWindow($"Data Source={_dbPath}", maxWriteDuration: TimeSpan.FromSeconds(30), flushInterval: TimeSpan.FromSeconds(30));
 
         window.Raise("detect.me");
         window.Raise("other.signal");
@@ -183,7 +183,7 @@ public class PersistentSignalWindowTests : IAsyncLifetime
     [Fact]
     public async Task Window_CountSignals_ViaSense()
     {
-        await using var window = new PersistentSignalWindow($"Data Source={_dbPath}", TimeSpan.FromSeconds(30));
+        await using var window = new PersistentSignalWindow($"Data Source={_dbPath}", maxWriteDuration: TimeSpan.FromSeconds(30), flushInterval: TimeSpan.FromSeconds(30));
 
         window.Raise("count.a");
         window.Raise("count.b");
@@ -200,7 +200,7 @@ public class PersistentSignalWindowTests : IAsyncLifetime
     public async Task Window_EmitsFlushSignals()
     {
         var diagnosticSignals = new List<SignalEvent>();
-        await using var window = new PersistentSignalWindow($"Data Source={_dbPath}", TimeSpan.FromMilliseconds(100));
+        await using var window = new PersistentSignalWindow($"Data Source={_dbPath}", maxWriteDuration: TimeSpan.FromSeconds(30), flushInterval: TimeSpan.FromMilliseconds(100));
         using var sub = window.Sink.Subscribe(e => diagnosticSignals.Add(e));
 
         window.Raise("trigger.flush");
@@ -215,7 +215,7 @@ public class PersistentSignalWindowTests : IAsyncLifetime
     public async Task Window_ManualFlush()
     {
         await using var
-            window = new PersistentSignalWindow($"Data Source={_dbPath}", TimeSpan.FromHours(1)); // Long interval
+            window = new PersistentSignalWindow($"Data Source={_dbPath}", maxWriteDuration: TimeSpan.FromSeconds(30), flushInterval: TimeSpan.FromHours(1)); // Long interval
 
         window.Raise("manual.flush.test");
 

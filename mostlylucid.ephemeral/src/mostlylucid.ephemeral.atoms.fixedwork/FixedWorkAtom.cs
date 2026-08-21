@@ -10,6 +10,7 @@ public sealed class FixedWorkAtom<T> : IAsyncDisposable
 
     public FixedWorkAtom(
         Func<T, CancellationToken, Task> body,
+        TimeSpan maxBodyDuration,
         int? maxConcurrency = null,
         int? maxTracked = null,
         SignalSink? signals = null)
@@ -21,7 +22,7 @@ public sealed class FixedWorkAtom<T> : IAsyncDisposable
             Signals = signals
         };
 
-        _coordinator = new EphemeralWorkCoordinator<T>(body, options);
+        _coordinator = new EphemeralWorkCoordinator<T>(body, maxBodyDuration, options);
     }
 
     public ValueTask DisposeAsync()

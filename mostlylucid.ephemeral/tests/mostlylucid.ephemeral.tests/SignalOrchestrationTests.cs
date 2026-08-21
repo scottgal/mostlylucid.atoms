@@ -60,7 +60,8 @@ public class SignalOrchestrationTests
             new[] { "stage.detect.start" },
             new[] { "stage.detect.complete" });
 
-        await using var executor = new SignalWaveExecutor(sink, new[] { stage }, new[] { "early.exit" }, 1);
+        await using var executor = new SignalWaveExecutor(sink, new[] { stage }, TimeSpan.FromSeconds(10),
+            new[] { "early.exit" }, 1);
         executor.Start();
 
         sink.Raise("stage.start");

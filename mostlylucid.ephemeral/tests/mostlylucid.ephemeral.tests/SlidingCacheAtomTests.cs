@@ -6,6 +6,8 @@ namespace Mostlylucid.Ephemeral.Tests;
 
 public class SlidingCacheAtomTests
 {
+    private static readonly TimeSpan DefaultMaxFactoryDuration = TimeSpan.FromSeconds(30);
+
     [Fact]
     public async Task ColdEviction_InvokesOnEvict_WithKeyAndValue()
     {
@@ -14,6 +16,7 @@ public class SlidingCacheAtomTests
         // maxSize=1; retention pins "keep" high so "evictme" is the cold casualty (deterministic).
         await using var cache = new SlidingCacheAtom<string, string>(
             (key, _) => Task.FromResult($"val:{key}"),
+            maxFactoryDuration: DefaultMaxFactoryDuration,
             maxSize: 1,
             retentionScorer: (key, _) => key == "keep" ? 100.0 : 0.0,
             onEvict: (key, value, _) =>
@@ -37,6 +40,7 @@ public class SlidingCacheAtomTests
 
         var cache = new SlidingCacheAtom<string, string>(
             (key, _) => Task.FromResult($"val:{key}"),
+            maxFactoryDuration: DefaultMaxFactoryDuration,
             maxSize: 10,
             onEvict: (key, value, _) =>
             {
@@ -61,6 +65,7 @@ public class SlidingCacheAtomTests
 
         await using var cache = new SlidingCacheAtom<string, string>(
             (key, _) => Task.FromResult($"val:{key}"),
+            maxFactoryDuration: DefaultMaxFactoryDuration,
             slidingExpiration: TimeSpan.FromMilliseconds(50),
             absoluteExpiration: TimeSpan.FromMilliseconds(50),
             maxSize: 10,
@@ -84,6 +89,7 @@ public class SlidingCacheAtomTests
 
         var cache = new SlidingCacheAtom<string, string>(
             (key, _) => Task.FromResult($"val:{key}"),
+            maxFactoryDuration: DefaultMaxFactoryDuration,
             maxSize: 10,
             onEvict: (key, _, _) =>
             {
@@ -112,8 +118,9 @@ public class SlidingCacheAtomTests
                 computeCount++;
                 return Task.FromResult(42);
             },
-            TimeSpan.FromMilliseconds(300),
-            TimeSpan.FromSeconds(5));
+            maxFactoryDuration: DefaultMaxFactoryDuration,
+            slidingExpiration: TimeSpan.FromMilliseconds(300),
+            absoluteExpiration: TimeSpan.FromSeconds(5));
 
         var first = await cache.GetOrComputeAsync("key");
         Assert.Equal(42, first);
@@ -140,8 +147,9 @@ public class SlidingCacheAtomTests
                 computeCount++;
                 return Task.FromResult(computeCount);
             },
-            TimeSpan.FromSeconds(5),
-            TimeSpan.FromMilliseconds(150));
+            maxFactoryDuration: DefaultMaxFactoryDuration,
+            slidingExpiration: TimeSpan.FromSeconds(5),
+            absoluteExpiration: TimeSpan.FromMilliseconds(150));
 
         var first = await cache.GetOrComputeAsync("key");
         Assert.Equal(1, first);
@@ -164,9 +172,10 @@ public class SlidingCacheAtomTests
                 computeCount++;
                 return Task.FromResult(computeCount);
             },
-            TimeSpan.FromMilliseconds(60),
-            TimeSpan.FromMilliseconds(60),
-            1);
+            maxFactoryDuration: DefaultMaxFactoryDuration,
+            slidingExpiration: TimeSpan.FromMilliseconds(60),
+            absoluteExpiration: TimeSpan.FromMilliseconds(60),
+            maxSize: 1);
 
         var first = await cache.GetOrComputeAsync("old");
         Assert.Equal(1, first);
@@ -190,6 +199,7 @@ public class SlidingCacheAtomTests
         // Arrange: maxSize=2, one high-risk entry (1 access), one low-risk (10 accesses)
         await using var cache = new SlidingCacheAtom<string, (double risk, int dummy)>(
             (key, _) => Task.FromResult(key == "high-risk" ? (0.9, 0) : (0.0, 0)),
+            maxFactoryDuration: DefaultMaxFactoryDuration,
             maxSize: 2,
             cleanupInterval: TimeSpan.FromMilliseconds(50),
             retentionScorer: (_, v) => v.risk);
@@ -211,6 +221,7 @@ public class SlidingCacheAtomTests
     {
         await using var cache = new SlidingCacheAtom<string, int>(
             (_, _) => Task.FromResult(1),
+            maxFactoryDuration: DefaultMaxFactoryDuration,
             slidingExpiration: TimeSpan.FromMilliseconds(50),
             maxSize: 10,
             cleanupInterval: TimeSpan.FromMilliseconds(60));
@@ -229,7 +240,8 @@ public class SlidingCacheAtomTests
         // materializer deciding what to warm first) must read the SAME AccessCount/LastAccess
         // this atom already tracks internally, rather than maintaining a second counter that
         // can drift from the real access pattern. This is the read-only surface for that.
-        await using var cache = new SlidingCacheAtom<string, string>((key, _) => Task.FromResult($"val:{key}"));
+        await using var cache = new SlidingCacheAtom<string, string>((key, _) => Task.FromResult($"val:{key}"),
+            maxFactoryDuration: DefaultMaxFactoryDuration);
 
         await cache.GetOrComputeAsync("a"); // AccessCount 1 (creation)
         await cache.GetOrComputeAsync("a"); // AccessCount 2 (hit)
@@ -246,7 +258,8 @@ public class SlidingCacheAtomTests
     {
         // A read-only introspection accessor must not perturb the very stats it reports --
         // otherwise ranking consumers would inflate AccessCount just by asking.
-        await using var cache = new SlidingCacheAtom<string, string>((key, _) => Task.FromResult($"val:{key}"));
+        await using var cache = new SlidingCacheAtom<string, string>((key, _) => Task.FromResult($"val:{key}"),
+            maxFactoryDuration: DefaultMaxFactoryDuration);
         await cache.GetOrComputeAsync("a");
 
         cache.TryGetEntryStats("a", out var first);
@@ -258,7 +271,8 @@ public class SlidingCacheAtomTests
     [Fact]
     public async Task TryGetEntryStats_ReturnsFalse_ForAnUnknownKey()
     {
-        await using var cache = new SlidingCacheAtom<string, string>((key, _) => Task.FromResult($"val:{key}"));
+        await using var cache = new SlidingCacheAtom<string, string>((key, _) => Task.FromResult($"val:{key}"),
+            maxFactoryDuration: DefaultMaxFactoryDuration);
 
         Assert.False(cache.TryGetEntryStats("missing", out var stats));
         Assert.Equal(default, stats);

@@ -16,7 +16,7 @@ public class MultiTaxonomyAtomTests
         var sink = new SignalSink();
         var typed = new TypedSignalSink<int>(sink);
 
-        await using var atom = new MultiTaxonomyAtom<int, int>(typed, Handler, shards);
+        await using var atom = new MultiTaxonomyAtom<int, int>(typed, Handler, shards, TimeSpan.FromSeconds(30));
 
         Assert.Equal(AtomKind.Coordinator, atom.Contract.Kind);
         Assert.Equal(AtomDeterminism.Deterministic, atom.Contract.Determinism);
@@ -37,7 +37,7 @@ public class MultiTaxonomyAtomTests
         var sink = new SignalSink();
         var typed = new TypedSignalSink<int>(sink);
 
-        await using var atom = new MultiTaxonomyAtom<int, int>(typed, Handler, shards);
+        await using var atom = new MultiTaxonomyAtom<int, int>(typed, Handler, shards, TimeSpan.FromSeconds(30));
 
         Assert.Equal("atom.ranker.output", atom.OutputSignal);
     }
@@ -56,7 +56,8 @@ public class MultiTaxonomyAtomTests
         var tcs = new TaskCompletionSource<SignalEvent<int>>(TaskCreationOptions.RunContinuationsAsynchronously);
         typed.TypedSignalRaised += evt => tcs.TrySetResult(evt);
 
-        await using var atom = new MultiTaxonomyAtom<int, int>(typed, Handler, shards, "multi.output");
+        await using var atom = new MultiTaxonomyAtom<int, int>(typed, Handler, shards, TimeSpan.FromSeconds(30),
+            "multi.output");
         var result = await atom.RunAsync(5);
 
         Assert.Equal(6, result);

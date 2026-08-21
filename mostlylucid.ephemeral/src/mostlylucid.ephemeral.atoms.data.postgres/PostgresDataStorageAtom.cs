@@ -53,8 +53,8 @@ public sealed class PostgresDataStorageAtom<TKey, TValue> : DataStorageAtomBase<
     private readonly PostgresDataStorageConfig _pgConfig;
     private bool _initialized;
 
-    public PostgresDataStorageAtom(SignalSink signals, PostgresDataStorageConfig config)
-        : base(signals, config)
+    public PostgresDataStorageAtom(SignalSink signals, PostgresDataStorageConfig config, TimeSpan maxBodyDuration)
+        : base(signals, config, maxBodyDuration)
     {
         _pgConfig = config;
         _jsonOptions = config.JsonOptions ?? new JsonSerializerOptions
@@ -68,13 +68,14 @@ public sealed class PostgresDataStorageAtom<TKey, TValue> : DataStorageAtomBase<
     /// <summary>
     ///     Creates a PostgreSQL storage atom with a connection string.
     /// </summary>
-    public PostgresDataStorageAtom(SignalSink signals, string databaseName, string connectionString)
+    public PostgresDataStorageAtom(SignalSink signals, string databaseName, string connectionString,
+        TimeSpan maxBodyDuration)
         : this(signals, new PostgresDataStorageConfig
         {
             DatabaseName = databaseName,
             ConnectionString = connectionString,
             TableName = databaseName
-        })
+        }, maxBodyDuration)
     {
     }
 

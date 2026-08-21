@@ -10,10 +10,12 @@ public class AdaptiveRateService<T> : IAsyncDisposable
 
     public AdaptiveRateService(
         Func<T, CancellationToken, Task> processAsync,
+        TimeSpan maxBodyDuration,
         int maxConcurrency = 8)
     {
         _coordinator = new EphemeralWorkCoordinator<T>(
             processAsync,
+            maxBodyDuration,
             new EphemeralOptions
             {
                 MaxConcurrency = maxConcurrency,

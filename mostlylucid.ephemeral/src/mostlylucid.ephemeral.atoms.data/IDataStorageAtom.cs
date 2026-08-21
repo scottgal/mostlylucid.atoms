@@ -46,7 +46,7 @@ public abstract class DataStorageAtomBase<TKey, TValue> : IDataStorageAtom<TKey,
     protected readonly EphemeralWorkCoordinator<DataOperation<TKey, TValue>> Coordinator;
     protected readonly SignalSink Signals;
 
-    protected DataStorageAtomBase(SignalSink signals, DataStorageConfig config)
+    protected DataStorageAtomBase(SignalSink signals, DataStorageConfig config, TimeSpan maxBodyDuration)
     {
         Signals = signals ?? throw new ArgumentNullException(nameof(signals));
         Config = config ?? throw new ArgumentNullException(nameof(config));
@@ -59,6 +59,7 @@ public abstract class DataStorageAtomBase<TKey, TValue> : IDataStorageAtom<TKey,
 
         Coordinator = new EphemeralWorkCoordinator<DataOperation<TKey, TValue>>(
             ExecuteOperationAsync,
+            maxBodyDuration,
             options);
 
         _subscription = Signals.Subscribe(OnSignal);

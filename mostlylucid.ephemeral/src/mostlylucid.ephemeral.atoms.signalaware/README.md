@@ -20,6 +20,7 @@ var sink = new SignalSink();
 
 await using var atom = new SignalAwareAtom<WorkItem>(
     async (item, ct) => await ProcessAsync(item, ct),
+    maxBodyDuration: TimeSpan.FromSeconds(30),
     cancelOn: new HashSet<string> { "shutdown" },
     deferOn: new HashSet<string> { "backpressure" },
     signals: sink);
@@ -27,7 +28,8 @@ await using var atom = new SignalAwareAtom<WorkItem>(
 await atom.EnqueueAsync(item);   // Normal processing
 
 sink.Raise("backpressure");       // New items defer
-sink.Raise("shutdown");           // New items rejected (-1)
+sink.Raise("shutdown");           // New items rejected (-1) — checked against the live sink now,
+                                   // not just manually-seeded signals via atom.Raise()
 
 await atom.DrainAsync();
 ```
@@ -40,6 +42,10 @@ await atom.DrainAsync();
 new SignalAwareAtom<T>(
     // Required: async work body
     body: async (item, ct) => await ProcessAsync(item, ct),
+
+    // Required, no default: the underlying coordinator owns the concurrency slot and must
+    // bound how long a single body may hold it. State it explicitly.
+    maxBodyDuration: TimeSpan.FromSeconds(30),
 
     // Signals that reject items (returns -1)
     // Supports glob: "error.*", "circuit-*"
@@ -101,6 +107,7 @@ await using var atom = new SignalAwareAtom<ApiRequest>(
         try { await CallApi(req, ct); }
         catch { sink.Raise("api.failure"); throw; }
     },
+    maxBodyDuration: TimeSpan.FromSeconds(30),
     cancelOn: new HashSet<string> { "circuit-open" },
     signals: sink);
 
@@ -125,6 +132,7 @@ var sink = new SignalSink();
 
 await using var atom = new SignalAwareAtom<WorkItem>(
     async (item, ct) => await SlowProcess(item, ct),
+    maxBodyDuration: TimeSpan.FromSeconds(30),
     deferOn: new HashSet<string> { "backpressure.*" },
     signals: sink);
 

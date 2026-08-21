@@ -15,7 +15,7 @@ public class AssemblyScanAndScopedRunnerTests
         services.AddScoped<ScopedCounter>();
 
         // Use the assembly-scan overload to register attributed jobs
-        services.AddEphemeralScopedJobRunner(typeof(ScopedJob).Assembly);
+        services.AddEphemeralScopedJobRunner(typeof(ScopedJob).Assembly, TimeSpan.FromMinutes(5));
 
         var provider = services.BuildServiceProvider();
 

@@ -30,6 +30,7 @@ public sealed class KeyedPriorityFanOut<TKey, T> : IAsyncDisposable where TKey :
     public KeyedPriorityFanOut(
         Func<T, TKey> keySelector,
         Func<T, CancellationToken, Task> body,
+        TimeSpan maxBodyDuration,
         int maxConcurrency,
         int perKeyConcurrency = 1,
         SignalSink? sink = null,
@@ -51,6 +52,7 @@ public sealed class KeyedPriorityFanOut<TKey, T> : IAsyncDisposable where TKey :
             new PriorityKeyedWorkCoordinatorOptions<T, TKey>(
                 keySelector,
                 body,
+                maxBodyDuration,
                 lanes,
                 new EphemeralOptions
                 {

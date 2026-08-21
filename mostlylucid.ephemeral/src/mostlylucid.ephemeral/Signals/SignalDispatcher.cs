@@ -11,7 +11,12 @@ public sealed class SignalDispatcher : IAsyncDisposable
     private readonly object _rulesLock = new();
     private DispatchRule[] _rules = Array.Empty<DispatchRule>();
 
-    public SignalDispatcher(EphemeralOptions? coordinatorOptions = null)
+    /// <param name="maxHandlerDuration">
+    ///     Required, no default: <see cref="DispatchRule.Handler" /> is arbitrary caller-supplied
+    ///     work, so the same "one bad item cannot destroy this coordinator" invariant applies here.
+    /// </param>
+    /// <param name="coordinatorOptions">Optional coordinator options.</param>
+    public SignalDispatcher(TimeSpan maxHandlerDuration, EphemeralOptions? coordinatorOptions = null)
     {
         // Keyed by signal name; per-signal sequential unless overridden via options.MaxConcurrencyPerKey
         _coordinator = new EphemeralKeyedWorkCoordinator<SignalEvent, string>(
@@ -23,6 +28,7 @@ public sealed class SignalDispatcher : IAsyncDisposable
                     if (StringPatternMatcher.Matches(evt.Signal, rule.Pattern))
                         await rule.Handler(evt);
             },
+            maxHandlerDuration,
             coordinatorOptions ?? new EphemeralOptions
             {
                 MaxConcurrency = Environment.ProcessorCount, MaxConcurrencyPerKey = 1, MaxTrackedOperations = 128,

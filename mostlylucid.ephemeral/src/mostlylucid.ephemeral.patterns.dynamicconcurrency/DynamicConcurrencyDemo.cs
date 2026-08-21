@@ -16,6 +16,7 @@ public sealed class DynamicConcurrencyDemo<T> : IAsyncDisposable
     public DynamicConcurrencyDemo(
         Func<T, CancellationToken, Task> body,
         SignalSink sink,
+        TimeSpan maxBodyDuration,
         int minConcurrency = 1,
         int maxConcurrency = 32,
         string scaleUpPattern = "load.high",
@@ -28,6 +29,7 @@ public sealed class DynamicConcurrencyDemo<T> : IAsyncDisposable
 
         _coordinator = new EphemeralWorkCoordinator<T>(
             body,
+            maxBodyDuration,
             new EphemeralOptions
             {
                 MaxConcurrency = _min,

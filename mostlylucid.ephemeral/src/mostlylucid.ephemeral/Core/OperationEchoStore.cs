@@ -39,7 +39,7 @@ internal sealed class OperationEchoStore
     {
         var cutoff = DateTimeOffset.UtcNow - _retention;
 
-        while (_queue.Count > 0)
+        while (!_queue.IsEmpty)
         {
             if (_queue.TryPeek(out var head))
                 if (head.FinalizedAt < cutoff || _queue.Count > _capacity)

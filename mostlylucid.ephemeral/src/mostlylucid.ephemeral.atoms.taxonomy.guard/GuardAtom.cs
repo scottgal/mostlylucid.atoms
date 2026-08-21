@@ -24,12 +24,13 @@ public sealed class GuardAtom<TInput, TOutput> : SignalDrivenAtom<TInput, TOutpu
     public GuardAtom(
         SignalSink signals,
         Func<TInput, CancellationToken, Task<TOutput>> handler,
+        TimeSpan maxBodyDuration,
         AtomContract? contract = null,
         string? outputSignal = null,
         Func<TInput, string?>? keySelector = null,
         EphemeralOptions? options = null,
         bool emitOutputSignals = true)
-        : this(new TypedSignalSink<TOutput>(signals), handler, contract, outputSignal, keySelector, options,
+        : this(new TypedSignalSink<TOutput>(signals), handler, maxBodyDuration, contract, outputSignal, keySelector, options,
             emitOutputSignals)
     {
     }
@@ -47,6 +48,7 @@ public sealed class GuardAtom<TInput, TOutput> : SignalDrivenAtom<TInput, TOutpu
     public GuardAtom(
         TypedSignalSink<TOutput> typedSignals,
         Func<TInput, CancellationToken, Task<TOutput>> handler,
+        TimeSpan maxBodyDuration,
         AtomContract? contract = null,
         string? outputSignal = null,
         Func<TInput, string?>? keySelector = null,
@@ -57,6 +59,7 @@ public sealed class GuardAtom<TInput, TOutput> : SignalDrivenAtom<TInput, TOutpu
                 AtomPersistence.EphemeralOnly),
             typedSignals,
             handler,
+            maxBodyDuration,
             outputSignal,
             keySelector,
             options,

@@ -15,7 +15,7 @@ public sealed class ScheduledTasksAtomTests
         {
             tasks.Add(task);
             await Task.CompletedTask;
-        });
+        }, TimeSpan.FromMinutes(5));
 
         var now = DateTimeOffset.UtcNow;
         var definition = new ScheduledTaskDefinition(

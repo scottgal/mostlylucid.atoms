@@ -25,19 +25,31 @@ public sealed record PriorityLane(
 /// <summary>
 ///     Options for configuring a priority-enabled unkeyed coordinator.
 /// </summary>
+/// <param name="MaxBodyDuration">
+///     Required, no default: forwarded to the underlying EphemeralWorkCoordinator, which owns
+///     the concurrency slot and must bound how long a single body may hold it.
+/// </param>
 public sealed record PriorityWorkCoordinatorOptions<T>(
     Func<T, CancellationToken, Task> Body,
+    TimeSpan MaxBodyDuration,
     IReadOnlyCollection<PriorityLane>? Lanes = null,
-    EphemeralOptions? EphemeralOptions = null);
+    EphemeralOptions? EphemeralOptions = null,
+    TimeProvider? TimeProvider = null);
 
 /// <summary>
 ///     Options for configuring a priority-enabled keyed coordinator.
 /// </summary>
+/// <param name="MaxBodyDuration">
+///     Required, no default: forwarded to the underlying EphemeralKeyedWorkCoordinator, which
+///     owns the concurrency slot and must bound how long a single body may hold it.
+/// </param>
 public sealed record PriorityKeyedWorkCoordinatorOptions<T, TKey>(
     Func<T, TKey> KeySelector,
     Func<T, CancellationToken, Task> Body,
+    TimeSpan MaxBodyDuration,
     IReadOnlyCollection<PriorityLane>? Lanes = null,
-    EphemeralOptions? EphemeralOptions = null) where TKey : notnull;
+    EphemeralOptions? EphemeralOptions = null,
+    TimeProvider? TimeProvider = null) where TKey : notnull;
 
 /// <summary>
 ///     Priority wrapper over EphemeralWorkCoordinator. Higher lanes are always drained before lower lanes.
@@ -70,7 +82,9 @@ public sealed class PriorityWorkCoordinator<T> : IAsyncDisposable
 
         _coordinator = new EphemeralWorkCoordinator<T>(
             options.Body,
-            options.EphemeralOptions ?? new EphemeralOptions());
+            options.MaxBodyDuration,
+            options.EphemeralOptions ?? new EphemeralOptions(),
+            options.TimeProvider);
 
         _pump = Task.Run(PumpAsync);
     }
@@ -318,7 +332,9 @@ public sealed class PriorityKeyedWorkCoordinator<T, TKey> : IAsyncDisposable whe
         _coordinator = new EphemeralKeyedWorkCoordinator<T, TKey>(
             _keySelector,
             options.Body,
-            options.EphemeralOptions ?? new EphemeralOptions());
+            options.MaxBodyDuration,
+            options.EphemeralOptions ?? new EphemeralOptions(),
+            options.TimeProvider);
 
         _pump = Task.Run(PumpAsync);
     }

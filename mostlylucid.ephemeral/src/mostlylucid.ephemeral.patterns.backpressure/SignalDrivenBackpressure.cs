@@ -8,10 +8,12 @@ public static class SignalDrivenBackpressure
     public static EphemeralWorkCoordinator<T> Create<T>(
         Func<T, CancellationToken, Task> body,
         SignalSink sink,
+        TimeSpan maxBodyDuration,
         int maxConcurrency = 4)
     {
         return new EphemeralWorkCoordinator<T>(
             body,
+            maxBodyDuration,
             new EphemeralOptions
             {
                 MaxConcurrency = maxConcurrency,

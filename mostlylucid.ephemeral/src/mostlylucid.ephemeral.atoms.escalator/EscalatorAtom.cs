@@ -27,6 +27,7 @@ public sealed class EscalatorAtom<TPayload> : IAsyncDisposable
         SignalSink signals,
         TypedSignalSink<TPayload> typedSignals,
         IReadOnlyList<EscalationTarget<TPayload>> targets,
+        TimeSpan maxBodyDuration,
         EscalatorAtomOptions<TPayload>? options = null)
     {
         _signals = signals ?? throw new ArgumentNullException(nameof(signals));
@@ -38,6 +39,7 @@ public sealed class EscalatorAtom<TPayload> : IAsyncDisposable
         _options = options ?? new EscalatorAtomOptions<TPayload>();
         _coordinator = new EphemeralWorkCoordinator<SignalEvent<TPayload>>(
             EscalateAsync,
+            maxBodyDuration,
             _options.CoordinatorOptions ?? new EphemeralOptions
             {
                 MaxConcurrency = 1,

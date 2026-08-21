@@ -20,6 +20,7 @@ public class EphemeralKeyedWorkCoordinatorTests
                     order.Add(item);
                 }
             },
+            TimeSpan.FromSeconds(10),
             new EphemeralOptions { MaxConcurrency = 4 });
 
         // Queue items for two different keys
@@ -65,6 +66,7 @@ public class EphemeralKeyedWorkCoordinatorTests
                     activeKeys.Remove(item.Key);
                 }
             },
+            TimeSpan.FromSeconds(10),
             new EphemeralOptions { MaxConcurrency = 4 });
 
         await coordinator.EnqueueAsync(("A", 1));

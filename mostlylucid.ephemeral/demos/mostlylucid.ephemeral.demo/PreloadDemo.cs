@@ -28,6 +28,7 @@ public static class PreloadDemo
         // Create coordinator with Defer/Resume signals
         var coordinator = new EphemeralWorkCoordinator<ImageProcessingJob>(
             ProcessImageAsync,
+            TimeSpan.FromSeconds(30),
             new EphemeralOptions
             {
                 MaxConcurrency = 4,

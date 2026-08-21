@@ -13,6 +13,7 @@ public class EphemeralResultCoordinatorTests
                 await Task.Delay(10, ct);
                 return $"Result:{item}";
             },
+            TimeSpan.FromSeconds(10),
             new EphemeralOptions { MaxConcurrency = 2 });
 
         await coordinator.EnqueueAsync(42);
@@ -34,6 +35,7 @@ public class EphemeralResultCoordinatorTests
                 await Task.Delay(10, ct);
                 return item * 2;
             },
+            TimeSpan.FromSeconds(10),
             new EphemeralOptions { MaxConcurrency = 4 });
 
         for (var i = 1; i <= 5; i++)
@@ -61,6 +63,7 @@ public class EphemeralResultCoordinatorTests
                 if (item == 2) throw new Exception("Test error");
                 return item * 2;
             },
+            TimeSpan.FromSeconds(10),
             new EphemeralOptions { MaxConcurrency = 4 });
 
         await coordinator.EnqueueAsync(1);

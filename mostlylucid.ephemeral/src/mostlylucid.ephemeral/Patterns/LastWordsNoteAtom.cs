@@ -12,7 +12,16 @@ public sealed class LastWordsNoteAtom : IAsyncDisposable
     ///     Creates a note atom. The provided <paramref name="persist" /> callback runs inside an
     ///     <see cref="EphemeralWorkCoordinator{T}" /> with <see cref="EphemeralOptions.MaxConcurrency" /> = 1 by default.
     /// </summary>
-    public LastWordsNoteAtom(Func<LastWordsNote, CancellationToken, Task> persist, EphemeralOptions? options = null)
+    /// <param name="persist">Arbitrary caller-supplied persistence callback.</param>
+    /// <param name="maxPersistDuration">
+    ///     Required, no default: <paramref name="persist" /> is arbitrary caller-supplied work, so
+    ///     the same "one bad item cannot destroy this coordinator" invariant applies here.
+    /// </param>
+    /// <param name="options">Optional coordinator options.</param>
+    public LastWordsNoteAtom(
+        Func<LastWordsNote, CancellationToken, Task> persist,
+        TimeSpan maxPersistDuration,
+        EphemeralOptions? options = null)
     {
         if (persist is null) throw new ArgumentNullException(nameof(persist));
 
@@ -24,7 +33,7 @@ public sealed class LastWordsNoteAtom : IAsyncDisposable
         };
 
         // Ensure serialization
-        _coordinator = new EphemeralWorkCoordinator<LastWordsNote>(persist, coordinatorOptions);
+        _coordinator = new EphemeralWorkCoordinator<LastWordsNote>(persist, maxPersistDuration, coordinatorOptions);
     }
 
     /// <summary>

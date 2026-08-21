@@ -9,7 +9,8 @@ public static class SignalCoordinatedReads
     private const string UpdateSignal = "update.in-progress";
     private const string UpdateClearedSignal = "update.done";
 
-    public static async Task<Result> RunAsync(int readCount = 10, int updateCount = 1, CancellationToken ct = default)
+    public static async Task<Result> RunAsync(TimeSpan maxBodyDuration, int readCount = 10, int updateCount = 1,
+        CancellationToken ct = default)
     {
         var sink = new SignalSink(128, TimeSpan.FromSeconds(5));
         var reads = 0;
@@ -24,6 +25,7 @@ public static class SignalCoordinatedReads
                 await Task.Delay(5, token).ConfigureAwait(false);
                 Interlocked.Increment(ref reads);
             },
+            maxBodyDuration,
             new EphemeralOptions
             {
                 MaxConcurrency = 4,
@@ -43,6 +45,7 @@ public static class SignalCoordinatedReads
                     DateTimeOffset.UtcNow));
                 Interlocked.Increment(ref updates);
             },
+            maxBodyDuration,
             new EphemeralOptions
             {
                 MaxConcurrency = 1,

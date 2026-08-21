@@ -27,7 +27,6 @@
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
         <PackageReference Include="Microsoft.Data.Sqlite" />
         <PackageReference Include="Dapper" />
-        <PackageReference Include="Polly" />
         <PackageReference Include="RazorSlices" />
         <ProjectReference Include="..\..\..\mostlylucid.ephemeral\src\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj" />
         <ProjectReference Include="..\..\..\mostlylucid.ephemeral\src\mostlylucid.ephemeral.atoms.smtp\mostlylucid.ephemeral.atoms.smtp.csproj" />

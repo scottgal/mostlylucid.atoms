@@ -18,6 +18,7 @@ public class EphemeralWorkCoordinatorTests
 
                 await Task.Delay(10, ct);
             },
+            TimeSpan.FromSeconds(10),
             new EphemeralOptions { MaxConcurrency = 2 });
 
         await coordinator.EnqueueAsync(1);
@@ -55,6 +56,7 @@ public class EphemeralWorkCoordinatorTests
                     running--;
                 }
             },
+            TimeSpan.FromSeconds(10),
             new EphemeralOptions { MaxConcurrency = 2 });
 
         for (var i = 0; i < 10; i++)
@@ -72,6 +74,7 @@ public class EphemeralWorkCoordinatorTests
         var tcs = new TaskCompletionSource();
         await using var coordinator = new EphemeralWorkCoordinator<int>(
             async (item, ct) => await tcs.Task,
+            TimeSpan.FromSeconds(10),
             new EphemeralOptions { MaxConcurrency = 2 });
 
         await coordinator.EnqueueAsync(1);
@@ -92,6 +95,7 @@ public class EphemeralWorkCoordinatorTests
     {
         await using var coordinator = new EphemeralWorkCoordinator<int>(
             async (_, ct) => await Task.Delay(10, ct),
+            TimeSpan.FromSeconds(10),
             new EphemeralOptions { MaxConcurrency = 1, EnableDynamicConcurrency = true });
 
         Assert.Equal(1, coordinator.CurrentMaxConcurrency);
@@ -117,6 +121,7 @@ public class EphemeralWorkCoordinatorTests
 
                 await Task.Delay(10, ct);
             },
+            TimeSpan.FromSeconds(10),
             new EphemeralOptions { MaxConcurrency = 1 });
 
         await coordinator.EnqueueAsync(1);

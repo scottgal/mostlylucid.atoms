@@ -27,6 +27,7 @@ public abstract class SignalDrivenAtom<TInput, TOutput> : IAsyncDisposable
         AtomContract contract,
         TypedSignalSink<TOutput> typedSignals,
         Func<TInput, CancellationToken, Task<TOutput>> handler,
+        TimeSpan maxBodyDuration,
         string? outputSignal = null,
         Func<TInput, string?>? keySelector = null,
         EphemeralOptions? options = null,
@@ -42,7 +43,8 @@ public abstract class SignalDrivenAtom<TInput, TOutput> : IAsyncDisposable
                 : outputSignal
             : null;
 
-        _coordinator = new EphemeralWorkCoordinator<TInput>(ProcessAsync, options ?? new EphemeralOptions());
+        _coordinator = new EphemeralWorkCoordinator<TInput>(ProcessAsync, maxBodyDuration,
+            options ?? new EphemeralOptions());
     }
 
     /// <summary>

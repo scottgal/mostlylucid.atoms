@@ -10,7 +10,7 @@ public class ExtractorAtomTests
         var sink = new SignalSink();
         var typed = new TypedSignalSink<int>(sink);
 
-        await using var atom = new ExtractorAtom<int, int>(typed, Handler);
+        await using var atom = new ExtractorAtom<int, int>(typed, Handler, maxBodyDuration: TimeSpan.FromSeconds(30));
 
         Assert.Equal(AtomKind.Extractor, atom.Contract.Kind);
         Assert.Equal(AtomDeterminism.Deterministic, atom.Contract.Determinism);
@@ -23,7 +23,7 @@ public class ExtractorAtomTests
         var sink = new SignalSink();
         var typed = new TypedSignalSink<int>(sink);
 
-        await using var atom = new ExtractorAtom<int, int>(typed, Handler);
+        await using var atom = new ExtractorAtom<int, int>(typed, Handler, maxBodyDuration: TimeSpan.FromSeconds(30));
 
         var expected = "atom.extractor.output";
         Assert.Equal(expected, atom.OutputSignal);
@@ -37,7 +37,7 @@ public class ExtractorAtomTests
         var tcs = new TaskCompletionSource<SignalEvent<int>>(TaskCreationOptions.RunContinuationsAsynchronously);
         typed.TypedSignalRaised += evt => tcs.TrySetResult(evt);
 
-        await using var atom = new ExtractorAtom<int, int>(typed, Handler, outputSignal: "extractor.output");
+        await using var atom = new ExtractorAtom<int, int>(typed, Handler, maxBodyDuration: TimeSpan.FromSeconds(30), outputSignal: "extractor.output");
         var result = await atom.RunAsync(5);
 
         Assert.Equal(6, result);
@@ -57,6 +57,7 @@ public class ExtractorAtomTests
         await using var atom = new ExtractorAtom<int, int>(
             typed,
             Handler,
+            maxBodyDuration: TimeSpan.FromSeconds(30),
             outputSignal: "extractor.output",
             keySelector: value => $"key-{value}");
 
@@ -73,7 +74,7 @@ public class ExtractorAtomTests
         var tcs = new TaskCompletionSource<SignalEvent<int>>(TaskCreationOptions.RunContinuationsAsynchronously);
         typed.TypedSignalRaised += evt => tcs.TrySetResult(evt);
 
-        await using var atom = new ExtractorAtom<int, int>(typed, Handler, emitOutputSignals: false);
+        await using var atom = new ExtractorAtom<int, int>(typed, Handler, maxBodyDuration: TimeSpan.FromSeconds(30), emitOutputSignals: false);
         await atom.RunAsync(1);
 
         await Task.Delay(100);

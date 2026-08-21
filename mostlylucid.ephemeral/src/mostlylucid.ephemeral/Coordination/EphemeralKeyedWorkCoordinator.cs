@@ -20,6 +20,7 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
     private readonly OperationEchoStore? _echoStore;
     private readonly IConcurrencyGate _globalConcurrency;
     private readonly Func<T, TKey> _keySelector;
+    private readonly TimeSpan _maxBodyDuration;
     private readonly EphemeralOptions _options;
     private readonly ManualResetEventSlim _pauseGate = new(true);
     private readonly ConcurrentDictionary<TKey, KeyLock> _perKeyLocks;
@@ -27,6 +28,7 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
     private readonly Task _processingTask;
     private readonly ConcurrentQueue<EphemeralOperation> _recent;
     private readonly Task? _sourceConsumerTask;
+    private readonly TimeProvider _timeProvider;
     private readonly object _windowLock = new();
     private int _activeTaskCount;
     private bool _channelIterationComplete;
@@ -39,13 +41,29 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
     private int _totalEnqueued;
     private int _totalFailed;
 
+    /// <param name="keySelector">Extracts the per-item key.</param>
+    /// <param name="body">The work to run per item.</param>
+    /// <param name="maxBodyDuration">
+    ///     Required, no default: the coordinator owns the concurrency slot, so "one bad item
+    ///     cannot destroy this coordinator" is an invariant it must hold itself. State the bound
+    ///     explicitly; there is no safe implicit default.
+    /// </param>
+    /// <param name="options">Optional coordinator options.</param>
+    /// <param name="timeProvider">Optional clock; defaults to <see cref="TimeProvider.System"/>.</param>
     public EphemeralKeyedWorkCoordinator(
         Func<T, TKey> keySelector,
         Func<T, CancellationToken, Task> body,
-        EphemeralOptions? options = null)
+        TimeSpan maxBodyDuration,
+        EphemeralOptions? options = null,
+        TimeProvider? timeProvider = null)
     {
         _keySelector = keySelector ?? throw new ArgumentNullException(nameof(keySelector));
         _body = body ?? throw new ArgumentNullException(nameof(body));
+        if (maxBodyDuration <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(maxBodyDuration), maxBodyDuration,
+                "Must be a positive duration.");
+        _maxBodyDuration = maxBodyDuration;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _options = options ?? new EphemeralOptions();
         _cts = new CancellationTokenSource();
         _recent = new ConcurrentQueue<EphemeralOperation>();
@@ -70,10 +88,17 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
         IAsyncEnumerable<T> source,
         Func<T, TKey> keySelector,
         Func<T, CancellationToken, Task> body,
-        EphemeralOptions? options)
+        TimeSpan maxBodyDuration,
+        EphemeralOptions? options,
+        TimeProvider? timeProvider)
     {
         _keySelector = keySelector ?? throw new ArgumentNullException(nameof(keySelector));
         _body = body ?? throw new ArgumentNullException(nameof(body));
+        if (maxBodyDuration <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(maxBodyDuration), maxBodyDuration,
+                "Must be a positive duration.");
+        _maxBodyDuration = maxBodyDuration;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _options = options ?? new EphemeralOptions();
         _cts = new CancellationTokenSource();
         _recent = new ConcurrentQueue<EphemeralOperation>();
@@ -212,9 +237,12 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
         IAsyncEnumerable<T> source,
         Func<T, TKey> keySelector,
         Func<T, CancellationToken, Task> body,
-        EphemeralOptions? options = null)
+        TimeSpan maxBodyDuration,
+        EphemeralOptions? options = null,
+        TimeProvider? timeProvider = null)
     {
-        return new EphemeralKeyedWorkCoordinator<T, TKey>(source, keySelector, body, options);
+        return new EphemeralKeyedWorkCoordinator<T, TKey>(source, keySelector, body, maxBodyDuration, options,
+            timeProvider);
     }
 
     public void Pause()
@@ -631,8 +659,15 @@ public sealed class EphemeralKeyedWorkCoordinator<T, TKey> : IAsyncDisposable, I
     {
         try
         {
-            await _body(item, _cts.Token).ConfigureAwait(false);
+            await BodyDurationGuard.RunBoundedAsync(item, _body, _maxBodyDuration, _timeProvider, _cts.Token)
+                .ConfigureAwait(false);
             Interlocked.Increment(ref _totalCompleted);
+        }
+        catch (BodyDurationExceededException ex) when (!_cts.Token.IsCancellationRequested)
+        {
+            op.Error = ex;
+            op.Signal(BodyDurationGuard.TimeoutSignal);
+            Interlocked.Increment(ref _totalFailed);
         }
         catch (Exception ex) when (!_cts.Token.IsCancellationRequested)
         {

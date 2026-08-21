@@ -86,6 +86,7 @@ public static class DynamicWorkflowDemo
                     }
                 }
             },
+            TimeSpan.FromSeconds(30),
             new EphemeralOptions
             {
                 MaxConcurrency = 4,
@@ -111,6 +112,7 @@ public static class DynamicWorkflowDemo
                     globalSink.Raise($"processing.failed:pri2:{widgetId}");
                 }
             },
+            TimeSpan.FromSeconds(30),
             new EphemeralOptions
             {
                 MaxConcurrency = 4,
@@ -132,6 +134,7 @@ public static class DynamicWorkflowDemo
                 else
                     await processor2.EnqueueAsync(widgetId);
             },
+            TimeSpan.FromSeconds(30),
             new EphemeralOptions
             {
                 MaxConcurrency = 16, // Router is fast

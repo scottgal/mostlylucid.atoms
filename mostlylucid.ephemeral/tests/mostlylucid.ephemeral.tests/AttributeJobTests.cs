@@ -205,7 +205,7 @@ public class AttributeJobTests
     {
         var sink = new SignalSink();
         var target = new LaneHandler();
-        await using var runner = new EphemeralSignalJobRunner(sink, new[] { target });
+        await using var runner = new EphemeralSignalJobRunner(sink, new[] { target }, TimeSpan.FromMinutes(5));
 
         Assert.Contains("fast", runner.Lanes);
         Assert.Contains("slow", runner.Lanes);
@@ -221,7 +221,7 @@ public class AttributeJobTests
     {
         var sink = new SignalSink();
         var target = new TestJobHandler();
-        await using var runner = new EphemeralSignalJobRunner(sink, new[] { target });
+        await using var runner = new EphemeralSignalJobRunner(sink, new[] { target }, TimeSpan.FromMinutes(5));
 
         sink.Raise("order.created", "order-1");
 
@@ -235,7 +235,7 @@ public class AttributeJobTests
     {
         var sink = new SignalSink();
         var target = new SignalEmittingHandler();
-        await using var runner = new EphemeralSignalJobRunner(sink, new[] { target });
+        await using var runner = new EphemeralSignalJobRunner(sink, new[] { target }, TimeSpan.FromMinutes(5));
 
         sink.Raise("work.start");
 
@@ -250,7 +250,7 @@ public class AttributeJobTests
     {
         var sink = new SignalSink();
         var target = new RetryHandler();
-        await using var runner = new EphemeralSignalJobRunner(sink, new[] { target });
+        await using var runner = new EphemeralSignalJobRunner(sink, new[] { target }, TimeSpan.FromMinutes(5));
 
         sink.Raise("flaky.operation");
 
@@ -265,7 +265,7 @@ public class AttributeJobTests
     {
         var sink = new SignalSink();
         var target = new AlwaysFailsHandler();
-        await using var runner = new EphemeralSignalJobRunner(sink, new[] { target });
+        await using var runner = new EphemeralSignalJobRunner(sink, new[] { target }, TimeSpan.FromMinutes(5));
 
         sink.Raise("doomed.operation");
 

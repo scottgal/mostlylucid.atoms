@@ -11,7 +11,14 @@ public sealed class OperationEchoAtom<TPayload> : IAsyncDisposable
     /// <summary>
     ///     Creates an atom that logs echoes via the provided persist callback.
     /// </summary>
+    /// <param name="persist">Arbitrary caller-supplied persistence callback.</param>
+    /// <param name="maxPersistDuration">
+    ///     Required, no default: <paramref name="persist" /> is arbitrary caller-supplied work, so
+    ///     the same "one bad item cannot destroy this coordinator" invariant applies here.
+    /// </param>
+    /// <param name="options">Optional coordinator options.</param>
     public OperationEchoAtom(Func<OperationEchoEntry<TPayload>, CancellationToken, Task> persist,
+        TimeSpan maxPersistDuration,
         EphemeralOptions? options = null)
     {
         if (persist is null) throw new ArgumentNullException(nameof(persist));
@@ -23,7 +30,8 @@ public sealed class OperationEchoAtom<TPayload> : IAsyncDisposable
             MaxOperationLifetime = TimeSpan.FromSeconds(30)
         };
 
-        _coordinator = new EphemeralWorkCoordinator<OperationEchoEntry<TPayload>>(persist, coordinatorOptions);
+        _coordinator = new EphemeralWorkCoordinator<OperationEchoEntry<TPayload>>(persist, maxPersistDuration,
+            coordinatorOptions);
     }
 
     /// <summary>

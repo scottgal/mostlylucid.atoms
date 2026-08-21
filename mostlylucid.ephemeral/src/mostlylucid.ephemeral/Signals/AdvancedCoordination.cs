@@ -185,9 +185,17 @@ public sealed class EarlyExitResultCoordinator<TInput, TResult> : IAsyncDisposab
     private readonly IDisposable _subscription;
     private volatile bool _earlyExited;
 
+    /// <param name="body">Arbitrary caller-supplied work.</param>
+    /// <param name="exitOptions">Early-exit configuration.</param>
+    /// <param name="maxBodyDuration">
+    ///     Required, no default: <paramref name="body" /> is arbitrary caller-supplied work, so the
+    ///     same "one bad item cannot destroy this coordinator" invariant applies here.
+    /// </param>
+    /// <param name="options">Optional coordinator options.</param>
     public EarlyExitResultCoordinator(
         Func<TInput, CancellationToken, Task<TResult>> body,
         EarlyExitOptions<TInput, TResult> exitOptions,
+        TimeSpan maxBodyDuration,
         EphemeralOptions? options = null)
     {
         _exitOptions = exitOptions ?? throw new ArgumentNullException(nameof(exitOptions));
@@ -221,7 +229,7 @@ public sealed class EarlyExitResultCoordinator<TInput, TResult> : IAsyncDisposab
                 MaxDeferAttempts = opts.MaxDeferAttempts
             };
 
-        _inner = new EphemeralResultCoordinator<TInput, TResult>(body, opts);
+        _inner = new EphemeralResultCoordinator<TInput, TResult>(body, maxBodyDuration, opts);
         _subscription = _sink.Subscribe(OnSignal);
     }
 

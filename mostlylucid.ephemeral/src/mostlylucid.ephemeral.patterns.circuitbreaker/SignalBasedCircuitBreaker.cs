@@ -3,6 +3,12 @@ namespace Mostlylucid.Ephemeral.Patterns.CircuitBreaker;
 /// <summary>
 ///     Circuit breaker that uses the ephemeral signal window instead of maintaining its own state.
 ///     The circuit breaker has no state of its own - it just reads the ephemeral window.
+///     Two data sources are supported: an EphemeralWorkCoordinator's per-operation signal window
+///     (for signals raised via <c>op.Signal(...)</c> inside a body that receives the operation),
+///     and a raw SignalSink (for atoms like RetryAtom whose body signature has no access to the
+///     operation object and can only raise directly on the sink). These are genuinely different
+///     stores — a signal raised straight on a sink does not appear in any operation's own signal
+///     list — so both overloads are needed rather than one silently missing the other's failures.
 /// </summary>
 public class SignalBasedCircuitBreaker
 {
@@ -21,48 +27,94 @@ public class SignalBasedCircuitBreaker
     }
 
     /// <summary>
-    ///     Check if the circuit is open (too many recent failures).
+    ///     Check if the circuit is open (too many recent failures) based on a coordinator's
+    ///     per-operation signal window.
     /// </summary>
     public bool IsOpen<T>(EphemeralWorkCoordinator<T> coordinator)
     {
-        var recentFailures = coordinator.GetSignalsSince(
-            DateTimeOffset.UtcNow - _windowSize);
-
-        return recentFailures.Count(s => s.Signal == _failureSignal) >= _threshold;
+        return CountMatching(coordinator.GetSignalsSince(CutoffNow()), _failureSignal) >= _threshold;
     }
 
     /// <summary>
-    ///     Check if the circuit is open using pattern matching.
+    ///     Check if the circuit is open (too many recent failures) based on a raw SignalSink —
+    ///     for atoms that raise failure signals directly on the sink rather than through an
+    ///     EphemeralOperation.
+    /// </summary>
+    public bool IsOpen(SignalSink sink)
+    {
+        return CountMatching(sink.Sense(e => e.Timestamp >= CutoffNow()), _failureSignal) >= _threshold;
+    }
+
+    /// <summary>
+    ///     Check if the circuit is open using pattern matching, against a coordinator's
+    ///     per-operation signal window.
     /// </summary>
     public bool IsOpenMatching<T>(EphemeralWorkCoordinator<T> coordinator, string pattern)
     {
-        var recentSignals = coordinator.GetSignalsSince(
-            DateTimeOffset.UtcNow - _windowSize);
-
-        return recentSignals.Count(s => StringPatternMatcher.Matches(s.Signal, pattern)) >= _threshold;
+        return CountMatchingPattern(coordinator.GetSignalsSince(CutoffNow()), pattern) >= _threshold;
     }
 
     /// <summary>
-    ///     Get the current failure count in the window.
+    ///     Check if the circuit is open using pattern matching, against a raw SignalSink.
+    /// </summary>
+    public bool IsOpenMatching(SignalSink sink, string pattern)
+    {
+        return CountMatchingPattern(sink.Sense(e => e.Timestamp >= CutoffNow()), pattern) >= _threshold;
+    }
+
+    /// <summary>
+    ///     Get the current failure count in the window, from a coordinator's per-operation signal
+    ///     window.
     /// </summary>
     public int GetFailureCount<T>(EphemeralWorkCoordinator<T> coordinator)
     {
-        var recentFailures = coordinator.GetSignalsSince(
-            DateTimeOffset.UtcNow - _windowSize);
-
-        return recentFailures.Count(s => s.Signal == _failureSignal);
+        return CountMatching(coordinator.GetSignalsSince(CutoffNow()), _failureSignal);
     }
 
     /// <summary>
-    ///     Get the time until the circuit might close (based on oldest failure aging out).
+    ///     Get the current failure count in the window, from a raw SignalSink.
+    /// </summary>
+    public int GetFailureCount(SignalSink sink)
+    {
+        return CountMatching(sink.Sense(e => e.Timestamp >= CutoffNow()), _failureSignal);
+    }
+
+    /// <summary>
+    ///     Get the time until the circuit might close (based on oldest failure aging out), from a
+    ///     coordinator's per-operation signal window.
     /// </summary>
     public TimeSpan? GetTimeUntilClose<T>(EphemeralWorkCoordinator<T> coordinator)
     {
-        if (!IsOpen(coordinator))
-            return null;
+        return TimeUntilClose(coordinator.GetSignalsSince(CutoffNow()));
+    }
 
-        var cutoff = DateTimeOffset.UtcNow - _windowSize;
-        var recentFailures = coordinator.GetSignalsSince(cutoff)
+    /// <summary>
+    ///     Get the time until the circuit might close (based on oldest failure aging out), from a
+    ///     raw SignalSink.
+    /// </summary>
+    public TimeSpan? GetTimeUntilClose(SignalSink sink)
+    {
+        return TimeUntilClose(sink.Sense(e => e.Timestamp >= CutoffNow()));
+    }
+
+    private DateTimeOffset CutoffNow()
+    {
+        return DateTimeOffset.UtcNow - _windowSize;
+    }
+
+    private static int CountMatching(IReadOnlyList<SignalEvent> signals, string signal)
+    {
+        return signals.Count(s => s.Signal == signal);
+    }
+
+    private static int CountMatchingPattern(IReadOnlyList<SignalEvent> signals, string pattern)
+    {
+        return signals.Count(s => StringPatternMatcher.Matches(s.Signal, pattern));
+    }
+
+    private TimeSpan? TimeUntilClose(IReadOnlyList<SignalEvent> signalsInWindow)
+    {
+        var recentFailures = signalsInWindow
             .Where(s => s.Signal == _failureSignal)
             .OrderBy(s => s.Timestamp)
             .ToList();

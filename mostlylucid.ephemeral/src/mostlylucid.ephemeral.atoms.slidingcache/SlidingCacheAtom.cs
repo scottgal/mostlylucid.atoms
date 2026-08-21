@@ -54,8 +54,13 @@ public sealed class SlidingCacheAtom<TKey, TResult> : IAsyncDisposable where TKe
     ///     (surfaced as a <c>cache.evict.callback.error</c> signal) so one failure never stops eviction.
     ///     Not fired on explicit <see cref="Invalidate"/> / <see cref="Clear"/> (deliberate management, not death).
     /// </param>
+    /// <param name="maxFactoryDuration">
+    ///     Required, no default: <paramref name="factory" /> is arbitrary caller-supplied work, so
+    ///     the same "one bad item cannot destroy this coordinator" invariant applies here.
+    /// </param>
     public SlidingCacheAtom(
         Func<TKey, CancellationToken, Task<TResult>> factory,
+        TimeSpan maxFactoryDuration,
         TimeSpan? slidingExpiration = null,
         TimeSpan? absoluteExpiration = null,
         int maxSize = 1000,
@@ -79,6 +84,7 @@ public sealed class SlidingCacheAtom<TKey, TResult> : IAsyncDisposable where TKe
 
         _coordinator = new EphemeralWorkCoordinator<CacheRequest>(
             ProcessRequestAsync,
+            maxFactoryDuration,
             new EphemeralOptions
             {
                 MaxConcurrency = maxConcurrency ?? Environment.ProcessorCount,

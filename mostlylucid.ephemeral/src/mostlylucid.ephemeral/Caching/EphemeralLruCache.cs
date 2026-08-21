@@ -41,6 +41,10 @@ public sealed class EphemeralLruCache<TKey, TValue> : IAsyncDisposable where TKe
 
                 return Task.CompletedTask;
             },
+            // Fixed internal body (dictionary removal + signal raise), not caller-supplied work,
+            // so a generous explicit literal is a deliberate call-site choice, not a hidden
+            // library default.
+            TimeSpan.FromSeconds(5),
             new EphemeralOptions
             {
                 MaxConcurrency = 1, // Single eviction thread

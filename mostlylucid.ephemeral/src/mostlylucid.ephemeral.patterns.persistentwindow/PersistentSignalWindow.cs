@@ -31,8 +31,13 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
     /// <param name="maxWindowSize">Max signals in memory (default: 10000)</param>
     /// <param name="windowMaxAge">Max age of signals in memory (default: 10 minutes)</param>
     /// <param name="sampleRate">Signal sampling for diagnostics (default: 10)</param>
+    /// <param name="maxWriteDuration">
+    ///     Required, no default: the write coordinator owns the concurrency slot and must bound how
+    ///     long a single flush write may hold it.
+    /// </param>
     public PersistentSignalWindow(
         string connectionString,
+        TimeSpan maxWriteDuration,
         TimeSpan? flushInterval = null,
         int maxSignalsPerFlush = 1000,
         int maxWindowSize = 10000,
@@ -51,6 +56,7 @@ public sealed class PersistentSignalWindow : IAsyncDisposable
         // Single-writer for SQLite
         _writeCoordinator = new EphemeralWorkCoordinator<PersistCommand>(
             ExecuteCommandAsync,
+            maxWriteDuration,
             new EphemeralOptions
             {
                 MaxConcurrency = 1,

@@ -26,6 +26,8 @@ public sealed class ReactiveFanOutPipeline<T> : IAsyncDisposable
 
     public ReactiveFanOutPipeline(
         Func<T, CancellationToken, Task> stage2Work,
+        TimeSpan maxStage1Duration,
+        TimeSpan maxStage2Duration,
         Func<T, CancellationToken, Task>? preStageWork = null,
         int stage1MaxConcurrency = 8,
         int stage1MinConcurrency = 1,
@@ -67,6 +69,7 @@ public sealed class ReactiveFanOutPipeline<T> : IAsyncDisposable
                     throw;
                 }
             },
+            maxStage2Duration,
             new EphemeralOptions
             {
                 MaxConcurrency = stage2MaxConcurrency,
@@ -81,6 +84,7 @@ public sealed class ReactiveFanOutPipeline<T> : IAsyncDisposable
                 await _stage2.EnqueueAsync(item, ct).ConfigureAwait(false);
                 MaybeAdjustConcurrency();
             },
+            maxStage1Duration,
             new EphemeralOptions
             {
                 MaxConcurrency = stage1MaxConcurrency,

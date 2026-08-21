@@ -35,8 +35,8 @@ public sealed class FileDataStorageAtom<TKey, TValue> : DataStorageAtomBase<TKey
     private readonly FileDataStorageConfig _fileConfig;
     private readonly JsonSerializerOptions _jsonOptions;
 
-    public FileDataStorageAtom(SignalSink signals, FileDataStorageConfig config)
-        : base(signals, config)
+    public FileDataStorageAtom(SignalSink signals, FileDataStorageConfig config, TimeSpan maxBodyDuration)
+        : base(signals, config, maxBodyDuration)
     {
         _fileConfig = config;
         _jsonOptions = config.JsonOptions ?? new JsonSerializerOptions
@@ -52,12 +52,13 @@ public sealed class FileDataStorageAtom<TKey, TValue> : DataStorageAtomBase<TKey
     /// <summary>
     ///     Creates a file storage atom with default configuration.
     /// </summary>
-    public FileDataStorageAtom(SignalSink signals, string databaseName, string basePath = "./data")
+    public FileDataStorageAtom(SignalSink signals, string databaseName, TimeSpan maxBodyDuration,
+        string basePath = "./data")
         : this(signals, new FileDataStorageConfig
         {
             DatabaseName = databaseName,
             BasePath = basePath
-        })
+        }, maxBodyDuration)
     {
     }
 

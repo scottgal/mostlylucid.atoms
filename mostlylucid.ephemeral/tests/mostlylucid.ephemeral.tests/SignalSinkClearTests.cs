@@ -145,6 +145,7 @@ public class SignalSinkClearTests
                 // Note: We can't emit signals directly in the body without using EphemeralOperation
                 // This test may need to be adjusted or removed as it requires the operation context
             },
+            TimeSpan.FromSeconds(10),
             new EphemeralOptions
             {
                 Signals = sink,
@@ -174,6 +175,7 @@ public class SignalSinkClearTests
 
         await using var coordinator = new EphemeralWorkCoordinator<int>(
             async (item, ct) => { await Task.Delay(10); },
+            TimeSpan.FromSeconds(10),
             new EphemeralOptions
             {
                 Signals = sink,

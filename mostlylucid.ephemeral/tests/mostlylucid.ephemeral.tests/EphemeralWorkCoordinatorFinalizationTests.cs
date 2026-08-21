@@ -14,6 +14,7 @@ public class EphemeralWorkCoordinatorFinalizationTests
 
         await using var coordinator = new EphemeralWorkCoordinator<int>(
             (item, ct) => Task.CompletedTask,
+            TimeSpan.FromSeconds(10),
             options);
 
         var tcs = new TaskCompletionSource<EphemeralOperationSnapshot>();

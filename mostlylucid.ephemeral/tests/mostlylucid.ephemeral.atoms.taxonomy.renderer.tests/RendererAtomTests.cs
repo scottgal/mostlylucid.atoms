@@ -10,7 +10,7 @@ public class RendererAtomTests
         var sink = new SignalSink();
         var typed = new TypedSignalSink<int>(sink);
 
-        await using var atom = new RendererAtom<int, int>(typed, Handler);
+        await using var atom = new RendererAtom<int, int>(typed, Handler, maxBodyDuration: TimeSpan.FromSeconds(30));
 
         Assert.Equal(AtomKind.Renderer, atom.Contract.Kind);
         Assert.Equal(AtomDeterminism.Deterministic, atom.Contract.Determinism);
@@ -23,7 +23,7 @@ public class RendererAtomTests
         var sink = new SignalSink();
         var typed = new TypedSignalSink<int>(sink);
 
-        await using var atom = new RendererAtom<int, int>(typed, Handler);
+        await using var atom = new RendererAtom<int, int>(typed, Handler, maxBodyDuration: TimeSpan.FromSeconds(30));
 
         var expected = "atom.renderer.output";
         Assert.Equal(expected, atom.OutputSignal);
@@ -37,7 +37,7 @@ public class RendererAtomTests
         var tcs = new TaskCompletionSource<SignalEvent<int>>(TaskCreationOptions.RunContinuationsAsynchronously);
         typed.TypedSignalRaised += evt => tcs.TrySetResult(evt);
 
-        await using var atom = new RendererAtom<int, int>(typed, Handler, outputSignal: "renderer.output");
+        await using var atom = new RendererAtom<int, int>(typed, Handler, maxBodyDuration: TimeSpan.FromSeconds(30), outputSignal: "renderer.output");
         var result = await atom.RunAsync(5);
 
         Assert.Equal(6, result);
@@ -57,6 +57,7 @@ public class RendererAtomTests
         await using var atom = new RendererAtom<int, int>(
             typed,
             Handler,
+            maxBodyDuration: TimeSpan.FromSeconds(30),
             outputSignal: "renderer.output",
             keySelector: value => $"key-{value}");
 
@@ -73,7 +74,7 @@ public class RendererAtomTests
         var tcs = new TaskCompletionSource<SignalEvent<int>>(TaskCreationOptions.RunContinuationsAsynchronously);
         typed.TypedSignalRaised += evt => tcs.TrySetResult(evt);
 
-        await using var atom = new RendererAtom<int, int>(typed, Handler, emitOutputSignals: false);
+        await using var atom = new RendererAtom<int, int>(typed, Handler, maxBodyDuration: TimeSpan.FromSeconds(30), emitOutputSignals: false);
         await atom.RunAsync(1);
 
         await Task.Delay(100);

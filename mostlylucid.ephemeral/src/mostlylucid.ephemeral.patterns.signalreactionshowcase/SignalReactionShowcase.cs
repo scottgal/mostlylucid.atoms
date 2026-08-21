@@ -5,7 +5,8 @@ namespace Mostlylucid.Ephemeral.Patterns.SignalReactionShowcase;
 /// </summary>
 public static class SignalReactionShowcase
 {
-    public static async Task<Result> RunAsync(int itemCount = 8, CancellationToken ct = default)
+    public static async Task<Result> RunAsync(TimeSpan maxBodyDuration, int itemCount = 8,
+        CancellationToken ct = default)
     {
         if (itemCount <= 0) throw new ArgumentOutOfRangeException(nameof(itemCount));
 
@@ -14,7 +15,7 @@ public static class SignalReactionShowcase
         var dispatchedHits = 0;
 
         // Async fan-out so signal handling stays off the hot path.
-        await using var dispatcher = new SignalDispatcher(new EphemeralOptions
+        await using var dispatcher = new SignalDispatcher(maxBodyDuration, new EphemeralOptions
             { MaxTrackedOperations = itemCount * 4, MaxConcurrency = 4 });
         dispatcher.Register("stage.done:*", evt =>
         {
@@ -39,6 +40,7 @@ public static class SignalReactionShowcase
                 sink.Raise(done);
                 dispatcher.Dispatch(done);
             },
+            maxBodyDuration,
             new EphemeralOptions
             {
                 MaxConcurrency = Math.Min(Environment.ProcessorCount, 8)

@@ -46,6 +46,7 @@ public static class QuickDynamicWorkflowTest
                     }
                 }
             },
+            TimeSpan.FromSeconds(30),
             new EphemeralOptions { MaxConcurrency = 4, Signals = globalSink }
         );
 
@@ -61,6 +62,7 @@ public static class QuickDynamicWorkflowTest
                 else
                     globalSink.Raise($"processing.failed:pri2:{widgetId}");
             },
+            TimeSpan.FromSeconds(30),
             new EphemeralOptions { MaxConcurrency = 4, Signals = globalSink }
         );
 
@@ -75,6 +77,7 @@ public static class QuickDynamicWorkflowTest
                 else
                     await processor2.EnqueueAsync(widgetId);
             },
+            TimeSpan.FromSeconds(30),
             new EphemeralOptions { MaxConcurrency = 16, Signals = globalSink }
         );
 

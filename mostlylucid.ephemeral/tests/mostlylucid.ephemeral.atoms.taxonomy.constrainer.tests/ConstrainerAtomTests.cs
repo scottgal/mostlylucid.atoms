@@ -10,7 +10,7 @@ public class ConstrainerAtomTests
         var sink = new SignalSink();
         var typed = new TypedSignalSink<int>(sink);
 
-        await using var atom = new ConstrainerAtom<int, int>(typed, Handler);
+        await using var atom = new ConstrainerAtom<int, int>(typed, Handler, maxBodyDuration: TimeSpan.FromSeconds(30));
 
         Assert.Equal(AtomKind.Constrainer, atom.Contract.Kind);
         Assert.Equal(AtomDeterminism.Deterministic, atom.Contract.Determinism);
@@ -23,7 +23,7 @@ public class ConstrainerAtomTests
         var sink = new SignalSink();
         var typed = new TypedSignalSink<int>(sink);
 
-        await using var atom = new ConstrainerAtom<int, int>(typed, Handler);
+        await using var atom = new ConstrainerAtom<int, int>(typed, Handler, maxBodyDuration: TimeSpan.FromSeconds(30));
 
         var expected = "atom.constrainer.output";
         Assert.Equal(expected, atom.OutputSignal);
@@ -37,7 +37,7 @@ public class ConstrainerAtomTests
         var tcs = new TaskCompletionSource<SignalEvent<int>>(TaskCreationOptions.RunContinuationsAsynchronously);
         typed.TypedSignalRaised += evt => tcs.TrySetResult(evt);
 
-        await using var atom = new ConstrainerAtom<int, int>(typed, Handler, outputSignal: "constrainer.output");
+        await using var atom = new ConstrainerAtom<int, int>(typed, Handler, maxBodyDuration: TimeSpan.FromSeconds(30), outputSignal: "constrainer.output");
         var result = await atom.RunAsync(5);
 
         Assert.Equal(6, result);
@@ -57,6 +57,7 @@ public class ConstrainerAtomTests
         await using var atom = new ConstrainerAtom<int, int>(
             typed,
             Handler,
+            maxBodyDuration: TimeSpan.FromSeconds(30),
             outputSignal: "constrainer.output",
             keySelector: value => $"key-{value}");
 
@@ -73,7 +74,7 @@ public class ConstrainerAtomTests
         var tcs = new TaskCompletionSource<SignalEvent<int>>(TaskCreationOptions.RunContinuationsAsynchronously);
         typed.TypedSignalRaised += evt => tcs.TrySetResult(evt);
 
-        await using var atom = new ConstrainerAtom<int, int>(typed, Handler, emitOutputSignals: false);
+        await using var atom = new ConstrainerAtom<int, int>(typed, Handler, maxBodyDuration: TimeSpan.FromSeconds(30), emitOutputSignals: false);
         await atom.RunAsync(1);
 
         await Task.Delay(100);

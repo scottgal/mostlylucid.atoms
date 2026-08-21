@@ -675,7 +675,7 @@ public class SignalBenchmarks
             if (Interlocked.Increment(ref processedCount) == targetCount)
                 tcs.TrySetResult(true);
             await Task.CompletedTask;
-        }, new EphemeralOptions
+        }, TimeSpan.FromSeconds(30), new EphemeralOptions
         {
             MaxConcurrency = 16,
             MaxTrackedOperations = 100000
@@ -705,6 +705,7 @@ public class SignalBenchmarks
                     tcs.TrySetResult(true);
                 await Task.CompletedTask;
             },
+            TimeSpan.FromSeconds(30),
             new EphemeralOptions
             {
                 MaxConcurrency = 16,
@@ -772,7 +773,7 @@ public class SignalBenchmarks
             if (Interlocked.Increment(ref completedCount) == targetCount)
                 tcs.TrySetResult(true);
             return $"result.{item}";
-        }, new EphemeralOptions
+        }, TimeSpan.FromSeconds(30), new EphemeralOptions
         {
             MaxConcurrency = 16,
             MaxTrackedOperations = 50000
@@ -963,6 +964,7 @@ public class DynamicWorkflowBenchmarks
                     }
                 }
             },
+            TimeSpan.FromSeconds(30),
             new EphemeralOptions { MaxConcurrency = 4, Signals = _globalSink }
         );
 
@@ -979,6 +981,7 @@ public class DynamicWorkflowBenchmarks
                 else
                     _globalSink.Raise($"processing.failed:pri2:{widgetId}");
             },
+            TimeSpan.FromSeconds(30),
             new EphemeralOptions { MaxConcurrency = 4, Signals = _globalSink }
         );
 
@@ -994,6 +997,7 @@ public class DynamicWorkflowBenchmarks
                 else
                     await _processor2.EnqueueAsync(widgetId);
             },
+            TimeSpan.FromSeconds(30),
             new EphemeralOptions { MaxConcurrency = 16, Signals = _globalSink }
         );
 

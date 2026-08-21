@@ -14,7 +14,8 @@ public static class PinnedJobExamples
         var signals = new SignalSink();
         var errorHandler = new ErrorMonitorJob(e => Console.WriteLine($"Error: {e.Signal}"));
 
-        await using var runner = new EphemeralSignalJobRunner(signals, new object[] { errorHandler });
+        await using var runner = new EphemeralSignalJobRunner(signals, new object[] { errorHandler },
+            TimeSpan.FromMinutes(5));
 
         // Start the monitor (pinned, runs forever)
         signals.Raise("monitor.start");

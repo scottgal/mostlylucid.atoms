@@ -57,11 +57,18 @@ public sealed class EphemeralScopedJobRunner : IAsyncDisposable
     /// <param name="serviceProvider">Root service provider for creating scopes</param>
     /// <param name="signals">Signal sink for job triggers</param>
     /// <param name="jobTypes">Types decorated with [EphemeralJobs] and [EphemeralJob]</param>
+    /// <param name="maxJobDuration">
+    ///     Required, no default: coordinator-level backstop duration. Distinct from and coarser
+    ///     than each job's own <c>[EphemeralJob(TimeoutMs = ...)]</c> attribute timeout, which
+    ///     defaults to no timeout at all — this bound exists so a job that never sets TimeoutMs
+    ///     still cannot hold the shared coordinator's concurrency slot forever.
+    /// </param>
     /// <param name="options">Coordinator options</param>
     public EphemeralScopedJobRunner(
         IServiceProvider serviceProvider,
         SignalSink signals,
         IEnumerable<Type> jobTypes,
+        TimeSpan maxJobDuration,
         EphemeralOptions? options = null)
     {
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
@@ -72,7 +79,7 @@ public sealed class EphemeralScopedJobRunner : IAsyncDisposable
             throw new ArgumentException("No attributed jobs were discovered.", nameof(jobTypes));
 
         InitializeGates();
-        InitializeCoordinator(options);
+        InitializeCoordinator(options, maxJobDuration);
 
         _subscription = _signals.Subscribe(OnSignal);
     }
@@ -84,8 +91,9 @@ public sealed class EphemeralScopedJobRunner : IAsyncDisposable
         IServiceProvider serviceProvider,
         SignalSink signals,
         IEnumerable<Assembly> assemblies,
+        TimeSpan maxJobDuration,
         EphemeralOptions? options = null)
-        : this(serviceProvider, signals, ScanAssembliesForJobTypes(assemblies), options)
+        : this(serviceProvider, signals, ScanAssembliesForJobTypes(assemblies), maxJobDuration, options)
     {
     }
 
@@ -210,7 +218,7 @@ public sealed class EphemeralScopedJobRunner : IAsyncDisposable
         }
     }
 
-    private void InitializeCoordinator(EphemeralOptions? options)
+    private void InitializeCoordinator(EphemeralOptions? options, TimeSpan maxJobDuration)
     {
         var opts = options ?? new EphemeralOptions();
         opts = new EphemeralOptions
@@ -229,6 +237,7 @@ public sealed class EphemeralScopedJobRunner : IAsyncDisposable
         _coordinator = new EphemeralKeyedWorkCoordinator<ScopedJobInvocation, string>(
             work => $"{work.Descriptor.Lane}:{work.Descriptor.ExtractKey(work.Signal) ?? "default"}",
             async (work, ct) => await ExecuteJobInScopeAsync(work, ct).ConfigureAwait(false),
+            maxJobDuration,
             opts);
     }
 

@@ -26,9 +26,14 @@ public sealed class SignalWaveExecutor : IAsyncDisposable
     private bool _started;
     private IDisposable? _subscription;
 
+    /// <param name="maxStageDuration">
+    ///     Required, no default: stage <see cref="SignalStage.Work" /> is arbitrary caller-supplied
+    ///     work, so the same "one bad item cannot destroy this coordinator" invariant applies here.
+    /// </param>
     public SignalWaveExecutor(
         SignalSink sink,
         IEnumerable<SignalStage> stages,
+        TimeSpan maxStageDuration,
         IReadOnlyCollection<string>? earlyExitSignals = null,
         int maxConcurrentStages = 4)
     {
@@ -37,6 +42,7 @@ public sealed class SignalWaveExecutor : IAsyncDisposable
         _earlyExitPatterns = earlyExitSignals ?? Array.Empty<string>();
         _coordinator = new EphemeralWorkCoordinator<SignalStageInvocation>(
             async (invocation, ct) => await ExecuteStageAsync(invocation, ct),
+            maxStageDuration,
             new EphemeralOptions { MaxConcurrency = maxConcurrentStages, Signals = sink });
     }
 

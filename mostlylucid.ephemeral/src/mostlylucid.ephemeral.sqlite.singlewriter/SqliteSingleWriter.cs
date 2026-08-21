@@ -57,6 +57,9 @@ public sealed class SqliteSingleWriter : IAsyncDisposable
         // Single-writer pattern: MaxConcurrency=1 ensures serialized writes
         _writeCoordinator = new EphemeralWorkCoordinator<WriteCommand>(
             async (cmd, ct) => await ExecuteWriteInternalAsync(cmd, ct),
+            // Reuses the existing, already caller-configurable command timeout rather than
+            // introducing a second, competing duration knob.
+            TimeSpan.FromSeconds(_options.DefaultCommandTimeoutSeconds),
             new EphemeralOptions
             {
                 MaxConcurrency = 1,
