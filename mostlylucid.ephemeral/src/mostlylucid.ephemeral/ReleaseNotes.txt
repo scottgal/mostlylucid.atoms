@@ -1,3 +1,15 @@
+v3.0.0
+BREAKING: maxBodyDuration is now a required constructor parameter on every coordinator
+  (EphemeralWorkCoordinator, EphemeralKeyedWorkCoordinator, EphemeralResultCoordinator,
+  PriorityWorkCoordinator/PriorityKeyedWorkCoordinator). A body whose Task never resolves
+  previously held its concurrency slot forever, silently -- confirmed as the cause of a real
+  ~20-hour production wedge. No default is provided on purpose; see BREAKING_CHANGES_3.0.md
+  for migration guidance, including a positional-argument hazard worth reading first.
+NEW: BodyDurationGuard bounds body execution via Task.WaitAsync against an injectable
+  TimeProvider. Trips loudly: signal "coordinator.body.timeout", typed
+  BodyDurationExceededException, freed concurrency slot.
+FIXED: Polly PackageReference removed from Mostlylucid.Notify (licensing; was unused).
+
 v2.0.0
 BREAKING: SignalRaised event removed - use Subscribe() instead
 BREAKING: .NET 6.0/7.0 removed - minimum is .NET 8.0

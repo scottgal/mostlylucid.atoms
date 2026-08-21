@@ -1,3 +1,13 @@
+v3.0.0
+- BREAKING: maxBodyDuration is now a required constructor parameter across every coordinator
+  and every atom/pattern built on them in this bundle. See BREAKING_CHANGES_3.0.md at the repo
+  root for full migration guidance, including a positional-argument hazard worth reading before
+  patching call sites.
+- NEW: BackoffStrategies (Constant/Linear/Exponential/ExponentialWithJitter) for RetryAtom.
+- NEW: RetryAtom now actually emits signals and composes with SignalBasedCircuitBreaker.
+- FIXED: SignalAwareAtom's cancel-on-signal check now sees the live shared SignalSink, not just
+  manually-seeded signals. Polly removed from Mostlylucid.Notify (licensing).
+
 v1.0.0
 - Initial release
 - Complete bundle of all Mostlylucid.Ephemeral packages

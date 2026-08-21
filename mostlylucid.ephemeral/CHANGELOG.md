@@ -5,6 +5,53 @@ All notable changes to Mostlylucid.Ephemeral will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-08-21
+
+### Breaking Changes
+
+- **`maxBodyDuration` is now a required constructor parameter** across every coordinator
+  (`EphemeralWorkCoordinator`, `EphemeralKeyedWorkCoordinator`, `EphemeralResultCoordinator`,
+  `PriorityWorkCoordinator`/`PriorityKeyedWorkCoordinator`) and every atom/pattern built on them
+  (~40 call sites across the family, including the full taxonomy atom set).
+  - Rationale: a body whose `Task` never resolves previously held its concurrency slot forever —
+    silently, permanently. No exception, no log, just a coordinator that stops draining. Confirmed as
+    the cause of a real ~20-hour production wedge.
+  - Not optional-with-a-default: an unbounded default reproduces the defect for anyone who doesn't
+    opt in; a "safe" baked-in default silently changes behavior for every existing caller on upgrade.
+  - See [BREAKING_CHANGES_3.0.md](BREAKING_CHANGES_3.0.md) for the full migration guide, including a
+    **positional-argument hazard** worth reading before you patch call sites — adding a bare
+    positional `TimeSpan` next to existing `TimeSpan` parameters can silently bind to the wrong one.
+
+### Added
+- **`BodyDurationGuard`**: the shared, zero-allocation bounded-execution mechanism behind the above.
+  Trips loudly — signal `"coordinator.body.timeout"`, a typed `BodyDurationExceededException`, and a
+  freed concurrency slot — never silently.
+- **`BackoffStrategies`** (`Mostlylucid.Ephemeral.Atoms.Retry`): named, reusable backoff functions —
+  `Constant`, `Linear`, `Exponential`, `ExponentialWithJitter` — replacing the previous baked-in
+  `50ms * attempt` default in `RetryAtom`.
+- **`RetryAtom` signal emission**: now actually raises `AttemptFailedSignal`, `ExhaustedSignal`, and
+  `SucceededAfterRetrySignal` onto its `SignalSink` — previously accepted but never used.
+- **`RetryAtom` circuit breaker composition**: optional `SignalBasedCircuitBreaker` gates
+  `EnqueueAsync`, throwing `CircuitOpenException` while open.
+- **`SignalBasedCircuitBreaker` `SignalSink`-based overloads**: `IsOpen`, `IsOpenMatching`,
+  `GetFailureCount`, `GetTimeUntilClose` now also accept a raw `SignalSink`, not just a coordinator —
+  needed because atoms like `RetryAtom` have no access to the `EphemeralOperation` object and can only
+  raise signals on the sink directly.
+
+### Fixed
+- **`SignalAwareAtom.EnqueueAsync`**: previously only checked a locally-seeded ambient signal set
+  (via manual `Raise()`), never the live shared `SignalSink` — a real cancel-on signal raised the
+  normal way never blocked intake here. Now checks both.
+- **Polly removed** from `Mostlylucid.Notify` (licensing). Was an unused `PackageReference` — zero
+  `using Polly` anywhere in the codebase — so no code-level impact.
+
+### Testing
+- New coverage for `BodyDurationGuard` (hung-body trip across all three base coordinators),
+  `RetryAtom` (signal emission, backoff math, breaker gating), and `SignalAwareAtom` (the sink-fix
+  above) — `RetryAtom`, `SignalAwareAtom`, and `SignalBasedCircuitBreaker` had no test coverage at all
+  before this release despite being published packages.
+- Full solution: 300+ tests, 0 failures, across all three target frameworks (net8/9/10).
+
 ## [2.9.1] - 2026-07-09
 
 Additive, non-breaking. One new optional hook on `SlidingCacheAtom`.
