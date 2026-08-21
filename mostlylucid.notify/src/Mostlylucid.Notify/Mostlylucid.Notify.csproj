@@ -10,7 +10,7 @@
         <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
 
         <PackageId>Mostlylucid.Notify</PackageId>
-        <Version>0.1.1</Version>
+        <Version>0.1.2</Version>
         <Authors>Scott Galloway</Authors>
         <Description>Multi-channel notification library. v0.1 ships email + outbox; future channels (Slack, Discord, SMS, webhook) drop in behind the same INotificationSender interface. AOT-safe core.</Description>
         <PackageTags>notify;notification;email;smtp;outbox;razor;aot</PackageTags>
