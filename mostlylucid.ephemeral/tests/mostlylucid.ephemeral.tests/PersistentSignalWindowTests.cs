@@ -130,10 +130,16 @@ public class PersistentSignalWindowTests : IAsyncLifetime
         var userSignalCount = window.Sense(s => s.Signal.StartsWith("stat.")).Count;
         Assert.Equal(2, userSignalCount);
 
-        // Wait for flush
-        await Task.Delay(200);
-
+        // Poll for the background flush to complete instead of a fixed delay, which
+        // races the flush timer and flakes intermittently under CI load.
         var stats = window.GetStats();
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (stats.LastFlushedId == 0 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(25);
+            stats = window.GetStats();
+        }
+
         // LastFlushedId is a hash-based ID, can be negative, just verify it's been set
         Assert.NotEqual(0, stats.LastFlushedId);
     }
